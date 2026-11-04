@@ -19,7 +19,8 @@
 | `06-draft-dual-write.md` | 草稿：服务端 + localStorage 双写、接口、冲突处理、验收 | 已定稿 |
 | `07-page-drafts.md` | 8 个关键页面的草稿设计（线框级，无视觉风格） | 草稿 |
 | `08-interaction-map.md` | 页面交互地图、跳转关系、数据流 | 草稿 |
-| `drafts/interaction-map.html` | 可本地打开的页面地图（页面框 + 连线 + 数据流） | 草稿 |
+| `drafts/prototype.html` | 可本地打开的页面原型（8 页线框，点击总览卡片查看详情） | 草稿 |
+| `drafts/interaction-map.html` | 可本地打开的页面地图（页面框 + 连线 + 数据流；点击页面框打开原型） | 草稿 |
 
 ## 设计阶段时间盒（11.4–11.7）
 

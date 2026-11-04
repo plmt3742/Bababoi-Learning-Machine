@@ -2,7 +2,7 @@
 
 > owner: 霹雳马桶 · last_updated: 2026-11-05 · read_when: 前端页面设计、交互地图、组件拆分前
 > 说明：**只做结构规划，不做视觉风格**。以下线框为单色、区块级，不代表最终颜色、字体、间距、品牌。
-> 关联：`02-ia-and-flows.md`、`03-page-specs.md`、`05-architecture.md`、`08-interaction-map.md`。
+> 关联：`02-ia-and-flows.md`、`03-page-specs.md`、`05-architecture.md`、`08-interaction-map.md`、`drafts/prototype.html`（可点击页面原型）。
 
 ## 0. 全局约定
 

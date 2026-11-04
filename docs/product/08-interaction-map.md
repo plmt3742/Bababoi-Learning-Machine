@@ -1,7 +1,7 @@
 # 08 · 页面交互地图与数据流
 
 > owner: 霹雳马桶 · last_updated: 2026-11-05 · read_when: 前端路由、页面联调、交互评审前
-> 配套：`07-page-drafts.md`（线框）、`drafts/interaction-map.html`（可打开的页面地图）。
+> 配套：`07-page-drafts.md`（线框）、`drafts/prototype.html`（可点击的页面原型）、`drafts/interaction-map.html`（可打开的页面地图，点击页面框可打开原型）。
 > 说明：本文只描述**页面/状态/数据流**，不含视觉风格。
 
 ## 1. 地图总览

@@ -120,6 +120,9 @@
   }
   .page[data-p="P1"] { border-style: dashed; }
   .page[data-p="辅助"] { border-style: dotted; background: #fafafa; }
+  .page.clickable { cursor: pointer; }
+  .page.clickable:hover { outline: 2px solid #666; outline-offset: 2px; }
+  .page.clickable .page-id::after { content: " ↗"; font-size: 9px; color: #666; }
   .page-top {
     display: flex;
     align-items: center;
@@ -261,8 +264,8 @@
 <header>
   <h1>草稿交互地图 · 仅结构，不含视觉风格</h1>
   <p class="sub">
-    页面框、跳转线、数据流与状态；对应文档：
-    <code>docs/product/07-page-drafts.md</code>、
+    页面框、跳转线、数据流与状态；点击页面框可打开对应页面原型。
+    对应文档：<code>docs/product/07-page-drafts.md</code>、
     <code>docs/product/08-interaction-map.md</code>。
     返回/侧边栏等全局导航未全部画线，完整跳转见 08 文档。
   </p>
@@ -350,49 +353,49 @@
 <script>
 const pages = [
   {
-    id: "AUTH-01", title: "登录/注册", route: "/login", p: "P0",
+    id: "AUTH-01", title: "登录/注册", route: "/login", p: "P0", proto: "auth",
     x: 40, y: 110, w: 230, h: 210,
     in: "redirect / 空表单", out: "JWT + user",
     states: "idle / submitting / error / success"
   },
   {
-    id: "HOME-01", title: "首页", route: "/", p: "P0",
+    id: "HOME-01", title: "首页", route: "/", p: "P0", proto: "home",
     x: 470, y: 110, w: 270, h: 210,
     in: "user / 最近错题 / 任务", out: "入口选择",
     states: "loading / empty / partial / error"
   },
   {
-    id: "QLIST-01", title: "错题列表", route: "/questions", p: "P0",
+    id: "QLIST-01", title: "错题列表", route: "/questions", p: "P0", proto: "qlist",
     x: 890, y: 110, w: 270, h: 210,
     in: "filters / page", out: "question_id / 删除",
     states: "empty / filter-empty / error"
   },
   {
-    id: "QEDIT-01", title: "录入/编辑", route: "/questions/new", p: "P0",
+    id: "QEDIT-01", title: "录入/编辑", route: "/questions/new", p: "P0", proto: "qedit",
     x: 400, y: 510, w: 380, h: 250,
     in: "draft / image / question", out: "question + task_id / draft",
     states: "draft / detecting / confirming / vision / editing / saving / saved / error"
   },
   {
-    id: "TASK-01", title: "任务中心", route: "/tasks", p: "P0",
+    id: "TASK-01", title: "任务中心", route: "/tasks", p: "P0", proto: "task",
     x: 950, y: 510, w: 300, h: 250,
     in: "tasks / draft", out: "retry / question_id / draft",
     states: "queued / running / done / failed"
   },
   {
-    id: "QDETAIL-01", title: "错题详情/生成", route: "/questions/:id", p: "P0",
+    id: "QDETAIL-01", title: "错题详情/生成", route: "/questions/:id", p: "P0", proto: "qdetail",
     x: 920, y: 880, w: 300, h: 210,
     in: "question / analysis / generated", out: "analysis / regenerate / practice",
     states: "loading / pending / generated / partial / error"
   },
   {
-    id: "PRACTICE-01", title: "练习", route: "/practice/:id?", p: "P0",
+    id: "PRACTICE-01", title: "练习", route: "/practice/:id?", p: "P0", proto: "practice",
     x: 1340, y: 880, w: 300, h: 210,
     in: "generated_questions", out: "practice_records",
     states: "unanswered / answered / revealed / submit failed"
   },
   {
-    id: "STATS-01", title: "统计/概览", route: "/stats", p: "P1",
+    id: "STATS-01", title: "统计/概览", route: "/stats", p: "P1", proto: "stats",
     x: 470, y: 880, w: 300, h: 210,
     in: "overview / weak-points / trends", out: "tag filter → list",
     states: "loading / empty / error"
@@ -473,6 +476,20 @@ pages.forEach(page => {
     </div>
     <div class="states">${page.states}</div>
   `;
+  if (page.proto) {
+    el.classList.add("clickable");
+    el.tabIndex = 0;
+    el.setAttribute("role", "link");
+    el.title = "打开页面原型：" + page.title;
+    const openPrototype = () => { location.href = "prototype.html#" + page.proto; };
+    el.addEventListener("click", openPrototype);
+    el.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openPrototype();
+      }
+    });
+  }
   boxes.appendChild(el);
 });
 
