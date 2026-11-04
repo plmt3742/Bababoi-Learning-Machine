@@ -60,6 +60,18 @@
     color: var(--ink-2);
   }
   .legend-item { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .mode-switch { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .mode-btn {
+    font: inherit;
+    font-size: 11px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    padding: 3px 8px;
+    cursor: pointer;
+  }
+  .mode-btn.active { background: var(--ink); color: var(--paper); }
+  body:not(.show-all) .secondary { display: none !important; }
   .swatch { width: 34px; height: 0; border-top: 2px solid var(--ink); display: inline-block; }
   .swatch.main { border-top-width: 4px; }
   .swatch.async { border-top-style: dashed; }
@@ -122,7 +134,6 @@
   .page[data-p="辅助"] { border-style: dotted; background: #fafafa; }
   .page.clickable { cursor: pointer; }
   .page.clickable:hover { outline: 2px solid #666; outline-offset: 2px; }
-  .page.clickable .page-id::after { content: " ↗"; font-size: 9px; color: #666; }
   .page-top {
     display: flex;
     align-items: center;
@@ -265,9 +276,9 @@
   <h1>草稿交互地图 · 仅结构，不含视觉风格</h1>
   <p class="sub">
     页面框、跳转线、数据流与状态；点击页面框可打开对应页面原型。
+    默认只显示 P0 主闭环，点“全部关系”查看错题列表、统计、草稿、失败重试等辅助关系。
     对应文档：<code>docs/product/07-page-drafts.md</code>、
     <code>docs/product/08-interaction-map.md</code>。
-    返回/侧边栏等全局导航未全部画线，完整跳转见 08 文档。
   </p>
 </header>
 
@@ -278,6 +289,11 @@
   <span class="legend-item"><span class="swatch draft"></span>点线：草稿 / 本地存储</span>
   <span class="legend-item"><span class="swatch p1"></span>灰虚线：P1</span>
   <span class="legend-item">P0 / P1 / 辅助：页面优先级</span>
+  <span class="mode-switch">
+    视图：
+    <button class="mode-btn active" data-mode="main">主闭环</button>
+    <button class="mode-btn" data-mode="all">全部关系</button>
+  </span>
 </div>
 
 <div class="map-scroll">
@@ -365,7 +381,7 @@ const pages = [
     states: "loading / empty / partial / error"
   },
   {
-    id: "QLIST-01", title: "错题列表", route: "/questions", p: "P0", proto: "qlist",
+    id: "QLIST-01", title: "错题列表", route: "/questions", p: "P0", proto: "qlist", secondary: true,
     x: 890, y: 110, w: 270, h: 210,
     in: "filters / page", out: "question_id / 删除",
     states: "empty / filter-empty / error"
@@ -395,13 +411,13 @@ const pages = [
     states: "unanswered / answered / revealed / submit failed"
   },
   {
-    id: "STATS-01", title: "统计/概览", route: "/stats", p: "P1", proto: "stats",
+    id: "STATS-01", title: "统计/概览", route: "/stats", p: "P1", proto: "stats", secondary: true,
     x: 470, y: 880, w: 300, h: 210,
     in: "overview / weak-points / trends", out: "tag filter → list",
     states: "loading / empty / error"
   },
   {
-    id: "DRAFT-01", title: "草稿存储", route: "localStorage + /drafts/me", p: "辅助",
+    id: "DRAFT-01", title: "草稿存储", route: "localStorage + /drafts/me", p: "辅助", secondary: true,
     x: 40, y: 540, w: 240, h: 190,
     in: "content", out: "content",
     states: "synced / pending_sync / conflict"
@@ -410,19 +426,19 @@ const pages = [
 
 const links = [
   { from: "AUTH-01", to: "HOME-01", points: [[270,215],[470,215]], kind: "main", label: "登录成功 → JWT + user", lx: 370, ly: 188 },
-  { from: "HOME-01", to: "QLIST-01", points: [[740,215],[890,215]], kind: "nav", label: "查看全部 → 筛选/分页", lx: 815, ly: 188 },
+  { from: "HOME-01", to: "QLIST-01", points: [[740,215],[890,215]], kind: "nav", secondary: true, label: "查看全部 → 筛选/分页", lx: 815, ly: 188 },
   { from: "HOME-01", to: "QEDIT-01", points: [[605,320],[605,510]], kind: "main", label: "新建 → 空白草稿", lx: 620, ly: 410, anchor: "start" },
-  { from: "QLIST-01", to: "QEDIT-01", points: [[1025,320],[1025,450],[700,450],[700,510]], kind: "nav", label: "新建/编辑 → question_id", lx: 860, ly: 435 },
-  { from: "QLIST-01", to: "QDETAIL-01", points: [[1160,215],[1300,215],[1300,985],[1220,985]], kind: "nav", label: "打开错题\n→ question_id", lx: 1312, ly: 560, anchor: "start" },
+  { from: "QLIST-01", to: "QEDIT-01", points: [[1025,320],[1025,450],[700,450],[700,510]], kind: "nav", secondary: true, label: "新建/编辑 → question_id", lx: 860, ly: 435 },
+  { from: "QLIST-01", to: "QDETAIL-01", points: [[1160,215],[1300,215],[1300,985],[1220,985]], kind: "nav", secondary: true, label: "打开错题\n→ question_id", lx: 1312, ly: 560, anchor: "start" },
   { from: "HOME-01", to: "TASK-01", points: [[605,110],[605,55],[1240,55],[1240,510]], kind: "nav", label: "任务中心入口 → /tasks", lx: 900, ly: 40 },
-  { from: "QEDIT-01", to: "DRAFT-01", points: [[400,635],[280,635]], kind: "draft", label: "草稿 content\n↔ /drafts/me", lx: 340, ly: 600, double: true },
+  { from: "QEDIT-01", to: "DRAFT-01", points: [[400,635],[280,635]], kind: "draft", secondary: true, label: "草稿 content\n↔ /drafts/me", lx: 340, ly: 600, double: true },
   { from: "QEDIT-01", to: "TASK-01", points: [[780,680],[950,680]], kind: "main", label: "保存 → question\n+ task_id", lx: 865, ly: 645 },
-  { from: "TASK-01", to: "QEDIT-01", points: [[950,580],[780,580]], kind: "draft", label: "草稿行 → 继续编辑", lx: 865, ly: 555 },
+  { from: "TASK-01", to: "QEDIT-01", points: [[950,580],[780,580]], kind: "draft", secondary: true, label: "草稿行 → 继续编辑", lx: 865, ly: 555 },
   { from: "TASK-01", to: "QDETAIL-01", points: [[1100,760],[1100,880]], kind: "async", label: "任务完成\n→ generated_questions", lx: 1115, ly: 810, anchor: "start" },
   { from: "QDETAIL-01", to: "PRACTICE-01", points: [[1220,985],[1340,985]], kind: "main", label: "去练习\n→ generated_question_ids", lx: 1280, ly: 855 },
   { from: "PRACTICE-01", to: "HOME-01", points: [[1490,880],[1490,360],[605,360],[605,320]], kind: "main", label: "练习完成\n→ practice_records 摘要", lx: 1000, ly: 344 },
-  { from: "HOME-01", to: "STATS-01", points: [[605,320],[330,320],[330,985],[470,985]], kind: "p1", label: "P1 概览 → /stats", lx: 345, ly: 780, anchor: "start" },
-  { from: "TASK-01", to: "TASK-01", points: [[1020,760],[1020,805],[970,805],[970,760]], kind: "async", label: "失败 → 重试", lx: 1020, ly: 825 }
+  { from: "HOME-01", to: "STATS-01", points: [[605,320],[330,320],[330,985],[470,985]], kind: "p1", secondary: true, label: "P1 概览 → /stats", lx: 345, ly: 780, anchor: "start" },
+  { from: "TASK-01", to: "TASK-01", points: [[1020,760],[1020,805],[970,805],[970,760]], kind: "async", secondary: true, label: "失败 → 重试", lx: 1020, ly: 825 }
 ];
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -457,7 +473,7 @@ function pathD(points) {
 
 pages.forEach(page => {
   const el = document.createElement("div");
-  el.className = "page";
+  el.className = "page" + (page.secondary ? " secondary" : "");
   el.dataset.p = page.p;
   el.style.left = page.x + "px";
   el.style.top = page.y + "px";
@@ -496,24 +512,35 @@ pages.forEach(page => {
 links.forEach(link => {
   const d = pathD(link.points);
   const underlay = makeSvg("path", {
-    d, class: `link-underlay ${link.kind === "main" ? "main" : ""}`
+    d,
+    class: `link-underlay ${link.kind === "main" ? "main" : ""} ${link.secondary ? "secondary" : ""}`
   });
   svg.appendChild(underlay);
 
   const path = makeSvg("path", {
     d,
-    class: `link ${link.kind}`,
+    class: `link ${link.kind} ${link.secondary ? "secondary" : ""}`,
     "marker-end": link.kind === "p1" ? "url(#arrow-muted)" : "url(#arrow)"
   });
   if (link.double) path.setAttribute("marker-start", link.kind === "p1" ? "url(#arrow-muted)" : "url(#arrow)");
   svg.appendChild(path);
 
   const label = document.createElement("div");
-  label.className = `edge-label ${link.kind} ${link.anchor === "start" ? "start" : ""}`;
+  label.className = `edge-label ${link.kind} ${link.anchor === "start" ? "start" : ""} ${link.secondary ? "secondary" : ""}`;
   label.style.left = link.lx + "px";
   label.style.top = link.ly + "px";
   label.textContent = link.label;
   labels.appendChild(label);
+});
+
+document.querySelectorAll(".mode-btn").forEach(button => {
+  button.addEventListener("click", () => {
+    const showAll = button.dataset.mode === "all";
+    document.body.classList.toggle("show-all", showAll);
+    document.querySelectorAll(".mode-btn").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+  });
 });
 </script>
 </body>
