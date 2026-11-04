@@ -53,6 +53,9 @@
 | [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单模板 | 模板 |
 | [product/05-ue-spec.md](product/05-ue-spec.md) | UE 稿/交互地图规范与模板 | 模板 |
 | [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
+| [product/07-page-drafts.md](product/07-page-drafts.md) | 8 个关键页面的草稿设计（线框级） | 草稿 |
+| [product/08-interaction-map.md](product/08-interaction-map.md) | 页面交互地图、跳转关系、数据流 | 草稿 |
+| [product/drafts/interaction-map.html](product/drafts/interaction-map.html) | 可本地打开的页面地图（HTML） | 草稿 |
 
 ### 架构决策
 

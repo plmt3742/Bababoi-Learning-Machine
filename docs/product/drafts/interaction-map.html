@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>草稿交互地图 · Bababoi Learning Machine</title>
+<style>
+  :root {
+    --ink: #111;
+    --ink-2: #333;
+    --ink-3: #666;
+    --paper: #fff;
+    --panel: #f7f7f7;
+    --border: #111;
+    --line: #7a7a7a;
+    --muted-line: #b5b5b5;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+    --sans: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+  header {
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid #ddd;
+    max-width: 1440px;
+  }
+  h1 {
+    font-size: 20px;
+    line-height: 1.3;
+    margin: 0 0 6px;
+    letter-spacing: 0.02em;
+  }
+  .sub {
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.6;
+    margin: 0;
+  }
+  .sub code {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--panel);
+    padding: 1px 4px;
+    border: 1px solid #e3e3e3;
+  }
+  .legend {
+    max-width: 1440px;
+    padding: 12px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    border-bottom: 1px solid #e5e5e5;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .legend-item { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .swatch { width: 34px; height: 0; border-top: 2px solid var(--ink); display: inline-block; }
+  .swatch.main { border-top-width: 4px; }
+  .swatch.async { border-top-style: dashed; }
+  .swatch.draft { border-top-style: dotted; border-top-width: 3px; }
+  .swatch.p1 { border-top-style: dashed; border-top-color: var(--muted-line); }
+  .map-scroll {
+    overflow-x: auto;
+    border-bottom: 1px solid #ddd;
+    background: var(--paper);
+  }
+  #map {
+    position: relative;
+    width: 1700px;
+    height: 1160px;
+    margin: 0 auto;
+  }
+  #links {
+    position: absolute;
+    inset: 0;
+    width: 1700px;
+    height: 1160px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .link-underlay {
+    fill: none;
+    stroke: var(--paper);
+    stroke-width: 7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .link-underlay.main { stroke-width: 10; }
+  .link {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .link.main { stroke-width: 4; }
+  .link.async { stroke-dasharray: 6 4; }
+  .link.draft { stroke-dasharray: 2 3; stroke-linecap: round; }
+  .link.p1 { stroke-dasharray: 8 3 2 3; stroke: var(--muted-line); }
+  .page {
+    position: absolute;
+    z-index: 2;
+    background: var(--paper);
+    border: 2px solid var(--border);
+    border-radius: 2px;
+    padding: 9px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.38;
+    color: var(--ink-2);
+  }
+  .page[data-p="P1"] { border-style: dashed; }
+  .page[data-p="辅助"] { border-style: dotted; background: #fafafa; }
+  .page-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .page-id {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+  .badge {
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    padding: 0 4px;
+    font-size: 9.5px;
+    line-height: 1.5;
+    font-family: var(--mono);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .page[data-p="P1"] .badge { border-style: dashed; }
+  .page[data-p="辅助"] .badge { border-style: dotted; }
+  .title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+    margin-top: 1px;
+  }
+  .route {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #555;
+    word-break: break-all;
+    border-bottom: 1px solid #e1e1e1;
+    padding-bottom: 3px;
+    margin-bottom: 1px;
+  }
+  .meta { display: grid; gap: 2px; }
+  .meta div { overflow-wrap: anywhere; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .states {
+    margin-top: auto;
+    padding-top: 4px;
+    border-top: 1px dashed #c9c9c9;
+    color: #555;
+    font-size: 10px;
+    font-family: var(--mono);
+    line-height: 1.38;
+  }
+  .edge-label {
+    position: absolute;
+    z-index: 3;
+    background: var(--paper);
+    border: 1px solid #d7d7d7;
+    padding: 2px 5px;
+    font-size: 10.5px;
+    line-height: 1.3;
+    color: var(--ink-2);
+    white-space: pre-line;
+    max-width: 190px;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 2px var(--paper);
+  }
+  .edge-label.start { transform: translate(0, -50%); }
+  .edge-label.main { font-weight: 600; color: var(--ink); border-color: #bdbdbd; }
+  .edge-label.p1 { border-style: dashed; font-style: italic; color: var(--ink-3); }
+  .edge-label.draft { border-style: dotted; }
+  .edge-label.async { border-style: dashed; }
+  .panel {
+    max-width: 1440px;
+    padding: 22px 24px 40px;
+  }
+  .panel h2 {
+    font-size: 15px;
+    margin: 0 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .panel h3 {
+    font-size: 13px;
+    margin: 22px 0 7px;
+  }
+  .panel p, .panel li {
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--ink-2);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    margin-top: 8px;
+  }
+  th, td {
+    border: 1px solid #d8d8d8;
+    padding: 6px 7px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--panel);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  td code, p code {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    background: var(--panel);
+    padding: 0 3px;
+    border: 1px solid #e5e5e5;
+  }
+  .state-strip {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 7px 12px;
+    font-size: 11.5px;
+    margin-top: 6px;
+  }
+  .state-name { font-family: var(--mono); font-weight: 700; }
+  .state-flow { color: var(--ink-2); }
+  .footer-note {
+    margin-top: 26px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  @media print {
+    .map-scroll { overflow: visible; }
+    #map { transform: scale(0.85); transform-origin: top left; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>草稿交互地图 · 仅结构，不含视觉风格</h1>
+  <p class="sub">
+    页面框、跳转线、数据流与状态；对应文档：
+    <code>docs/product/07-page-drafts.md</code>、
+    <code>docs/product/08-interaction-map.md</code>。
+    返回/侧边栏等全局导航未全部画线，完整跳转见 08 文档。
+  </p>
+</header>
+
+<div class="legend">
+  <span class="legend-item"><span class="swatch main"></span>粗实线：P0 主闭环</span>
+  <span class="legend-item"><span class="swatch"></span>实线：页面导航</span>
+  <span class="legend-item"><span class="swatch async"></span>虚线：后台任务 / 异步</span>
+  <span class="legend-item"><span class="swatch draft"></span>点线：草稿 / 本地存储</span>
+  <span class="legend-item"><span class="swatch p1"></span>灰虚线：P1</span>
+  <span class="legend-item">P0 / P1 / 辅助：页面优先级</span>
+</div>
+
+<div class="map-scroll">
+  <div id="map">
+    <svg id="links" viewBox="0 0 1700 1160" aria-hidden="true"></svg>
+    <div id="boxes"></div>
+    <div id="labels"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>页面数据流</h2>
+  <table>
+    <thead>
+      <tr><th>页面</th><th>数据流入</th><th>数据流出</th><th>主要 API</th><th>关键状态</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>AUTH-01 登录/注册</td><td>redirect、空表单</td><td>JWT、user</td><td><code>POST /auth/login</code><br><code>POST /auth/register</code></td><td>idle / submitting / error</td></tr>
+      <tr><td>HOME-01 首页</td><td>user、最近错题、最近任务</td><td>进入各页面</td><td><code>GET /questions?page=1&amp;page_size=3</code><br><code>GET /tasks</code></td><td>loading / empty / partial</td></tr>
+      <tr><td>QLIST-01 错题列表</td><td>filters、page</td><td>question_id</td><td><code>GET /questions</code><br><code>DELETE /questions/{id}</code></td><td>empty / filter-empty / error</td></tr>
+      <tr><td>QEDIT-01 录入/编辑</td><td>draft、image、question</td><td>question + task_id、draft</td><td><code>GET/PUT/DELETE /drafts/me</code><br><code>POST /questions</code><br><code>POST /questions/from-image</code></td><td>draft / detecting / confirming / vision / editing / saving / saved / error</td></tr>
+      <tr><td>TASK-01 任务中心</td><td>tasks、draft</td><td>retry、question_id、draft.content</td><td><code>GET /tasks</code><br><code>POST /tasks/{id}/retry</code></td><td>queued / running / done / failed</td></tr>
+      <tr><td>QDETAIL-01 详情/生成</td><td>question、analysis、generated</td><td>analysis、regenerate、practice</td><td><code>GET /questions/{id}</code><br><code>PATCH /questions/{id}</code><br><code>POST /generated-questions/{id}/regenerate</code></td><td>loading / pending / generated / partial / error</td></tr>
+      <tr><td>PRACTICE-01 练习</td><td>generated_questions</td><td>practice_records</td><td><code>GET /questions/{id}/generated</code><br><code>POST /practice-records</code></td><td>unanswered / answered / revealed / submit failed</td></tr>
+      <tr><td>STATS-01 统计/概览</td><td>overview、weak-points、trends</td><td>tag 筛选</td><td><code>GET /stats/overview</code><br><code>GET /stats/weak-points</code><br><code>GET /stats/trends</code></td><td>loading / empty / error</td></tr>
+    </tbody>
+  </table>
+
+  <h3>关键数据对象</h3>
+  <table>
+    <thead>
+      <tr><th>数据</th><th>产生</th><th>传递 / 存储</th><th>消费</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>access_token</code> / <code>user</code></td><td>AUTH-01</td><td>auth store；请求头 <code>Authorization: Bearer</code></td><td>所有受保护页面</td></tr>
+      <tr><td><code>draft.content</code></td><td>QEDIT-01</td><td>localStorage + <code>PUT /drafts/me</code>；<code>GET /drafts/me</code> 恢复</td><td>QEDIT-01、TASK-01 草稿行</td></tr>
+      <tr><td><code>image file</code></td><td>QEDIT-01</td><td>前端压缩 → 上传；<code>image_path</code></td><td>from-image、详情原图</td></tr>
+      <tr><td><code>candidates</code> / <code>bbox</code> / <code>crop_box</code></td><td>from-image 第一阶段</td><td>前端高亮 + 移动/缩放/重置；第二阶段回传 <code>crop_box</code></td><td>服务端裁剪、识图</td></tr>
+      <tr><td><code>content_md</code> / <code>options</code> / <code>blanks</code></td><td>QEDIT-01 保存</td><td><code>POST /questions</code> → <code>questions</code></td><td>QDETAIL-01、PRACTICE-01</td></tr>
+      <tr><td><code>question + task_id</code></td><td>QEDIT-01 保存</td><td>响应返回；任务中心查询</td><td>TASK-01、QDETAIL-01</td></tr>
+      <tr><td><code>analysis</code></td><td>后台 analysis 任务</td><td><code>questions.analysis</code>；<code>PATCH /questions/{id}</code> 可编辑</td><td>QDETAIL-01</td></tr>
+      <tr><td><code>generated_questions</code></td><td>后台 quiz 任务</td><td><code>generated_questions</code>；任务完成</td><td>QDETAIL-01、PRACTICE-01</td></tr>
+      <tr><td><code>practice_records</code></td><td>PRACTICE-01</td><td><code>POST /practice-records</code></td><td>STATS-01（P1）</td></tr>
+      <tr><td><code>stats</code></td><td>统计接口</td><td><code>GET /stats/*</code></td><td>HOME-01 / STATS-01（P1）</td></tr>
+    </tbody>
+  </table>
+
+  <h3>状态机摘要</h3>
+  <div class="state-strip">
+    <div class="state-name">QEDIT-01</div>
+    <div class="state-flow">draft → editing → detecting → confirming → vision → editing → saving → saved；任一阶段失败 → error（保留草稿）；整页/无 candidate → vision（整图识图）</div>
+    <div class="state-name">TASK-01</div>
+    <div class="state-flow">queued → running → done / failed；failed → queued（重试）；同一 question + stage 只允许一个 active task</div>
+    <div class="state-name">QDETAIL-01</div>
+    <div class="state-flow">loading → analysis_pending → generated / partial；partial → generated（重试缺失）；error → loading</div>
+    <div class="state-name">PRACTICE-01</div>
+    <div class="state-flow">unanswered → answered → revealed → result；answered → submit_failed → answered（重试）</div>
+  </div>
+
+  <h3>框题确认（P0）</h3>
+  <p>
+    图片 → AI 检测 → 有 candidate：高亮 top-1，用户确认/切换、移动/缩放 AI 框、重置整图；
+    第二阶段传 <code>candidate_index</code> + 可选 <code>crop_box</code>（归一化，传了优先）。
+    AI 判定整页 → 整页识别不框；无 candidate / grounding 不可用 → 整图识别。
+    从零画框为 P1。
+  </p>
+
+  <p class="footer-note">
+    结构稿 · 不含视觉风格 · 与 07/08 文档配套 · 2026-11-05
+  </p>
+</div>
+
+<script>
+const pages = [
+  {
+    id: "AUTH-01", title: "登录/注册", route: "/login", p: "P0",
+    x: 40, y: 110, w: 230, h: 210,
+    in: "redirect / 空表单", out: "JWT + user",
+    states: "idle / submitting / error / success"
+  },
+  {
+    id: "HOME-01", title: "首页", route: "/", p: "P0",
+    x: 470, y: 110, w: 270, h: 210,
+    in: "user / 最近错题 / 任务", out: "入口选择",
+    states: "loading / empty / partial / error"
+  },
+  {
+    id: "QLIST-01", title: "错题列表", route: "/questions", p: "P0",
+    x: 890, y: 110, w: 270, h: 210,
+    in: "filters / page", out: "question_id / 删除",
+    states: "empty / filter-empty / error"
+  },
+  {
+    id: "QEDIT-01", title: "录入/编辑", route: "/questions/new", p: "P0",
+    x: 400, y: 510, w: 380, h: 250,
+    in: "draft / image / question", out: "question + task_id / draft",
+    states: "draft / detecting / confirming / vision / editing / saving / saved / error"
+  },
+  {
+    id: "TASK-01", title: "任务中心", route: "/tasks", p: "P0",
+    x: 950, y: 510, w: 300, h: 250,
+    in: "tasks / draft", out: "retry / question_id / draft",
+    states: "queued / running / done / failed"
+  },
+  {
+    id: "QDETAIL-01", title: "错题详情/生成", route: "/questions/:id", p: "P0",
+    x: 920, y: 880, w: 300, h: 210,
+    in: "question / analysis / generated", out: "analysis / regenerate / practice",
+    states: "loading / pending / generated / partial / error"
+  },
+  {
+    id: "PRACTICE-01", title: "练习", route: "/practice/:id?", p: "P0",
+    x: 1340, y: 880, w: 300, h: 210,
+    in: "generated_questions", out: "practice_records",
+    states: "unanswered / answered / revealed / submit failed"
+  },
+  {
+    id: "STATS-01", title: "统计/概览", route: "/stats", p: "P1",
+    x: 470, y: 880, w: 300, h: 210,
+    in: "overview / weak-points / trends", out: "tag filter → list",
+    states: "loading / empty / error"
+  },
+  {
+    id: "DRAFT-01", title: "草稿存储", route: "localStorage + /drafts/me", p: "辅助",
+    x: 40, y: 540, w: 240, h: 190,
+    in: "content", out: "content",
+    states: "synced / pending_sync / conflict"
+  }
+];
+
+const links = [
+  { from: "AUTH-01", to: "HOME-01", points: [[270,215],[470,215]], kind: "main", label: "登录成功 → JWT + user", lx: 370, ly: 188 },
+  { from: "HOME-01", to: "QLIST-01", points: [[740,215],[890,215]], kind: "nav", label: "查看全部 → 筛选/分页", lx: 815, ly: 188 },
+  { from: "HOME-01", to: "QEDIT-01", points: [[605,320],[605,510]], kind: "main", label: "新建 → 空白草稿", lx: 620, ly: 410, anchor: "start" },
+  { from: "QLIST-01", to: "QEDIT-01", points: [[1025,320],[1025,450],[700,450],[700,510]], kind: "nav", label: "新建/编辑 → question_id", lx: 860, ly: 435 },
+  { from: "QLIST-01", to: "QDETAIL-01", points: [[1160,215],[1300,215],[1300,985],[1220,985]], kind: "nav", label: "打开错题\n→ question_id", lx: 1312, ly: 560, anchor: "start" },
+  { from: "HOME-01", to: "TASK-01", points: [[605,110],[605,55],[1240,55],[1240,510]], kind: "nav", label: "任务中心入口 → /tasks", lx: 900, ly: 40 },
+  { from: "QEDIT-01", to: "DRAFT-01", points: [[400,635],[280,635]], kind: "draft", label: "草稿 content\n↔ /drafts/me", lx: 340, ly: 600, double: true },
+  { from: "QEDIT-01", to: "TASK-01", points: [[780,680],[950,680]], kind: "main", label: "保存 → question\n+ task_id", lx: 865, ly: 645 },
+  { from: "TASK-01", to: "QEDIT-01", points: [[950,580],[780,580]], kind: "draft", label: "草稿行 → 继续编辑", lx: 865, ly: 555 },
+  { from: "TASK-01", to: "QDETAIL-01", points: [[1100,760],[1100,880]], kind: "async", label: "任务完成\n→ generated_questions", lx: 1115, ly: 810, anchor: "start" },
+  { from: "QDETAIL-01", to: "PRACTICE-01", points: [[1220,985],[1340,985]], kind: "main", label: "去练习\n→ generated_question_ids", lx: 1280, ly: 855 },
+  { from: "PRACTICE-01", to: "HOME-01", points: [[1490,880],[1490,360],[605,360],[605,320]], kind: "main", label: "练习完成\n→ practice_records 摘要", lx: 1000, ly: 344 },
+  { from: "HOME-01", to: "STATS-01", points: [[605,320],[330,320],[330,985],[470,985]], kind: "p1", label: "P1 概览 → /stats", lx: 345, ly: 780, anchor: "start" },
+  { from: "TASK-01", to: "TASK-01", points: [[1020,760],[1020,805],[970,805],[970,760]], kind: "async", label: "失败 → 重试", lx: 1020, ly: 825 }
+];
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("links");
+const boxes = document.getElementById("boxes");
+const labels = document.getElementById("labels");
+
+function makeSvg(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => el.setAttribute(k, String(v)));
+  return el;
+}
+
+const defs = makeSvg("defs", {});
+const marker = makeSvg("marker", {
+  id: "arrow", markerWidth: 10, markerHeight: 10, refX: 9, refY: 5,
+  orient: "auto-start-reverse", markerUnits: "userSpaceOnUse"
+});
+marker.appendChild(makeSvg("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#111" }));
+defs.appendChild(marker);
+const markerMuted = makeSvg("marker", {
+  id: "arrow-muted", markerWidth: 10, markerHeight: 10, refX: 9, refY: 5,
+  orient: "auto-start-reverse", markerUnits: "userSpaceOnUse"
+});
+markerMuted.appendChild(makeSvg("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: "#999" }));
+defs.appendChild(markerMuted);
+svg.appendChild(defs);
+
+function pathD(points) {
+  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p[0]} ${p[1]}`).join(" ");
+}
+
+pages.forEach(page => {
+  const el = document.createElement("div");
+  el.className = "page";
+  el.dataset.p = page.p;
+  el.style.left = page.x + "px";
+  el.style.top = page.y + "px";
+  el.style.width = page.w + "px";
+  el.style.height = page.h + "px";
+  el.innerHTML = `
+    <div class="page-top">
+      <span class="page-id">${page.id}</span>
+      <span class="badge">${page.p}</span>
+    </div>
+    <div class="title">${page.title}</div>
+    <div class="route">${page.route}</div>
+    <div class="meta">
+      <div><b>入：</b>${page.in}</div>
+      <div><b>出：</b>${page.out}</div>
+    </div>
+    <div class="states">${page.states}</div>
+  `;
+  boxes.appendChild(el);
+});
+
+links.forEach(link => {
+  const d = pathD(link.points);
+  const underlay = makeSvg("path", {
+    d, class: `link-underlay ${link.kind === "main" ? "main" : ""}`
+  });
+  svg.appendChild(underlay);
+
+  const path = makeSvg("path", {
+    d,
+    class: `link ${link.kind}`,
+    "marker-end": link.kind === "p1" ? "url(#arrow-muted)" : "url(#arrow)"
+  });
+  if (link.double) path.setAttribute("marker-start", link.kind === "p1" ? "url(#arrow-muted)" : "url(#arrow)");
+  svg.appendChild(path);
+
+  const label = document.createElement("div");
+  label.className = `edge-label ${link.kind} ${link.anchor === "start" ? "start" : ""}`;
+  label.style.left = link.lx + "px";
+  label.style.top = link.ly + "px";
+  label.textContent = link.label;
+  labels.appendChild(label);
+});
+</script>
+</body>
+</html>
