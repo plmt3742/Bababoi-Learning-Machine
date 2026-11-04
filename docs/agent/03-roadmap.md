@@ -148,7 +148,7 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 | 关键决策 | DONE | 大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归周彧良 |
 | 产品设计 | TODO | 需要填 PRD/IA/页面规范 |
 | API 契约 v0 | TODO | 见 `05-architecture.md` 草案，待两人确认 |
-| 仓库骨架 | DOING | `frontend/`、`backend/`、`deploy/` 目录+README 已建；`tools/` 为本地工具不上传；脚手架/CI 待 FE-001/BE-001 |
+| 仓库骨架 | DOING | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/` 目录+说明已建；`tools/` 为本地工具不上传；脚手架/CI 待 FE-001/BE-001 |
 | CI | TODO | 需要 `.github/workflows/ci.yml` |
 | 部署 | TODO | 11.14 前必须完成 |
 | 种子数据 | TODO | 需要 10+ 道大学理科真实错题；3 道含图/公式题用于识图 |

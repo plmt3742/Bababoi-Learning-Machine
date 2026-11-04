@@ -15,6 +15,7 @@ backend/
 ├── .env.example
 ├── alembic.ini
 ├── alembic/
+│   └── versions/       # 迁移脚本
 ├── app/
 │   ├── main.py
 │   ├── core/           # config / security / logging / errors
@@ -27,6 +28,7 @@ backend/
 │   └── utils/
 ├── tests/
 ├── scripts/            # seed / dev
+├── fixtures/           # 合成题目/测试数据
 ├── data/               # SQLite（gitignore）
 └── uploads/            # 上传文件（gitignore）
 ```
@@ -38,6 +40,8 @@ backend/
 - LLM 调用不在数据库事务内；先调模型，再落库。
 - 密钥只在 `.env`；提交 `.env.example`。
 - 测试不调真实 LLM；用 mock/fixture。
+- 共享工具放 `app/core/`；业务规则放 `app/services/`；AI 相关放 `app/ai/`。
+- `fixtures/` 只放合成数据，不放真实学生题目/图片。
 
 ## 完成后命令
 

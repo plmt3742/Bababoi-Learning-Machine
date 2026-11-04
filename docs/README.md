@@ -47,6 +47,7 @@
 | [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构 + 核心流程图模板 | 模板 |
 | [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（7 个核心页面） | 模板 |
 | [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单模板 | 模板 |
+| [product/05-ue-spec.md](product/05-ue-spec.md) | UE 稿/交互地图规范与模板 | 模板 |
 
 ### 架构决策
 

@@ -14,21 +14,35 @@ frontend/
 ├── tsconfig.json
 ├── index.html
 ├── .env.example
+├── public/                 # 静态资源（favicon 等）
 ├── src/
 │   ├── main.ts
 │   ├── App.vue
-│   ├── api/            # Axios 实例、端点、类型
-│   ├── components/     # layout / question / ai / upload / common
-│   ├── composables/    # useAuth / useSSE / useImagePicker
+│   ├── api/                # Axios 实例、端点、types（OpenAPI 生成）
+│   ├── assets/             # 图片/字体
+│   ├── components/
+│   │   ├── common/         # 共享 UI：PageHeader/Empty/Error/Loading/Markdown/Tag...
+│   │   ├── layout/         # AppShell/Sidebar/TopBar
+│   │   ├── question/       # QuestionCard/QuestionForm/QuestionDetail
+│   │   ├── ai/             # AIGenerationPanel/StageProgress/GeneratedQuestionCard
+│   │   └── upload/         # ImageInput/ImagePreview/MobileImagePicker
+│   ├── composables/        # useAuth/useSSE/useImagePicker/usePagination
 │   ├── router/
 │   ├── stores/
-│   ├── styles/
+│   ├── styles/             # tokens.css / arco.css / global.css
 │   ├── types/
 │   ├── utils/
 │   └── views/
-├── tests/              # Vitest
-└── e2e/                # Playwright
+├── tests/                  # Vitest
+└── e2e/                    # Playwright
 ```
+
+## 共享组件
+
+- 通用 UI 放 `src/components/common/`；规则见 `src/components/common/README.md`。
+- 业务组件按领域放 `question/`、`ai/`、`upload/`；不要都塞进 `common/`。
+- API 类型从 `contracts/openapi/openapi.json` 生成，放 `src/api/types.ts`。
+- 共享逻辑放 `src/composables/`；共享样式变量放 `src/styles/tokens.css`。
 
 ## 约定
 

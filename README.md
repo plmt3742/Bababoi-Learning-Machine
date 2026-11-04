@@ -21,11 +21,14 @@
 ```text
 frontend/                 # Vue 3 前端（目录骨架，脚手架待 FE-001）
 backend/                  # FastAPI 后端（目录骨架，脚手架待 BE-001）
+contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
+scripts/                  # 跨前后端的开发脚本
 docs/
 ├── agent/                # agent 工程上下文（先读 00-context）
-├── product/              # PRD / IA / 页面规范 / 设计系统
+├── product/              # PRD / IA / 页面规范 / 设计系统 / UE 稿
 └── adr/                  # 架构决策记录
+.github/                  # CI / Issue / PR 模板
 AGENTS.md                 # 任何 AI agent 的第一入口
 Resource/                 # 本地只读参考资料（不上传仓库）
 ```

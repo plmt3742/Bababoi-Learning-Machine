@@ -50,7 +50,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | SH-001 | API 契约 v0 | 周 + 林 | P0 | DS-001 | `05-architecture.md` 覆盖 P0 接口、字段、错误码、SSE 事件、图片识图；两人确认 | TODO |
-| SH-002 | 仓库骨架 | 周 + 林 | P0 | 无 | `frontend/`、`backend/`、`deploy/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DOING |
+| SH-002 | 仓库骨架 | 周 + 林 | P0 | 无 | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DOING |
 | SH-003 | CI 流水线 | 周 | P0 | SH-002 | PR 触发 frontend lint/typecheck/build + backend ruff/pytest；绿 | TODO |
 | SH-004 | Issue/PR 模板 + 任务板 | 林 | P1 | SH-002 | 模板可用；看板列：Backlog/本周/进行中/评审/完成 | TODO |
 | SH-005 | ADR-001/002/003 | 林 | P1 | SH-001 | 技术栈、MVP 范围、识图方案三份 ADR，链接到文档 | TODO |

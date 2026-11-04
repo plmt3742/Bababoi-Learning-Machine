@@ -83,7 +83,7 @@ BababoiLearningMachine/
 │   ├── tsconfig.json
 │   ├── index.html
 │   ├── .env.example
-│   ├── public/
+│   ├── public/                    # 静态资源
 │   ├── src/
 │   │   ├── main.ts
 │   │   ├── App.vue
@@ -123,8 +123,13 @@ BababoiLearningMachine/
 │   │   └── utils/
 │   ├── tests/
 │   ├── scripts/                   # seed/dev 脚本
+│   ├── fixtures/                  # 合成题目/测试数据
 │   ├── data/                      # SQLite 文件（gitignore）
 │   └── uploads/                   # 上传文件（gitignore）
+├── contracts/                     # 前后端共享契约
+│   ├── README.md
+│   ├── openapi/                   # 后端导出的 openapi.json
+│   └── examples/                  # 合成请求/响应示例
 ├── deploy/
 │   ├── docker-compose.yml         # 生产/演示
 │   ├── docker-compose.dev.yml     # 本地依赖（MySQL）
@@ -152,6 +157,7 @@ BababoiLearningMachine/
 | `docs/adr/` | 不可逆/跨模块决策 | 日常小决定 |
 | `frontend/src/api/` | Axios 实例、端点函数、请求/响应类型 | 业务组件、页面状态 |
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
+| `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |
 | `frontend/src/components/upload/` | 图片上传、预览、手机拍照/相册入口 | 业务 API 编排（放 views/composables） |
 | `frontend/src/views/` | 路由页面，负责编排数据与组件 | 大段可复用 UI（拆到 components） |
 | `frontend/src/stores/` | 跨页面状态（auth、ui） | 只在一个组件用的局部状态 |
@@ -162,7 +168,9 @@ BababoiLearningMachine/
 | `backend/app/models/` | SQLAlchemy 模型 | 业务逻辑 |
 | `backend/app/schemas/` | Pydantic 请求/响应 | ORM 模型 |
 | `backend/app/ai/` | LLM 客户端、prompt、解析、校验、DeepSeek 识图 | 路由、DB 查询 |
+| `backend/fixtures/` | 合成题目/测试数据 | 真实学生题目/图片 |
 | `backend/tests/` | pytest 单测/集成测试 | 真实 LLM 调用 |
+| `contracts/` | OpenAPI、请求/响应示例 | 业务逻辑、密钥 |
 | `deploy/` | compose、nginx、部署脚本、环境变量模板 | 业务代码 |
 | `scripts/` | 跨端开发脚本（seed、检查） | 生产密钥 |
 | `.github/` | CI、Issue/PR 模板 | 业务代码 |
@@ -200,6 +208,9 @@ BababoiLearningMachine/
 │   ├─ 复用逻辑 → frontend/src/composables/
 │   ├─ 纯函数 → frontend/src/utils/
 │   └─ 样式/tokens → frontend/src/styles/
+├─ 是前后端共享契约？
+│   ├─ OpenAPI → contracts/openapi/
+│   └─ 请求/响应示例 → contracts/examples/
 ├─ 是后端代码？
 │   ├─ 路由 → backend/app/api/v1/
 │   ├─ 业务逻辑 → backend/app/services/
