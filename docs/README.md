@@ -1,0 +1,87 @@
+# 项目文档总索引
+
+本目录分三层：
+
+| 目录 | 用途 | 谁维护 |
+|---|---|---|
+| `docs/agent/` | 给 AI agent 和人快速加载的工程上下文：项目信息、目标、进度、待办、架构、文件树、工作流、风险、资料 | 两人共同维护 |
+| `docs/product/` | 产品设计产出：PRD-lite、信息架构与流程、页面规范、设计系统 | 前端主导，后端/PM 评审 |
+| `docs/adr/` | 架构决策记录（Architecture Decision Record） | 提出决策的人 |
+
+## 从哪里开始
+
+- **第一次进入项目**：[agent/00-context.md](agent/00-context.md)
+- **看当前要做什么**：[agent/03-roadmap.md](agent/03-roadmap.md) + [agent/04-todos.md](agent/04-todos.md)
+- **写代码前**：[agent/05-architecture.md](agent/05-architecture.md) + [agent/06-file-tree.md](agent/06-file-tree.md)
+- **做设计前**：[agent/08-design-playbook.md](agent/08-design-playbook.md) + [product/README.md](product/README.md)
+- **查风险/答辩**：[agent/09-risks.md](agent/09-risks.md)
+- **查资料/术语**：[agent/10-resources.md](agent/10-resources.md)
+- **切换会话/换 agent**：[agent/11-agent-handoff.md](agent/11-agent-handoff.md)
+
+## 文档清单
+
+### Agent 上下文
+
+| 文件 | 内容 | 何时读 |
+|---|---|---|
+| [agent/README.md](agent/README.md) | agent 加载策略、维护规则、状态图例 | 第一次让 agent 接手任务 |
+| [agent/00-context.md](agent/00-context.md) | 一页纸速览：项目、团队、栈、当前阶段、下一步 | 每次新会话 |
+| [agent/01-project.md](agent/01-project.md) | 项目定义：背景、用户、范围、非目标、约束、开放问题 | 需要判断“该不该做” |
+| [agent/02-goals.md](agent/02-goals.md) | 产品/技术/交付目标、验收标准、指标 | 需要判断“做到什么程度算完成” |
+| [agent/03-roadmap.md](agent/03-roadmap.md) | 时间线、里程碑、当前进度、周计划 | 每次开工/收工 |
+| [agent/04-todos.md](agent/04-todos.md) | 按角色和优先级拆分的任务，含 ID/验收标准 | 领取任务/同步进度 |
+| [agent/05-architecture.md](agent/05-architecture.md) | 系统架构、技术选型、数据模型、API 契约、AI 流水线 | 写前后端代码前 |
+| [agent/06-file-tree.md](agent/06-file-tree.md) | 目标文件树、目录职责、命名规范、文件放置决策树 | 新建文件/目录前 |
+| [agent/07-workflow.md](agent/07-workflow.md) | Git/PR/评审/联调/部署/测试/会议/DoD | 第一次提交前 + 每周复盘 |
+| [agent/08-design-playbook.md](agent/08-design-playbook.md) | 原型设计、工作流设计、交付物、检查清单、答辩准备 | 设计阶段 |
+| [agent/09-risks.md](agent/09-risks.md) | 风险登记册 + 实现注意事项 + 演示兜底 | 每周复盘 + 答辩准备 |
+| [agent/10-resources.md](agent/10-resources.md) | 本地资料、docx 摘要、外部链接、术语表 | 查资料 |
+| [agent/11-agent-handoff.md](agent/11-agent-handoff.md) | 新会话交接提示词、角色模板、交接检查 | 切换会话/换 agent |
+
+### 产品设计
+
+| 文件 | 内容 | 状态 |
+|---|---|---|
+| [product/README.md](product/README.md) | 设计产出索引与当前状态 | 待填写 |
+| [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 模板 | 模板 |
+| [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构 + 核心流程图模板 | 模板 |
+| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（7 个核心页面） | 模板 |
+| [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单模板 | 模板 |
+
+### 架构决策
+
+| 文件 | 内容 | 状态 |
+|---|---|---|
+| [adr/README.md](adr/README.md) | ADR 索引与写法 | 有效 |
+| [adr/ADR-000-template.md](adr/ADR-000-template.md) | ADR 模板 | 模板 |
+| [adr/ADR-001-tech-stack.md](adr/ADR-001-tech-stack.md) | 技术栈确认（含与 docx 的差异） | Accepted |
+| [adr/ADR-002-mvp-scope.md](adr/ADR-002-mvp-scope.md) | MVP 范围与 P0/P1/P2 | Proposed |
+| [adr/ADR-003-image-input-vision.md](adr/ADR-003-image-input-vision.md) | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted |
+
+## 状态图例
+
+| 标记 | 含义 |
+|---|---|
+| `TODO` | 未开始 |
+| `DOING` | 进行中 |
+| `DONE` | 已完成 |
+| `BLOCKED` | 被阻塞，需在每日同步中提出 |
+| `DEFERRED` | 明确延期/不做，附原因 |
+| `PROPOSED` | 待团队确认 |
+| `ACCEPTED` | 已确认 |
+
+## 文档维护规则
+
+1. **小文件优先**：单个文档尽量控制在 300 行以内；架构/风险等核心长文档可到 600+ 行，但必须按节加载，不要整篇塞进上下文。
+2. **单一事实来源**：任务状态以 `04-todos.md` + GitHub Issues 为准；API 以 OpenAPI 为准；范围以 `01-project.md` 为准。
+3. **先改文档再改代码**：涉及 API、数据模型、目录结构的改动，PR 中必须同时更新文档。
+4. **里程碑结束必须更新**：`00-context.md`、`03-roadmap.md`、`04-todos.md` 的状态与“下一步”。
+5. **决策留痕**：不可逆或影响两人的决策写 ADR，不要只留在聊天记录里。
+6. **不要复制大段 docx**：`10-resources.md` 只放摘要和链接，原文留在 `Resource/`。
+
+## 变更记录
+
+| 日期 | 变更 | 变更人 |
+|---|---|---|
+| 2026-11-04 | 初始化文档体系 | 林敬翔 / agent |
+| 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归周彧良；新增 ADR-003、11-agent-handoff、.gitignore | 林敬翔 / agent |
