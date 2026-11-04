@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-network-caching: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: ruff check
+        run: uv run ruff check app tests
+      - name: pytest
+        run: uv run pytest
+        env:
+          LLM_MOCK: "true"  # CI 不调真实模型（12号 §6.1）
+
+  frontend:
+    # FE-001 还没提交 package.json，这里先不点亮：等前端脚手架进 main 自动生效
+    if: hashFiles('frontend/package.json') != ''
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # pnpm / node 版本与 lint/typecheck/build 的具体命令由 FE-001 的作者补，
+      # 我不替前端定包管理器版本——写错了只会让 CI 无故变红。
+      - run: echo "TODO(FE-001): 装依赖并跑 pnpm lint / typecheck / build"
