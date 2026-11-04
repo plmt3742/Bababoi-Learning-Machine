@@ -9,7 +9,7 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 
 > 对象：人机（后端）
 > 基线：`chore/init-repo-structure` + 2026-11-05 决策
-> 结论：**PRD v0.8 有参考价值，但不能原样作为契约；先合并/修订为 v0.9，再删除 `docs/prd` 分支，以 `chore/init-repo-structure` 为开发基准。**
+> 结论：**PRD v0.8 已归档为参考，不原样作为契约；`docs/prd` 可以删除，后续从归档修订 PRD v0.9，以 `chore/init-repo-structure` 为开发基准。**
 
 ## 0. 一句话结论
 
@@ -251,7 +251,7 @@ questions
 - question_type       # choice | blank | solve
 - options             # JSON: [{label, content_md}]
 - blanks              # JSON: [{index, answer_md}]
-- analysis            # JSON: {question_type, difficulty, knowledge_points, error_reasons, solution_summary}
+- analysis            # JSON: {topic_type, difficulty, knowledge_points, error_reasons, solution_summary}
 - mastery_status      # unmastered | reviewing | mastered，默认 unmastered
 - status              # confirmed（MVP 固定；删除用 deleted_at）
 - image_path, crop_box, crop_image_path, detection_confidence
