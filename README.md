@@ -20,7 +20,7 @@
 
 ```text
 frontend/                 # Vue 3 前端（目录骨架，脚手架待 FE-001）
-backend/                  # FastAPI 后端（目录骨架，脚手架待 BE-001）
+backend/                  # FastAPI 后端（BE-001 已就位：/health + CORS + 日志 + 错误信封）
 contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
 scripts/                  # 跨前后端的开发脚本
@@ -44,14 +44,15 @@ Resource/                 # 本地只读参考资料（不上传仓库）
 
 ## 本地启动
 
-> 前后端脚手架尚未初始化（FE-001 / BE-001）。当前仓库只有目录与文档骨架。
+> 后端脚手架已可运行（BE-001）；前端脚手架待 FE-001。数据库与迁移在 BE-002 接入。
 
 ```bash
 # 前端（脚手架完成后）
 cd frontend && pnpm install && pnpm dev
 
-# 后端（脚手架完成后）
-cd backend && uv sync && uv run uvicorn app.main:app --reload
+# 后端（已可用；需要 uv）
+cd backend && uv sync && uv run uvicorn app.main:app --reload   # http://127.0.0.1:8000/api/v1/health
+cd backend && uv run ruff check app tests && uv run pytest      # 检查与测试
 ```
 
 ## 本地工具（不上传）
