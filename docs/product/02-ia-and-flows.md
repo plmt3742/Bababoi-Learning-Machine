@@ -7,29 +7,32 @@
 | 页面 | 路由 | 作用 | 主操作 | 优先级 |
 |---|---|---|---|---|
 | 登录/注册 | `/login` | 进入产品 | 登录/注册 | P0 |
-| 首页/概览 | `/` | 看数据、去录入/练习 | 录入错题 | P0 |
+| 首页 | `/` | 去录入/练习/错题本 | 录入错题 | P0 |
 | 错题列表 | `/questions` | 找错题、筛选、搜索 | 新建错题 | P0 |
-| 录入错题 | `/questions/new` | 文本/图片录入 + 分析 | 开始分析 | P0 |
-| 错题详情 | `/questions/:id` | 看分析、生成题、去练习 | 生成相似题 | P0 |
+| 录入/编辑 | `/questions/new` | 文本/图片录入 + 显示 + 编辑 + 保存 | 保存 | P0 |
+| 任务中心 | `/tasks` | 录入记录、队列状态、失败重试、草稿行 | 继续编辑/重试 | P0 |
+| 错题详情 | `/questions/:id` | 看分析、生成题、去练习 | 去练习/重新生成 | P0 |
 | 练习 | `/practice/:id?` | 逐题作答、计时、看解析 | 提交答案 | P0 |
-| 统计 | `/stats` | 正确率、趋势、薄弱点 | 去练习薄弱点 | P0 |
+| 统计/概览 | `/stats` | 正确率、趋势、薄弱点 | 去练习薄弱点 | P1 |
 | 设置 | `/settings` | 账号/退出 | 退出登录 | P1 |
 
 ## 2. Sitemap
 
 ```mermaid
 flowchart TD
-  L[登录/注册] --> H[首页/概览]
+  L[登录/注册] --> H[首页]
   H --> Q[错题列表]
   H --> P[练习]
-  H --> S[统计]
-  Q --> N[录入错题]
+  H --> T[任务中心]
+  H --> S[统计/概览 P1]
+  Q --> N[录入/编辑]
+  N --> T
   Q --> D[错题详情]
-  D --> G[生成结果]
-  G --> P
+  D --> P
+  T --> D
   P --> R[练习结果]
   R --> H
-  Q --> T[标签/学科筛选]
+  Q --> F[标签/学科筛选]
   S --> W[薄弱知识点]
   W --> Q
 ```
@@ -44,8 +47,9 @@ flowchart TD
 ├─ 错题本                    ├─ 搜索（列表页）
 │   ├─ 全部错题               ├─ 用户菜单/退出
 │   └─ 学科/标签
+├─ 任务中心
 ├─ 练习
-├─ 统计
+├─ 统计（P1）
 └─ 设置
 ```
 
@@ -55,36 +59,32 @@ flowchart TD
 - 悬浮按钮：录入错题。
 - 侧边栏改为抽屉；筛选改为底部抽屉。
 
-## 4. 流程 A：核心闭环（录入 → 分析 → 生成 → 保存）
+## 4. 流程 A：核心闭环（录入 → 识别/分析 → 编辑 → 保存 → 后台生成 → 练习）
 
 ```mermaid
 flowchart TD
-  A[进入录入页] --> B[粘贴题干/可选答案/选学科]
-  B --> C{前端校验}
-  A -.图片入口.-> IMG[上传/拍照/相册 → DeepSeek 识图 → 编辑 → 创建错题]
-  IMG --> D
-  C -- 不通过 --> B
-  C -- 通过 --> D[创建错题]
-  D --> E[AI 分析中]
-  E --> F{分析成功?}
-  F -- 否 --> G[错误提示 + 重试]
-  G --> E
-  F -- 是 --> H[展示知识点/题型/错误原因]
-  H --> I[点击生成 3 道相似题]
-  I --> J[生成/校验中]
-  J --> K{3 题都有效?}
-  K -- 否 --> L[失败提示 + 重试/重新生成]
-  L --> J
-  K -- 是 --> M[展示 3 张题卡]
-  M --> N[保存/去练习]
-  N --> O[错题详情/列表]
+  A[进入录入/编辑页] --> B{录入方式}
+  B -- 文本 --> C[粘贴/拖入题干、答案、选题型]
+  B -- 图片 --> IMG[电脑粘贴/拖入；手机相册/拍照]
+  IMG --> FRAME[AI 预框核心题目 → 用户确认/切换候选]
+  FRAME --> OCR[裁剪 → DeepSeek 识图 → 结构化题目]
+  C --> EDIT[显示题目内容 → 编辑]
+  OCR --> EDIT
+  EDIT --> SAVE{保存}
+  SAVE -- 校验失败 --> EDIT
+  SAVE -- 成功 --> QUEUE[入库 + 后台整理/生题入队]
+  QUEUE --> TASK[任务中心：排队/生成/完成/失败]
+  TASK --> DETAIL[错题详情：分析 + 3 道题]
+  DETAIL --> PRACTICE[练习：作答/计时/自评]
+  PRACTICE --> RECORD[练习记录/错题本]
 ```
 
 **关键分支**：
 
-- 分析失败：保留题干，可重试；不创建重复错题。
-- 生成部分失败：不入库或标记 partial；给“重试缺失/重新生成”。
-- 用户离开页面：提示“生成中，离开会中断”；已生成但未保存的结果不丢（本地 state）。
+- 识图/分析失败：保留输入，可重试；不创建重复错题。
+- 生成失败：任务中心显示失败 + 重试；不阻塞连续录入。
+- 草稿：服务端 + localStorage 双写；离开/取消有三选项。
+- 统计/概览是 P1，不阻塞主闭环。
 
 ## 5. 流程 B：练习闭环
 
@@ -131,7 +131,9 @@ flowchart TD
 | 状态 | UI | 用户动作 | 失败/退出 |
 |---|---|---|---|
 | idle | 空状态 + “开始分析” | 编辑题干 | — |
-| vision | 上传/识图进度 | 等待/取消 | 重拍/换图/改文本 |
+| detecting | “正在识别题目区域…” + 原图 | 等待/取消 | 重拍/换图/改文本 |
+| confirming | 原图高亮框 + “是这道题吗？” + 确认/切换候选 | 确认/切换/取消 | 重拍/换图/改文本 |
+| vision | 裁剪后识图进度 | 等待/取消 | 重拍/换图/改文本 |
 | submitting | 按钮 loading，表单禁用 | 等待 | 网络错误提示 |
 | analyzing | 阶段进度 + 骨架屏 | 等待/取消 | 重试分析 |
 | analyzed | 分析卡片 + “生成相似题” | 查看/编辑/生成 | — |
@@ -153,20 +155,22 @@ flowchart TD
 | 页面 | 主要 API | 关键数据 |
 |---|---|---|
 | 登录/注册 | `POST /auth/login`、`POST /auth/register`、`GET /auth/me` | token、user |
-| 首页/概览 | `GET /stats/overview`、`GET /stats/weak-points` | 统计数字、薄弱点 |
+| 首页 | `GET /questions?page=1`、`GET /tasks?limit=` | 最近错题、任务状态 |
 | 错题列表 | `GET /questions`、`DELETE /questions/{id}` | items、total、filters |
-| 录入（文本） | `POST /questions`、`POST /questions/{id}/analyze` | question、analysis |
-| 录入（图片） | `POST /uploads/images`、`POST /questions/from-image`、`POST /questions`、`POST /questions/{id}/analyze` | image_path、original_text、analysis |
-| 详情 | `GET /questions/{id}`、`POST /questions/{id}/generate` | analysis、generated |
+| 录入/编辑（文本） | `POST /questions`、`GET/PUT/DELETE /drafts/me` | question、content_md、options、blanks、analysis |
+| 录入/编辑（图片） | `POST /questions/from-image`（先返回候选框，确认后再识别）、`POST /questions` | image_path、candidates、bbox、content_md、analysis |
+| 任务中心 | `GET /tasks?question_id=`、`GET /questions/{id}/events`、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me` | task status、draft |
+| 详情 | `GET /questions/{id}`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、generated、tasks |
 | 练习 | `GET /questions/{id}/generated`、`POST /practice-records` | 题卡、记录 |
-| 统计 | `GET /stats/overview`、`GET /stats/trends`、`GET /stats/weak-points` | 数字、趋势、薄弱点 |
+| 统计/概览（P1） | `GET /stats/overview`、`GET /stats/trends`、`GET /stats/weak-points` | 数字、趋势、薄弱点 |
 
 ## 9. 流程设计检查
 
 - [ ] 每条流程有起点、终点、主按钮。
 - [ ] 每个失败分支有下一步。
 - [ ] 每个异步动作有 loading/error/retry。
-- [ ] 图片录入有上传/识图/编辑/失败四段状态；失败可退回文本。
+- [ ] 图片录入有上传/框题/确认/识图/编辑/失败状态；失败可退回文本。
+- [ ] 框题确认支持确认/切换候选；P0 不做拖拽画框。
 - [ ] 返回/刷新不会丢关键数据（或明确提示）。
 - [ ] 重复点击不会产生重复数据。
 - [ ] 空数据有引导。

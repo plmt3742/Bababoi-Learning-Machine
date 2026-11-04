@@ -1,6 +1,6 @@
 ---
-owner: 林敬翔
-last_updated: 2026-11-04
+owner: 霹雳马桶
+last_updated: 2026-11-05
 status: active
 read_when: 每天开工领取任务；每天收工更新状态；周会同步进度
 ---
@@ -33,109 +33,114 @@ ID:
 
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
-### 1.1 设计（林敬翔主导，周彧良/PM 评审）
+### 1.1 设计（霹雳马桶 + 人机共同主导，我想抓住风的影子评审）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| DS-001 | 填一页纸 PRD | 林 | P0 | 无 | `docs/product/01-prd-lite.md` 有大学理科用户、问题、闭环、P0/P1/P2、非目标、指标 | TODO |
-| DS-002 | 信息架构 + sitemap | 林 | P0 | DS-001 | sitemap 覆盖登录/首页/录入（文本/图片）/列表/详情/练习/统计；导航层级清晰 | TODO |
-| DS-003 | 3 条核心用户流程 | 林 | P0 | DS-001 | 用 Mermaid 画：核心闭环、图片录入、练习；每步有页面/接口 | TODO |
-| DS-004 | 7 页线框图 | 林 | P0 | DS-002/003 | 登录、首页、录入（文本/图片）、列表、详情、练习、统计；标注组件与状态 | TODO |
-| DS-005 | 设计 tokens + 组件清单 | 林 | P0 | DS-004 | 颜色/字号/间距/圆角/阴影；按钮/卡片/标签/空错 loading 状态 | TODO |
-| DS-006 | 可点击原型 + 可用性测试 | 林 | P1 | DS-004/005 | 3 名测试者走核心闭环；问题记录 + 取舍 | TODO |
-| DS-007 | PM 设计走查 | 刘星宇/林 | P1 | DS-004 | 反馈记录，明确接受/延期/拒绝 | TODO |
+| DS-001 | 填一页纸 PRD | 霹雳马桶 + 人机 | P0 | 无 | `docs/product/01-prd-lite.md` 有大学理科用户、问题、闭环、P0/P1/P2、非目标、指标 | TODO |
+| DS-002 | 信息架构 + sitemap | 霹雳马桶 + 人机 | P0 | DS-001 | sitemap 覆盖登录/首页/录入/编辑（三种题型）/任务中心/列表/详情/练习/统计（P1）；导航层级清晰 | TODO |
+| DS-003 | 3 条核心用户流程 | 霹雳马桶 + 人机 | P0 | DS-001 | 用 Mermaid 画：核心闭环、图片录入、练习；每步有页面/接口 | TODO |
+| DS-004 | 8 页线框图 | 霹雳马桶 + 人机 | P0 | DS-002/003 | 登录、首页、录入/编辑（三种题型）、任务中心、列表、详情、练习、统计（P1）；标注组件与状态 | TODO |
+| DS-005 | 设计 tokens + 组件清单 | 霹雳马桶 + 人机 | P0 | DS-004 | 颜色/字号/间距/圆角/阴影；按钮/卡片/标签/空错 loading 状态 | TODO |
+| DS-006 | 可点击原型 + 可用性测试 | 霹雳马桶 + 人机 | P1 | DS-004/005 | 3 名测试者走核心闭环；问题记录 + 取舍 | TODO |
+| DS-007 | 产品设计走查 | 我想抓住风的影子 | P1 | DS-004 | 反馈记录，明确接受/延期/拒绝；不参与开发 | TODO |
 
 ### 1.2 共同（两人一起）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| SH-001 | API 契约 v0 | 周 + 林 | P0 | DS-001 | `05-architecture.md` 覆盖 P0 接口、字段、错误码、SSE 事件、图片识图；两人确认 | TODO |
-| SH-002 | 仓库骨架 | 周 + 林 | P0 | 无 | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DOING |
-| SH-003 | CI 流水线 | 周 | P0 | SH-002 | PR 触发 frontend lint/typecheck/build + backend ruff/pytest；绿 | TODO |
-| SH-004 | Issue/PR 模板 + 任务板 | 林 | P1 | SH-002 | 模板可用；看板列：Backlog/本周/进行中/评审/完成 | TODO |
-| SH-005 | ADR-001/002/003 | 林 | P1 | SH-001 | 技术栈、MVP 范围、识图方案三份 ADR，链接到文档 | TODO |
-| SH-006 | M0 验收 + PM 同步 | 两人 | P0 | 所有 M0 | 逐项过 `03-roadmap.md` M0 退出检查；下周计划明确 | TODO |
+| SH-001 | API 契约 v0 | 人机 + 霹雳马桶 | P0 | DS-001 | `05-architecture.md` 覆盖 P0 接口、队列/草稿/任务中心、字段、错误码、SSE 事件、图片框题；两人确认 | TODO |
+| SH-002 | 仓库骨架 | 人机 + 霹雳马桶 | P0 | 无 | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DOING |
+| SH-003 | CI 流水线 | 人机 | P0 | SH-002 | PR 触发 frontend lint/typecheck/build + backend ruff/pytest；绿 | TODO |
+| SH-004 | Issue/PR 模板 + 任务板 | 霹雳马桶 | P1 | SH-002 | 模板可用；看板列：Backlog/本周/进行中/评审/完成 | TODO |
+| SH-005 | ADR-001/002/003 | 霹雳马桶 | P1 | SH-001 | 技术栈、MVP 范围、识图方案三份 ADR，链接到文档 | TODO |
+| SH-006 | M0 验收 + 产品评审同步 | 两人 | P0 | 所有 M0 | 逐项过 `03-roadmap.md` M0 退出检查；下周计划明确 | TODO |
 | SH-007 | 风险登记册首次评审 | 两人 | P1 | 无 | `09-risks.md` 每条有负责人/缓解措施/触发信号 | TODO |
+| SH-017 | 合并 PRD v0.9 + 删除 `docs/prd` | 两人 | P0 | SH-001 | PRD/原型/调研归档到 `docs/product/`；按 11.5 决策修订；确认无遗漏后再删远端分支 | TODO |
 
-### 1.3 前端（林敬翔）
-
-| ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
-|---|---|---|---|---|---|---|
-| FE-001 | 前端脚手架 | 林 | P0 | SH-002 | Vue3+Vite+TS+Arco+Router+Pinia+ESLint+Prettier；`pnpm dev` 可跑 | TODO |
-| FE-002 | 设计 tokens + 基础样式 | 林 | P0 | FE-001/DS-005 | CSS 变量、Arco 主题、字体、reset；与设计稿一致 | TODO |
-| FE-003 | 应用壳 + 路由 | 林 | P0 | FE-001 | 侧边栏/顶栏/内容区；路由表；404；未登录占位 | TODO |
-| FE-004 | API client + 类型 | 林 | P0 | SH-001 | Axios 实例、token 注入、401 处理、错误归一化、类型定义 | TODO |
-| FE-005 | 登录/注册页 | 林 | P0 | FE-003/004 | 表单校验、错误提示、loading、跳转 | TODO |
-| FE-006 | Mock API | 林 | P0 | SH-001 | P0 接口全部可 mock；前端不依赖后端也能走通页面 | TODO |
-
-### 1.4 后端（周彧良）
+### 1.3 前端（霹雳马桶）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| BE-001 | 后端脚手架 | 周 | P0 | SH-002 | FastAPI + 配置 + `/health` + CORS + 日志 + ruff + pytest + uv | TODO |
-| BE-002 | 数据模型 + Alembic | 周 | P0 | BE-001/SH-001 | users/questions/tags/generated_questions/practice_records/ai_call_logs；迁移可跑 | TODO |
-| BE-003 | 认证 | 周 | P0 | BE-002 | 注册/登录/me；JWT；bcrypt；401/409；测试 | TODO |
-| BE-004 | 错题 CRUD + 标签/搜索 | 周 | P0 | BE-002/003 | 创建/列表/详情/更新/软删；分页筛选搜索；测试 | TODO |
-| BE-005 | LLM 客户端 + Prompt + 校验 | 周 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；超时/重试；Pydantic schema；JSON 修复 | TODO |
-| BE-006 | 分析接口 | 周 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因；落库；错误码 | TODO |
-| BE-007 | 生成接口 | 周 | P0 | BE-006 | 恰好 3 题；题干/答案/解析；校验；失败重试；落库 | TODO |
-| BE-008 | 种子脚本 | 周 | P1 | BE-004 | 演示账号 + 10 道大学理科错题（3 道含图/公式）+ 20 条练习；可重复执行 | TODO |
-| BE-009 | API 测试 + OpenAPI | 周 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
+| FE-001 | 前端脚手架 | 霹雳马桶 | P0 | SH-002 | Vue3+Vite+TS+Arco+Router+Pinia+ESLint+Prettier；`pnpm dev` 可跑 | TODO |
+| FE-002 | 设计 tokens + 基础样式 | 霹雳马桶 | P0 | FE-001/DS-005 | CSS 变量、Arco 主题、字体、reset；与设计稿一致 | TODO |
+| FE-003 | 应用壳 + 路由 | 霹雳马桶 | P0 | FE-001 | 侧边栏/顶栏/内容区；路由表；404；未登录占位 | TODO |
+| FE-004 | API client + 类型 | 霹雳马桶 | P0 | SH-001 | Axios 实例、token 注入、401 处理、错误归一化、类型定义 | TODO |
+| FE-005 | 登录/注册页 | 霹雳马桶 | P0 | FE-003/004 | 表单校验、错误提示、loading、跳转 | TODO |
+| FE-006 | Mock API | 霹雳马桶 | P0 | SH-001 | P0 接口全部可 mock；前端不依赖后端也能走通页面 | TODO |
 
-### 1.5 部署/运维（周彧良主导，林协助）
+### 1.4 后端（人机）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| OPS-001 | 本地 compose | 周 | P0 | SH-002 | MySQL 可起；healthcheck；`.env.example`；一条命令启动 | TODO |
-| OPS-002 | 部署 spike | 周 | P0 | SH-002 | 选好服务器/平台；能跑一个 hello world + MySQL；记录步骤 | TODO |
-| OPS-003 | 部署脚本/流水线 | 周 | P1 | OPS-002 | 可重复部署；环境变量注入；回滚步骤 | TODO |
-| OPS-004 | 日志与健康检查 | 周 | P1 | BE-001 | request_id；`/health`；AI 调用日志表 | TODO |
+| BE-001 | 后端脚手架 | 人机 | P0 | SH-002 | FastAPI + 配置 + `/health` + CORS + 日志 + ruff + pytest + uv | TODO |
+| BE-002 | 数据模型 + Alembic | 人机 | P0 | BE-001/SH-001 | users/questions/tags/generated_questions/practice_records/ai_call_logs/draft/generation_task；questions 含 options/blanks/mastery_status；迁移可跑 | TODO |
+| BE-003 | 认证 | 人机 | P0 | BE-002 | 注册/登录/me；JWT；bcrypt；401/409；测试 | TODO |
+| BE-004 | 错题 CRUD + 标签/搜索 | 人机 | P0 | BE-002/003 | 创建/列表/详情/更新/软删；分页筛选搜索；测试 | TODO |
+| BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | TODO |
+| BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因；analysis 可编辑写回；落库；错误码 | TODO |
+| BE-007 | 生成接口 | 人机 | P0 | BE-006 | 恰好 3 题；content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | TODO |
+| BE-008 | 种子脚本 | 人机 | P1 | BE-004 | 演示账号 + 10 道大学理科错题（3 道含图/公式）+ 20 条练习；可重复执行 | TODO |
+| BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
+
+### 1.5 部署/运维（人机主导，林协助）
+
+| ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
+|---|---|---|---|---|---|---|
+| OPS-001 | 本地 compose | 人机 | P0 | SH-002 | MySQL 可起；healthcheck；`.env.example`；一条命令启动 | TODO |
+| OPS-002 | 部署 spike | 人机 | P0 | SH-002 | 选好服务器/平台；能跑一个 hello world + MySQL；记录步骤 | TODO |
+| OPS-003 | 部署脚本/流水线 | 人机 | P1 | OPS-002 | 可重复部署；环境变量注入；回滚步骤 | TODO |
+| OPS-004 | 日志与健康检查 | 人机 | P1 | BE-001 | request_id；`/health`；AI 调用日志表 | TODO |
 
 ## 2. M1：纵向切片（11.8–11.14）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| BE-010 | SSE 阶段事件 | 周 | P0 | BE-006/007 | analyzing/generating/validating/done/error；断连处理；nginx 配置 | TODO |
-| BE-011 | MySQL 兼容性修复 | 周 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
-| BE-017 | DeepSeek 图片输入 spike | 周 | P0 | BE-005 | 上传一张大学理科题图，`deepseek-flash` 返回题干文本；记录延迟/成本/失败模式 | TODO |
-| FE-007 | 录入页（文本） | 林 | P0 | FE-004/006 | 题干/答案/学科/标签；校验；提交；loading/错误 | TODO |
-| FE-008 | 列表/详情页 | 林 | P0 | FE-004/006 | 分页、筛选、搜索、详情、空状态、删除确认 | TODO |
-| FE-009 | AI 生成 UI | 林 | P0 | FE-007/008/BE-010 | 阶段进度、3 张题卡、重试/取消、错误提示 | TODO |
-| FE-010 | Markdown + 公式渲染 | 林 | P0 | FE-001 | markdown-it + KaTeX + DOMPurify；长题干/公式/表格测试 | TODO |
-| FE-011 | Auth store + 路由守卫 | 林 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | TODO |
-| FE-012 | 空/错/loading 组件 | 林 | P0 | FE-003 | 统一组件 + 至少 5 处使用 | TODO |
+| BE-010 | SSE 阶段事件 | 人机 | P0 | BE-006/007 | task_status/stage/done/error；队列状态；断连处理；轮询兜底；nginx 配置 | TODO |
+| BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
+| BE-017 | DeepSeek 图片输入 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回核心题目候选（bbox）+ 题干文本；记录延迟/成本/失败模式 | TODO |
+| BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT /drafts/me`；每账号 1 份；防抖覆盖；测试 | TODO |
+| FE-007 | 录入页（文本） | 霹雳马桶 | P0 | FE-004/006 | 题干/答案/学科/标签；校验；提交；loading/错误 | TODO |
+| FE-008 | 列表/详情页 | 霹雳马桶 | P0 | FE-004/006 | 分页、筛选、搜索、详情、空状态、删除确认 | TODO |
+| FE-009 | AI 生成 UI | 霹雳马桶 | P0 | FE-007/008/BE-010 | 阶段进度、3 张题卡、重试/取消、错误提示 | TODO |
+| FE-010 | Markdown + 公式渲染 | 霹雳马桶 | P0 | FE-001 | markdown-it + KaTeX + DOMPurify；长题干/公式/表格测试 | TODO |
+| FE-011 | Auth store + 路由守卫 | 霹雳马桶 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | TODO |
+| FE-012 | 空/错/loading 组件 | 霹雳马桶 | P0 | FE-003 | 统一组件 + 至少 5 处使用 | TODO |
 | SH-008 | 契约同步 + 联调 | 两人 | P0 | BE-009/FE-010 | OpenAPI diff；字段/错误码一致；联调记录 | TODO |
-| OPS-005 | Staging 部署 | 周 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | TODO |
+| OPS-005 | Staging 部署 | 人机 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | TODO |
 
 ## 3. M2：功能完整（11.15–11.21）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| BE-012 | 练习记录 | 周 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | TODO |
-| BE-013 | 统计接口 | 周 | P0 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
-| BE-014 | 图片识图接口（DeepSeek 多模态） | 周 | P0 | BE-005/BE-017 | 图片校验/压缩；`deepseek-flash` 识图；返回可编辑题干+图形描述；不做独立 OCR；错误处理/测试 | TODO |
-| BE-015 | 重新生成/质量反馈 | 周 | P1 | BE-007 | 重新生成；反馈标记；不覆盖原记录 | TODO |
-| BE-016 | 性能/安全加固 | 周 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
-| FE-013 | 练习页 | 林 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | TODO |
-| FE-014 | 统计页 | 林 | P0 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | TODO |
-| FE-015 | 搜索/筛选/标签 | 林 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | TODO |
-| FE-016 | 图片录入（桌面/手机拍照/相册）+ 识图修正 | 林 | P0 | FE-007/BE-014 | 桌面上传；手机拍照/相册两个入口；预览/删除；可编辑识图结果；失败重试/退回文本；HTTPS 提示 | TODO |
-| FE-017 | 响应式/移动端 | 林 | P1 | FE-013/014 | 375/768/1366 三档；核心三页可用 | TODO |
-| FE-018 | 体验/可访问性打磨 | 林 | P1 | FE-013/014 | 对比度、焦点、键盘、文案、loading 不跳动 | TODO |
+| BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | TODO |
+| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
+| BE-014 | 图片识图接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；AI 框题返回候选 bbox/confidence；用户确认后裁剪识图；返回 content_md/answer_md/题型/options/blanks/图形描述；不做独立 OCR；错误处理/测试 | TODO |
+| BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | P0 基础版：单题图标 + 二次确认 + 队列替换；反馈标记；不覆盖原记录 | TODO |
+| BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
+| BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | TODO |
+| FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | TODO |
+| FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | TODO |
+| FE-015 | 搜索/筛选/标签 | 霹雳马桶 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | TODO |
+| FE-016 | 图片录入（电脑粘贴/拖入 + 手机相册/拍照）+ 框题确认 + 识图修正 | 霹雳马桶 | P0 | FE-007/BE-014 | 电脑粘贴/拖入；手机相册/拍照；两端 AI 框题高亮 + 确认/切换候选；P0 不做拖拽画框；预览/删除；可编辑识图结果；失败重试/退回文本；HTTPS 提示 | TODO |
+| FE-017 | 响应式/移动端 | 霹雳马桶 | P1 | FE-013/014 | 375/768/1366 三档；核心三页可用 | TODO |
+| FE-018 | 体验/可访问性打磨 | 霹雳马桶 | P1 | FE-013/014 | 对比度、焦点、键盘、文案、loading 不跳动 | TODO |
+| FE-019 | 任务中心 + 草稿 UI | 霹雳马桶 | P0 | FE-009/BE-018/BE-019 | 录入记录列表、队列/生成状态、失败重试、草稿行/继续编辑；不做复杂筛选/通知 | TODO |
+| FE-020 | 三种题型编辑器 + 工具栏 | 霹雳马桶 | P0 | FE-007/FE-010 | 选择/填空/解答；选项/空位/答案；LaTeX/编号/表格/插图按时间降级；KaTeX 错误不丢内容 | TODO |
 | SH-009 | 用户走查 + 反馈取舍 | 两人 | P0 | M2 功能 | 3–5 人；问题分级；接受/延期/拒绝有记录 | TODO |
-| OPS-006 | MySQL 生产验证 | 周 | P0 | M1 部署 | 迁移、备份、恢复演练；数据不丢 | TODO |
-| OPS-007 | 监控/备份 | 周 | P1 | OPS-005 | 日志可查；每日备份；磁盘/额度告警 | TODO |
+| OPS-006 | MySQL 生产验证 | 人机 | P0 | M1 部署 | 迁移、备份、恢复演练；数据不丢 | TODO |
+| OPS-007 | 监控/备份 | 人机 | P1 | OPS-005 | 日志可查；每日备份；磁盘/额度告警 | TODO |
 
 ## 4. M3：稳定与答辩（11.22–11.29）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | SH-010 | Bug bash | 两人 | P0 | M2 | P0/P1 清单；修复；回归；无阻塞 bug | TODO |
-| SH-011 | 演示种子数据 | 周/林 | P0 | M2 | 2 个账号；10+ 道大学理科错题（3 道含图）；20+ 练习；数据真实可讲 | TODO |
+| SH-011 | 演示种子数据 | 人机/霹雳马桶 | P0 | M2 | 2 个账号；10+ 道大学理科错题（3 道含图）；20+ 练习；数据真实可讲 | TODO |
 | SH-012 | 演示脚本 + 彩排 | 两人 | P0 | SH-011 | 3 分钟脚本（图片或文本入口）；连续 3 次成功；分工明确 | TODO |
 | SH-013 | PPT | 两人 | P0 | M2 | 7 分钟；10–12 页；每页有讲述要点；两人分段 | TODO |
-| SH-014 | 备用视频/截图 | 林 | P0 | SH-012 | 3 分钟录屏；本地+云端；能离线播放 | TODO |
-| SH-015 | 最终部署/安全检查 | 周 | P0 | SH-010 | HTTPS/端口；密钥；CORS；健康检查；回滚 | TODO |
+| SH-014 | 备用视频/截图 | 霹雳马桶 | P0 | SH-012 | 3 分钟录屏；本地+云端；能离线播放 | TODO |
+| SH-015 | 最终部署/安全检查 | 人机 | P0 | SH-010 | HTTPS/端口；密钥；CORS；健康检查；回滚 | TODO |
 | SH-016 | 最终提交 | 两人 | P0 | 全部 | 仓库、体验地址、PPT、演示账号、README 完整 | TODO |
 
 ## 5. 阻塞区
@@ -155,9 +160,9 @@ ID:
 
 | 人 | 主责 | 必须交付 |
 |---|---|---|
-| 林敬翔 | DS-001~DS-006、FE-001~FE-006 | PRD、线框、tokens、前端脚手架、Mock、登录页 |
-| 周彧良 | BE-001~BE-009、OPS-001~OPS-003 | 后端脚手架、数据模型、认证、CRUD、LLM 客户端、部署 spike |
+| 霹雳马桶 | DS-001~DS-006、FE-001~FE-006 | PRD 共写、线框、tokens、前端脚手架、Mock、登录页 |
+| 人机 | DS-001~DS-006 共写/评审、BE-001~BE-009、OPS-001~OPS-003 | 产品设计共写、后端脚手架、数据模型、认证、CRUD、LLM 客户端、部署 spike |
 | 两人 | SH-001、SH-002、SH-006、SH-007 | API 契约、仓库骨架、M0 验收、风险评审 |
-| 刘星宇 | DS-007 | 设计走查、体验意见、风险同步 |
+| 我想抓住风的影子 | DS-007 | 设计走查、体验意见、风险同步（不参与开发） |
 
 > 如果 11.7 前只能完成一半：优先保 **API 契约 + 可运行骨架 + 登录/录入/列表的静态页**；高保真原型和完整 PRD 可以延后到 11.8。

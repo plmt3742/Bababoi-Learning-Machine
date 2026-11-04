@@ -1,6 +1,6 @@
 # Agent 加载指南
 
-> owner: 林敬翔 · last_updated: 2026-11-04 · read_when: 第一次让 agent 接手本仓库任务
+> owner: 霹雳马桶 · last_updated: 2026-11-05 · read_when: 第一次让 agent 接手本仓库任务
 
 这份文档告诉 agent **按什么顺序读、读多少、以什么为准、改完要同步什么**。目标是用最少的上下文完成任务，避免“读了全部文档仍然做错”。
 
@@ -27,12 +27,13 @@
 ## 2. 事实来源优先级
 
 1. **代码与 OpenAPI 实际输出**：实现细节的最终事实。
-2. **`05-architecture.md` 的 API 契约**：两人协作的约定；改接口必须先改这里。
-3. **`01-project.md` / `02-goals.md`**：范围与目标；判断“该不该做”看这里。
-4. **`03-roadmap.md` / `04-todos.md`**：进度与任务；判断“现在做什么”看这里。
-5. **`Resource/` 的 docx**：背景参考，不是准则。
+2. **`05-architecture.md`**：API / 数据模型 / 技术栈；改接口必须先改这里。
+3. **PRD**：范围 / 交互 / 验收；合并后的 `docs/product/PRD.md` 为准（当前在 `docs/prd` 分支）。
+4. **`01-project.md` / `02-goals.md`**：摘要与目标；不单独新增范围。
+5. **`03-roadmap.md` / `04-todos.md`**：进度与任务；判断“现在做什么”看这里。
+6. **`Resource/` 的 docx**：背景参考，不是准则。
 
-冲突处理：不要自行选一个执行。先在 PR/Issue 里标注冲突，更新对应文档，再改代码。
+冲突处理：**范围/交互/验收 → PRD；API/数据/技术 → 05**；跨域变更两边同时升版本。不要自行选一个执行，先在 PR/Issue 里标注冲突，更新对应文档，再改代码。
 
 ## 3. 任务 ID 约定
 
@@ -85,7 +86,7 @@
 
 - 阶段：M0（11.4–11.7）
 - 头号目标：把 P0 范围、API 契约 v0、设计稿、仓库骨架在 11.7 24:00 前落地
-- 已确认：大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 由周彧良负责
+- 已确认：大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态识图、框题确认 P0 增强、数据库 schema 由人机负责、两位开发共同负责产品设计
 - 头号风险：范围过大 + 部署拖到最后（见 `09-risks.md` R-001、R-010）
-- 下一步：先填 `docs/product/01-prd-lite.md`，再和搭档对齐 `05-architecture.md` 的 API 契约
+- 下一步：按 [12-backend-alignment.md](12-backend-alignment.md) 确认 05 v0.3（队列/草稿/题型/框题）；完成 FE-001 / BE-001 / SH-003；合并 PRD v0.9
 - 新会话交接：用 [11-agent-handoff.md](11-agent-handoff.md) 的提示词

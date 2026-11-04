@@ -15,14 +15,16 @@
 
 | 成员 | GitHub | 角色 | 负责 |
 |---|---|---|---|
-| 林敬翔（霹雳马桶） | @Plmt3742 | 前端 | Vue3 + Vite + Arco Design、前端部署、设计/测试共担 |
-| 周彧良（人机） | @zhouyuliang0606 | 后端 | Python 3.12 + FastAPI、数据库、AI 接入、部署/测试共担 |
-| 刘星宇 | — | 产品经理 | 定期会议、风险同步、体验走查、产品意见（不负责初期设计） |
+| 霹雳马桶 | @Plmt3742 | 前端 + 产品设计 | Vue3 + Vite + Arco Design、前端部署、产品/交互设计、测试共担 |
+| 人机 | @zhouyuliang0606 | 后端 + 产品设计 | Python 3.13 + FastAPI、数据库、AI 接入、产品/验收设计、部署/测试共担 |
+| 我想抓住风的影子 | — | 产品评审（不参与开发） | 定期会议、风险同步、体验走查、产品意见 |
+
+> 开发仅由霹雳马桶 + 人机两人承担；产品设计由两位开发共同负责，我想抓住风的影子提供评审意见，不参与编码。
 
 ## 已确认技术栈（以此为准）
 
 - 前端：Vue 3 + Vite + Arco Design Vue（建议 TypeScript）
-- 后端：Python 3.12 + FastAPI
+- 后端：Python 3.13 + FastAPI
 - 数据库：SQLite（本地开发/测试）+ MySQL 8（部署）
 - AI：DeepSeek `deepseek-flash`（OpenAI 兼容，文本 + 图像原生多模态），服务端调用，密钥不进前端
 - 部署：Docker Compose + nginx（目标），GitHub Actions（CI）
@@ -45,10 +47,14 @@
 ## 事实来源优先级
 
 1. 代码与 OpenAPI 实际输出（实现细节）
-2. `docs/agent/05-architecture.md` 中的 API 契约（协作约定）
-3. `docs/agent/01-project.md`、`02-goals.md`（范围与目标）
-4. 其他文档
-5. `Resource/` 中的 docx（仅背景参考）
+2. `docs/agent/05-architecture.md`（API / 数据模型 / 技术栈）
+3. PRD（范围 / 交互 / 验收；合并后的 `docs/product/PRD.md` 为准，当前在 `docs/prd` 分支）
+4. `docs/agent/01-project.md`、`02-goals.md`（摘要与目标）
+5. `docs/agent/03-roadmap.md`、`04-todos.md`（进度与任务）
+6. 其他文档
+7. `Resource/` 中的 docx（仅背景参考）
+
+冲突规则：**范围/交互/验收 → 以 PRD 为准；API/数据/技术 → 以 05 为准**；跨域变更两边同时升版本。`01-prd-lite.md` 只是一页纸速览，不单独构成契约。
 
 发现冲突时：不要默默按自己的理解做；先改文档或在 PR 中标注，再改代码。
 
@@ -84,7 +90,7 @@ cd backend && uv run pytest
 
 ## 共享边界
 
-- 本文件是**项目级共享规则**，不是林敬翔的个人偏好；对方 AI 可以读，也应该读。
+- 本文件是**项目级共享规则**，不是霹雳马桶的个人偏好；对方 AI 可以读，也应该读。
 - 个人学习笔记/个人 agent 配置放本地 `docs/learning/`（已 gitignore，不在仓库中）。
 - 如果本文件与对方工具的全局规则冲突，**以项目代码/API 契约为准**，并在 PR/Issue 说明。
 - 不要在本文件写密钥、token、私人信息、个人聊天记录。

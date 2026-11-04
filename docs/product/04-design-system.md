@@ -80,8 +80,13 @@
 |---|---|---|---|
 | `AppShell` | 侧边栏 + 顶栏 + 内容 | P0 | Layout |
 | `PageHeader` | 标题 + 描述 + 主操作 | P0 | 自建（简单） |
-| `StatCard` | 数字 + 标签 + 趋势 | P0 | Card/Statistic |
+| `StatCard` | 数字 + 标签 + 趋势 | P1 | Card/Statistic |
 | `QuestionCard` | 题干摘要 + 标签 + 时间 | P0 | Card |
+| `QuestionEditor` | 三种题型编辑 + 渲染切换 | P0 | 自建 |
+| `EditorToolbar` | LaTeX/编号/表格/插图 | P0 | 自建 |
+| `ImageFrameConfirm` | AI 预框 + 确认/切换候选 | P0 | 自建 + Image |
+| `TaskCenter` | 任务列表 + 状态 + 重试 | P0 | List/Table |
+| `DraftBar` | 草稿行 + 继续编辑 | P0 | Alert/Card |
 | `TagList` | 知识点/自定义标签 | P0 | Tag |
 | `FilterBar` | 学科/标签/搜索 | P0 | Select/Input/Tag |
 | `AIGenerationPanel` | 阶段进度 + 题卡列表 | P0 | 自建 |
@@ -95,7 +100,7 @@
 | `ResultFeedback` | 对/错 + 解析 | P0 | Result/Alert |
 | `SearchInput` | 搜索 + 防抖 | P0 | Input |
 | `Pagination` | 分页 | P0 | Pagination |
-| `ImageInput` | 电脑上传 / 手机拍照/相册入口 | P0 | Upload + 自定义 input |
+| `ImageInput` | 电脑粘贴/拖入/上传 + 手机拍照/相册 | P0 | Upload + 自定义 input |
 | `ImagePreview` | 原图预览/删除/重拍 | P0 | Image/自建 |
 | `MobileActionSheet` | 拍照 / 相册选择 | P0 | Drawer/ActionSheet |
 

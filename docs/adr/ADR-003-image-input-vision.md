@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-11-04
-- 决策人：林敬翔、周彧良
+- 决策人：霹雳马桶、人机
 - 相关任务：BE-005、BE-014、BE-017、FE-016
 - 相关文档：`docs/agent/05-architecture.md`、`docs/agent/09-risks.md` R-006、`docs/adr/ADR-001-tech-stack.md`
 
@@ -24,11 +24,18 @@
 图片（电脑上传 / 手机拍照或相册）
   → 服务端校验/压缩/去 EXIF
   → DeepSeek `deepseek-flash`（text + image_url data URL）
-  → JSON：{original_text, has_figure, figure_description?, warnings?}
+  → JSON：{content_md, answer_md?, question_type, options?, blanks?, has_figure, figure_description?, warnings?}
   → 用户编辑确认
   → 创建错题（source_type=image, image_path）
   → 现有 AI 分析/生成流程
 ```
+
+### 2.1 2026-11-05 补充：框题确认（P0 增强）
+
+- 图片先经 DeepSeek 检测/框定核心题目，用户确认后再裁剪识图。
+- P0 不做拖拽画框，只做“确认/切换候选”；失败退回整图识图，再失败退回文本。
+- 原因：大学理科题图常含多道题或无关内容，整图识图容易混题；用户确认可降低错误。
+- 接口/字段（bbox、candidate_index、crop）待后端对接文档确认。
 
 约束：
 

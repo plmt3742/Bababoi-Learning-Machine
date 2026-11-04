@@ -105,12 +105,13 @@ docs/product/ue/
 | ID | 页面 | 关键状态 |
 |---|---|---|
 | `AUTH-01` | 登录/注册 | 默认/错误/loading |
-| `HOME-01` | 首页/概览 | 有数据/空/loading |
+| `HOME-01` | 首页 | 最近错题/任务入口/空 |
 | `QLIST-01` | 错题列表 | 有数据/空/筛选无结果 |
-| `QNEW-01` | 录入错题 | 文本/图片/识图中/失败 |
+| `QNEW-01` | 录入/编辑 | 三种题型/草稿/框题/识图中/失败 |
+| `TASK-01` | 任务中心 | 排队/生成中/完成/失败/草稿行 |
 | `QDETAIL-01` | 错题详情 | 分析完成/生成中/partial/error |
 | `PRACTICE-01` | 练习 | 未答/已答/揭晓/提交失败 |
-| `STATS-01` | 统计 | 有数据/空/loading |
+| `STATS-01` | 统计/概览（P1） | 有数据/空/loading |
 
 > 只拆“业务差异”导致的页面/状态，不要按 DOM 或 if 分支机械拆页。
 
@@ -144,7 +145,7 @@ docs/product/ue/
 ```text
 使用 frontend-to-ue，把 frontend/ 的本地 Demo 转成 UE 稿。
 
-范围：只覆盖 P0 的 7 个页面和关键状态（见 docs/product/05-ue-spec.md）。
+范围：只覆盖 P0 的 8 个页面和关键状态（见 docs/product/05-ue-spec.md）。
 输出：默认生成可本地打开的 HTML 页面地图 + 两类 PNG；不要生成 Figma。
 要求：
 - 用虚构学生/虚构题目，先脱敏；

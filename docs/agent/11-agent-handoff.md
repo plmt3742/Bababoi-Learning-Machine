@@ -1,6 +1,6 @@
 ---
-owner: 林敬翔
-last_updated: 2026-11-04
+owner: 霹雳马桶
+last_updated: 2026-11-05
 status: active
 read_when: 切换会话、换 agent、让新 agent 接手任务时
 ---
@@ -52,11 +52,11 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 ### 2.2 后端任务
 
 ```text
-你是本项目后端 agent（Python 3.12 + FastAPI + SQLAlchemy 2.0 + Alembic）。
+你是本项目后端 agent（Python 3.13 + FastAPI + SQLAlchemy 2.0 + Alembic）。
 先读：AGENTS.md → docs/agent/00-context.md → docs/agent/04-todos.md → docs/agent/05-architecture.md「0/5/6/7/9 节」→ docs/agent/06-file-tree.md → docs/agent/09-risks.md 的数据库/AI 部分。
 
 任务：<BE-xxx>。
-只改 backend/ 下与任务相关的文件；数据库 schema 最终由周彧良确认，不要擅自改字段/迁移。
+只改 backend/ 下与任务相关的文件；数据库 schema 最终由人机确认，不要擅自改字段/迁移。
 AI 调用必须服务端；LLM 测试用 mock，不花真实额度。
 接口/字段/错误码必须与 05 一致；改了就先更新 05 和 OpenAPI。
 完成后跑 uv run ruff check / uv run pytest，并在 PR 里贴结果。

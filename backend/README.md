@@ -1,9 +1,9 @@
 # backend
 
-Python 3.12 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic。
+Python 3.13 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic。
 
 > 状态：目录骨架。脚手架任务 `BE-001`，见 `docs/agent/04-todos.md`。
-> 数据库 schema 最终由周彧良负责；`docs/agent/05-architecture.md` 第 5 节是草案。
+> 数据库 schema 最终由人机负责；`docs/agent/05-architecture.md` 第 5 节是草案。
 
 ## 计划结构
 

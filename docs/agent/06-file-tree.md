@@ -1,6 +1,6 @@
 ---
-owner: 林敬翔
-last_updated: 2026-11-04
+owner: 霹雳马桶
+last_updated: 2026-11-05
 status: active
 read_when: 新建文件/目录前；review 目录结构时；agent 不确定文件该放哪时
 ---
@@ -107,7 +107,7 @@ BababoiLearningMachine/
 ├── backend/
 │   ├── pyproject.toml
 │   ├── uv.lock
-│   ├── .python-version            # 3.12
+│   ├── .python-version            # 3.13
 │   ├── .env.example
 │   ├── alembic.ini
 │   ├── alembic/
@@ -248,17 +248,17 @@ BababoiLearningMachine/
 
 | 文件 | 作用 | 谁维护 |
 |---|---|---|
-| `AGENTS.md` | agent 入口、硬性规则、必读顺序 | 林敬翔 |
+| `AGENTS.md` | agent 入口、硬性规则、必读顺序 | 霹雳马桶 |
 | `README.md` | 项目简介、快速开始、目录说明、演示地址 | 两人 |
-| `.gitignore` | 忽略依赖/产物/密钥/数据 | 周彧良 |
-| `.gitattributes` | 统一 LF；Windows 脚本可用 CRLF | 周彧良 |
+| `.gitignore` | 忽略依赖/产物/密钥/数据 | 人机 |
+| `.gitattributes` | 统一 LF；Windows 脚本可用 CRLF | 人机 |
 | `.editorconfig` | 缩进/编码/换行 | 两人 |
-| `docs/README.md` | 文档总索引 | 林敬翔 |
+| `docs/README.md` | 文档总索引 | 霹雳马桶 |
 
 ### 7.1 Resource 目录约定
 
 - `Resource/` 是**本地只读参考资料**，不提交到 GitHub。
-- 仓库里的 `docs/agent/10-resources.md` 保留摘要和引用；需要原文时向林敬翔索取，或放团队网盘。
+- 仓库里的 `docs/agent/10-resources.md` 保留摘要和引用；需要原文时向霹雳马桶索取，或放团队网盘。
 - 新环境 clone 后没有 `Resource/` 是正常的；不要因为文档里的路径找不到就报错。
 - 不要把 docx 转成图片/文本后提交；只保留自己写的摘要。
 
@@ -268,7 +268,7 @@ BababoiLearningMachine/
 - 路径拼接用 `pathlib`（Python）/`node:path`（前端），不要手写 `\`。
 - SQLite 文件路径用相对路径 `./data/app.db`，不要写死 `G:\...`。
 - Docker Desktop 需要 WSL2；MySQL 容器端口映射到 `127.0.0.1:3306`。
-- 如果本机 Python 是 3.13，用 `uv python install 3.12` + `.python-version` 固定 3.12；不要用系统 Python 直接跑。
+- 项目统一 Python 3.13；用 `uv python install 3.13` + `.python-version` 固定 3.13；不要依赖系统 Python 直接跑。
 
 ## 9. 目录变更规则
 

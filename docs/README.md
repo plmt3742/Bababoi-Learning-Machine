@@ -5,7 +5,7 @@
 | 目录 | 用途 | 谁维护 |
 |---|---|---|
 | `docs/agent/` | 给 AI agent 和人快速加载的工程上下文：项目信息、目标、进度、待办、架构、文件树、工作流、风险、资料 | 两人共同维护 |
-| `docs/product/` | 产品设计产出：PRD-lite、信息架构与流程、页面规范、设计系统 | 前端主导，后端/PM 评审 |
+| `docs/product/` | 产品设计产出：PRD、信息架构与流程、页面规范、设计系统 | 两位开发共同负责，产品评审参与 |
 | `docs/adr/` | 架构决策记录（Architecture Decision Record） | 提出决策的人 |
 
 ## 从哪里开始
@@ -37,17 +37,22 @@
 | [agent/09-risks.md](agent/09-risks.md) | 风险登记册 + 实现注意事项 + 演示兜底 | 每周复盘 + 答辩准备 |
 | [agent/10-resources.md](agent/10-resources.md) | 本地资料、docx 摘要、外部链接、术语表 | 查资料 |
 | [agent/11-agent-handoff.md](agent/11-agent-handoff.md) | 新会话交接提示词、角色模板、交接检查 | 切换会话/换 agent |
+| [agent/12-backend-alignment.md](agent/12-backend-alignment.md) | 后端对接结果：队列、裁剪、PRD、分支合并决策 | 后端对接 / M0 契约确认 |
 
 ### 产品设计
 
 | 文件 | 内容 | 状态 |
 |---|---|---|
 | [product/README.md](product/README.md) | 设计产出索引与当前状态 | 待填写 |
+| [product/PRD.md](product/PRD.md) | 完整产品契约：范围/交互/验收（从 `docs/prd` 分支合并，修订 v0.9） | 待合并 |
+| [product/PRD-v0.8-reference.md](product/PRD-v0.8-reference.md) | PRD v0.8 归档参考；不构成契约 | 归档 |
+| [product/开源项目调研.md](product/开源项目调研.md) | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
 | [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 模板 | 模板 |
 | [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构 + 核心流程图模板 | 模板 |
-| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（7 个核心页面） | 模板 |
+| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面） | 模板 |
 | [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单模板 | 模板 |
 | [product/05-ue-spec.md](product/05-ue-spec.md) | UE 稿/交互地图规范与模板 | 模板 |
+| [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
 
 ### 架构决策
 
@@ -84,5 +89,5 @@
 
 | 日期 | 变更 | 变更人 |
 |---|---|---|
-| 2026-11-04 | 初始化文档体系 | 林敬翔 / agent |
-| 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归周彧良；新增 ADR-003、11-agent-handoff、.gitignore | 林敬翔 / agent |
+| 2026-11-04 | 初始化文档体系 | 霹雳马桶 / agent |
+| 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归人机；新增 ADR-003、11-agent-handoff、.gitignore | 霹雳马桶 / agent |

@@ -11,7 +11,7 @@
 | 层 | 选型 |
 |---|---|
 | 前端 | Vue 3 + Vite + TypeScript + Arco Design Vue |
-| 后端 | Python 3.12 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 |
+| 后端 | Python 3.13 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 |
 | 数据库 | SQLite（本地/测试）+ MySQL 8（部署） |
 | AI | DeepSeek `deepseek-flash`（文本 + 图像，OpenAI 兼容） |
 | 部署 | Docker Compose + nginx；GitHub Actions（目标） |
