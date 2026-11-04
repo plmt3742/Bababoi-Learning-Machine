@@ -17,7 +17,7 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 - 队列、草稿、结构化题型、单题重新生成：**按 P0 保留**，05 补表/端点。
 - 题型/编辑器：**三种题型 + 工具栏 P0 增强**；表格/复杂编号可按时间降级。
 - 录入：电脑粘贴/拖入；手机相册/拍照；两端都 **AI 预框 + 用户确认**。
-- 裁剪：**保留裁剪步骤 P0，但 P0 不做拖拽画框**；手动微调 P1。
+- 裁剪：**保留裁剪步骤 P0；P0 可确认/切换候选，并可移动/缩放 AI 框**；从零画框 P1。AI 判定整页 → 整页识别不框；无 candidate → 整图识别。
 - OCR：**不使用独立 OCR**；FR-11 砍出 11.29 路径。
 - 复习模式：**11.7 前不做，列 P1**。
 - Python：**统一 3.13**，不是 3.12。
@@ -33,7 +33,7 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | Python | 3.12 | **3.13**；保留 3.13 venv，用 `uv` + `uv.lock` |
 | 真名 | 文档使用真名 | **真名只留本地/私聊**；仓库统一昵称/handle |
 | CI | AGENTS 写 3.12，CI 已有 | **CI 尚未创建**；第一个 PR 补 3.13 版 `ci.yml` |
-| 裁剪 | 前端手动框选 P0 | **AI 预框 + 确认 P0；不做拖拽画框** |
+| 裁剪 | 前端手动框选 P0 | **AI 预框 + 确认 + 移动/缩放 P0；从零画框 P1** |
 | 模型 Key | 要求前端提供 | **后续由霹雳马桶提供**；后端先用 mock + provider 抽象 |
 
 ## 2. 逐条决策
@@ -44,7 +44,7 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | 2 | 后台队列 | 按 PRD P0 保留；`generation_task` + worker + SSE | ✅ 已定 |
 | 3 | 服务端草稿 | 按 PRD P0 保留；`draft` + `GET/PUT /drafts/me` | ✅ 已定 |
 | 4 | 结构化题型 | 按 PRD P0；`options`/`blanks` JSON；`question_type` 枚举 | ✅ 已定 |
-| 5 | 裁剪/框题 | 裁剪步骤 P0；AI 预框 + 确认/切换；不做拖拽；手动微调 P1 | ✅ 已定 |
+| 5 | 裁剪/框题 | 裁剪步骤 P0；AI 预框 + 确认/切换 + 移动/缩放 AI 框；从零画框 P1 | ✅ 已定 |
 | 6 | 图片限制 | 前端选图 ≤20MB；压到 ≤5MB/2000px；上传 ≤10MB；服务端再压到 ≤5MB/2000px；支持 JPEG/PNG/WebP | ✅ 已定 |
 | 7 | 单题重新生成 | P0 基础版：卡片图标 + 二次确认 + 队列替换；不做批量/复杂动画；M2 紧张可降 P1 | ✅ 已定 |
 | 8 | 掌握状态 | 加 `mastery_status` 枚举列，默认 `unmastered` | ✅ 已定 |
@@ -135,19 +135,23 @@ data: {"code":"AI_TIMEOUT","message":"..."}
 ```text
 电脑粘贴 / 拖入：
 原图 → AI 检测核心题目 → 返回 candidates（bbox + confidence）
-→ 前端高亮“是这道题吗？”→ 用户确认/切换候选
-→ 服务端按 bbox 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
+→ 前端高亮“是这道题吗？”→ 用户确认/切换候选 + 移动/缩放 AI 框
+→ 服务端按最终 crop_box 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
 
 手机相册 / 拍照：
 原图 → AI 检测核心题目 → 返回 candidates
-→ 前端高亮“是这道题吗？”→ 用户确认/切换候选
-→ 服务端按 bbox 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
+→ 前端高亮“是这道题吗？”→ 用户确认/切换候选 + 移动/缩放 AI 框
+→ 服务端按最终 crop_box 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
+
+整页 / 无候选：
+AI 判定整页 → 整页识别，不框；无 candidate / grounding 不可用 → 整图识别
 ```
 
-两端都走 AI 预框 + 确认；P0 不做拖拽画框。粘贴截图如果 AI 判断是单题高置信，可把“确认”做成一次点击快捷确认，但仍然保留确认入口。
+两端都走 AI 预框 + 确认；P0 可移动/缩放 AI 框，从零画框 P1。粘贴截图如果 AI 判断是单题高置信，可把“确认”做成一次点击快捷确认，但仍然保留确认入口。
 
-- P0：只确认/切换候选，**不做拖拽画框**。
-- P1：手动微调/拖拽画框。
+- P0：确认/切换候选 + **移动/缩放 AI 框** + 重置为整图；**从零画框 P1**。
+- AI 判定整页 → 整页识别，不框。
+- 无 candidate / grounding 不可用 → 整图识别；此时没有框可调。
 - 框题失败 → 整图识图；识图失败 → 文本录入。
 - 后端需支持：
 
@@ -281,7 +285,7 @@ GET  /api/v1/questions/{id}/events      # SSE 任务进度
 GET  /api/v1/tasks?question_id=         # 轮询兜底
 POST /api/v1/tasks/{id}/retry
 
-POST /api/v1/questions/from-image       # 两阶段：candidates → candidate_index 识图
+POST /api/v1/questions/from-image       # 两阶段：candidates → candidate_index + crop_box? 识图
 GET/PUT/DELETE /api/v1/drafts/me
 
 POST /api/v1/generated-questions/{id}/regenerate   # P0 基础版
@@ -323,7 +327,7 @@ GET  /api/v1/tags
 | 目标用户 | 不限学段 | 大学理科优先，通用后续 |
 | Python | 3.12 | 3.13 |
 | 录入 | 电脑粘贴为主；移动端不专项优化 | 电脑粘贴/拖入；手机相册/拍照；两端 AI 预框 |
-| 裁剪 | 手动框选 P0 | AI 预框 + 确认 P0；不做拖拽 |
+| 裁剪 | 手动框选 P0 | AI 预框 + 确认/调整 P0；从零画框 P1 |
 | 图片 | jpg/png ≤10MB | WebP + 前端压缩 + 服务端 10MB/5MB |
 | 密码 | ≥6 位 | ≥8 位 + 限流 |
 | 产品角色 | 产品经理负责 | 两位开发共同负责产品设计 |
@@ -353,8 +357,15 @@ git push origin --delete docs/prd
 
 ## 9. 行动项
 
+### 9.0 脚手架分工（明确）
+
+- **前端（霹雳马桶）**：FE-001 前端脚手架（Vue3 + Vite + TS + Arco + Router + Pinia + ESLint/Prettier）。
+- **后端（人机）**：BE-001 后端脚手架（Python 3.13 + FastAPI + `/health` + CORS + 日志 + ruff + pytest + uv + `.env.example`）。
+- **共同**：第一个 PR 补 `.github/workflows/ci.yml`；后端导出 `contracts/openapi/openapi.json`；前端 FE-004 生成类型。
+
 ### 后端（人机）
 
+- [ ] BE-001：完成 FastAPI 脚手架（3.13 + `/health` + CORS + 日志 + ruff + pytest + uv）；与 FE-001 对齐 `/health`、错误信封、OpenAPI。
 - [ ] 把 venv 固定到 3.13，`uv.lock` 提交。
 - [ ] 按 05 v0.3 实现 `generation_task`、`draft`、`options/blanks`、`mastery_status`、`content_md` 等字段。
 - [ ] 实现队列 worker + SSE 进度 + 轮询兜底。
@@ -372,7 +383,7 @@ git push origin --delete docs/prd
 - [ ] PRD v0.9 合并/修订。
 - [ ] 原型/调研归档到 `docs/product/`。
 - [ ] 页面规范补 `detecting/confirming`、任务中心、草稿、三种题型。
-- [ ] 图片输入：电脑粘贴/拖入 + 手机相册/拍照；两端 AI 预框 + 确认/切换，不做拖拽。
+- [ ] 图片输入：电脑粘贴/拖入 + 手机相册/拍照；两端 AI 预框 + 确认/切换 + 移动/缩放 AI 框；从零画框 P1。
 - [ ] 三种题型编辑器 + 工具栏（P0 增强）。
 - [ ] 练习 P0；统计/概览 P1。
 - [ ] 任务中心/草稿 UI。
@@ -397,3 +408,4 @@ git push origin --delete docs/prd
 |---|---|---|
 | 2026-11-05 | 初版：对齐单 v2 回复、队列方案、分支决策 | 霹雳马桶 |
 | 2026-11-05 | 追加：练习 P0、统计 P1、三种题型+工具栏、录入入口、任务中心、草稿双写、无 OCR、单题重生成、图片限制、05 v0.3 口径 | 霹雳马桶 |
+| 2026-11-05 | 按《框题口径-最终》调整：P0 可移动/缩放 AI 框；从零画框 P1；from-image 支持 `crop_box`；补 BE-001 脚手架分工 | 霹雳马桶 |

@@ -197,7 +197,7 @@ erDiagram
 | mastery_status | VARCHAR(16) | `unmastered` / `reviewing` / `mastered`，默认 `unmastered` |
 | status | VARCHAR(16) | MVP 固定 `confirmed`；删除用 `deleted_at` |
 | image_path | VARCHAR(255) NULL | 原图相对路径 |
-| crop_box | JSON NULL | AI 框题 bbox（归一化 `[x,y,w,h]`） |
+| crop_box | JSON NULL | 最终采用的框（AI 或用户调整后）bbox，归一化 `[x,y,w,h]` |
 | crop_image_path | VARCHAR(255) NULL | 裁剪图相对路径 |
 | detection_confidence | FLOAT NULL | 框题置信度 |
 | created_at / updated_at | DATETIME | |
@@ -505,17 +505,19 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 ### 6.8 图片上传与识图（P0 增强）
 
-**流程**：图片 → 上传/压缩 → AI 框题（检测核心题目）→ 用户确认 → 裁剪 → DeepSeek `deepseek-flash` 识图 → 返回可编辑题干 → 用户确认 → 创建错题 → 分析。
+**流程**：图片 → 上传/压缩 → AI 框题（检测核心题目）→ 用户确认/切换 + 移动/缩放 AI 框（或整页识别）→ 裁剪 → DeepSeek `deepseek-flash` 识图 → 返回可编辑题干 → 用户确认 → 创建错题 → 分析。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`；只存储，返回 `{image_path, url, width, height}` |
-| POST | `/questions/from-image` | 两阶段：1) 不带 `candidate_index` → `{candidates, selected_index}`；2) 带 `candidate_index` → `{content_md, answer_md?, question_type, options?, blanks?, has_figure, figure_description?, image_path, warnings?}`；**不创建错题、不分析** |
+| POST | `/questions/from-image` | 两阶段：1) 不带 `candidate_index` → `{candidates, selected_index}`；2) 带 `candidate_index` + 可选 `crop_box` → `{content_md, answer_md?, question_type, options?, blanks?, has_figure, figure_description?, image_path, warnings?}`；`crop_box` 优先于 candidate bbox；**不创建错题、不分析** |
 
 **框题确认（P0 增强，2026-11-05）**：
 
-- P0 只框定 1 道最可能的核心题目，用户确认/切换候选；**不做拖拽画框**。
+- P0 框定 1 道最可能的核心题目；用户可确认/切换候选，并可**移动/缩放 AI 框**；从零画框 P1。
+- AI 判定整页 → 整页识别，不框；无 candidate / grounding 不可用 → 整图识别。
 - `bbox` 使用归一化坐标 `[x, y, w, h]`（0–1），避免原图压缩/缩放导致坐标错位。
+- 第二阶段请求可带 `crop_box`（归一化），传了按它裁；没传按 `candidate_index` 对应的 bbox。
 - 建议同一端点两阶段：第一次不带 `candidate_index` 返回候选；第二次带 `candidate_index` 返回裁剪后的识图文本。最终以后端对接文档为准。
 - 服务端负责裁剪；前端只负责展示高亮框和确认/切换，不把裁剪图当作原图。
 - 框题失败 → 退回整图识图；识图失败 → 退回文本录入。
@@ -556,7 +558,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 - 电脑端：Ctrl+V 粘贴 / 拖入 / 点击上传，`accept="image/jpeg,image/png,image/webp"`。
 - 手机端：两个入口——拍照（`<input type="file" accept="image/*" capture="environment">`）和相册（不带 `capture`）。
-- 两端都走 AI 框题：高亮最可能的核心题目，提示“是这道题吗？”；用户可确认/切换候选；P0 不做拖拽画框。
+- 两端都走 AI 框题：高亮最可能的核心题目，提示“是这道题吗？”；用户可确认/切换候选，并可移动/缩放 AI 框；从零画框 P1。
 - 识图结果按题型模板填入编辑器；用户确认后才创建错题。识图失败可重拍/换图/直接粘贴文本。
 
 **限制与处理**：
@@ -575,7 +577,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 图片（JPEG/PNG/WebP）
   → 服务端校验/压缩/去 EXIF
   → DeepSeek `deepseek-flash` 框题（检测题目区域，返回候选 bbox + confidence）
-  → 前端高亮“是这道题吗？”→ 用户确认/切换候选（P0 不做拖拽画框）
+  → 前端高亮“是这道题吗？”→ 用户确认/切换候选 + 移动/缩放 AI 框（从零画框 P1）
   → 服务端按 bbox 裁剪
   → DeepSeek `deepseek-flash` 识图（Chat Completions，content blocks: text + image_url data URL）
   → 严格 JSON：
@@ -895,7 +897,7 @@ VITE_API_BASE_URL=/api/v1
 | TQ-07 | Arco 主题方式 | CSS 变量 / less 覆盖 | 优先 CSS 变量；按官方 Vite 插件 | 11.7 |
 | TQ-08 | 图片入口优先级 | P0 / P0 增强 / P1 | P0 增强：文本必保，图片 11.21 前可用 | 11.7 |
 | TQ-09 | 手机相机 HTTPS | 有/无 | 手机拍照需要安全上下文；无 HTTPS 时用相册/文本兜底 | 11.12 |
-| TQ-10 | 框题确认接口形态 | 单端点两阶段 / detect+extract | 单端点两阶段；**P0 增强，不做拖拽画框**；以后端对接文档为准 | 11.7 |
+| TQ-10 | 框题确认接口形态 | 单端点两阶段 / detect+extract | 单端点两阶段；**P0 可移动/缩放 AI 框，从零画框 P1**；以后端对接文档为准 | 11.7 |
 | TQ-11 | DeepSeek 框题/grounding | 支持 / 不支持 | 后端用 Key 实测；不支持则整图识图兜底 | Key 到位后 1 天 |
 
 ## 14. 变更记录
@@ -905,4 +907,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
+| 2026-11-05 | v0.3.1 | 框题 P0 改为可移动/缩放 AI 框；`from-image` 第二阶段支持 `crop_box`；整页/无 candidate 走整图识别 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
