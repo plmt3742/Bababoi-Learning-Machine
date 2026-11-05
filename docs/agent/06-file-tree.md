@@ -9,7 +9,7 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
-> 2026-11-06 更新：`frontend/` 已从骨架推进到 Calm Academic 前端（FE-001~012/015 已合；FE-009/019 在 PR #19；全量视觉在 PR #21）。`components/layout/` 现为 `AppShell/AppTopBar/BrandMark/navigation`，`AppSidebar/AppNavigation` 已删除。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
+> 2026-11-06 更新：`frontend/` 已从骨架推进到 Calm Academic 前端（FE-001~012/015/009/019/022 已合入 main）。`components/layout/` 现为 `AppShell/AppTopBar/BrandMark/navigation`，`AppSidebar/AppNavigation` 已删除。新增 `admin/` 占位目录；ADR-005 已定其为 P1 内部运维台，不进入 11.29 学生演示。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
 >
 > 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
 
@@ -26,12 +26,14 @@ BababoiLearningMachine/
 │   └── pull_request_template.md
 ├── Resource/                      # 本地只读参考，不上传仓库
 ├── frontend/
-│   ├── README.md                  # 目录骨架；脚手架待 FE-001
-│   ├── public/.gitkeep
-│   ├── src/                       # api/assets/components/... 目录骨架
-│   ├── tests/.gitkeep
-│   └── e2e/.gitkeep
-├── backend/                       # 按 origin/main 实际结构；本分支未合并 main
+│   ├── README.md                  # 学生端说明（Calm Academic）
+│   ├── public/
+│   ├── src/                       # api/assets/components/...
+│   ├── tests/
+│   └── e2e/
+├── admin/                         # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
+│   └── README.md                  # 规划与范围；业务代码待 ADM-002+
+├── backend/                       # 按 origin/main 实际结构
 │   ├── README.md                  # 状态过期，issue #11 修
 │   ├── pyproject.toml             # uv + ruff + pytest（BE-001）
 │   ├── uv.lock
@@ -148,6 +150,18 @@ BababoiLearningMachine/
 │   │   └── views/                 # 页面
 │   ├── tests/                     # Vitest 单测
 │   └── e2e/                       # Playwright
+├── admin/                         # P1 内部运维台（独立 Vue 3 + Vite + TS + Arco）
+│   ├── package.json
+│   ├── vite.config.ts             # base: '/admin/'；dev 5174；代理 /api
+│   ├── index.html
+│   ├── .env.example
+│   ├── src/
+│   │   ├── api/                   # client/admin/types
+│   │   ├── router/                # /admin/login、/admin、/admin/users...
+│   │   ├── stores/                # 独立 admin auth
+│   │   ├── layouts/               # AdminShell
+│   │   └── views/                 # Dashboard/Users/Questions/Tasks/AiLogs
+│   └── README.md
 ├── backend/
 │   ├── pyproject.toml
 │   ├── uv.lock
@@ -200,6 +214,7 @@ BababoiLearningMachine/
 | `docs/product/` | PRD、IA/流程、页面规范、设计 tokens、草稿双写、线框/交互地图 | 实现细节、API 字段定义（放 05） |
 | `docs/adr/` | 不可逆/跨模块决策 | 日常小决定 |
 | `docs/interaction/` | 交互参考 demo（历史参考，非契约） | 业务代码、API 字段定义 |
+| `admin/` | P1 内部运维台（独立 Vue app）：总览/用户/内容/任务/AI 日志 | 学生端功能、教师端、密钥、完整 RBAC |
 | `frontend/src/api/` | Axios 实例、端点函数、请求/响应类型 | 业务组件、页面状态 |
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
 | `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |

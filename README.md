@@ -19,8 +19,9 @@
 ## 仓库结构
 
 ```text
-frontend/                 # Vue 3 前端（目录骨架，脚手架待 FE-001）
-backend/                  # FastAPI 后端（BE-001/002/003 已就位：/health + 表 + 认证）
+frontend/                 # Vue 3 学生端（Calm Academic，FE-001~012/015/009/019/022 已合）
+admin/                    # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
+backend/                  # FastAPI 后端（BE-001/002/003 + follow-up 已合）
 contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
 scripts/                  # 跨前后端的开发脚本
@@ -42,12 +43,12 @@ Resource/                 # 本地只读参考资料（不上传仓库）
 - 设计手册：`docs/agent/08-design-playbook.md`
 - 风险：`docs/agent/09-risks.md`
 
-## 当前进度（2026-11-05）
+## 当前进度（2026-11-06）
 
-- `origin/main @ 2335773`：BE-001/002/003 已合并（PR #2/#3/#4）；CI 已加固（PR #10）
-- 后端待合并：PR #5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
-- 后端 follow-up：issue #11（health、MySQL 驱动、文档、限流等）
-- 前端：FE-001 尚未开始；页面草稿/原型/交互地图在 `feat/frontend-m0-foundation`
+- `origin/main @ a65806c`：BE-001/002/003 + follow-up（#14）、BE-004（#7）、FE-009/019（#19）、Calm Academic 视觉（#21）已合并
+- 后端待处理：BE-005（#6）、BE-006/007（#5）等 analysis `answer_md`/`explanation_md` 修复；BE-012（#9）已 approve，等 #5；docs #8 最后合
+- 前端：FE-001~012/015/009/019/022 已合；剩余 FE-013/014/016/018/020/021
+- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - 图片录入 v2（正式决策）：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题
 - PRD v0.8 已归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
 
