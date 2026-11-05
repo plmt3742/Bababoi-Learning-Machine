@@ -10,12 +10,12 @@ from __future__ import annotations
 import re
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
-from app.models import GenerationTask, Question, Tag
+from app.models import GenerationTask, Question, QuestionTag, Tag
 from app.schemas.question import (
     QuestionCreate,
     QuestionListItem,
@@ -110,7 +110,17 @@ def list_questions(
     if q:
         # 05 §5.3：大小写不敏感搜索用 lower + like；转义用户输入里的 % 和 _
         pattern = "%" + _LIKE_SPECIAL.sub(r"\\\1", q) + "%"
-        stmt = stmt.where(func.lower(Question.content_md).like(pattern, escape="\\"))
+        content_hit = func.lower(Question.content_md).like(pattern, escape="\\")
+        # PRD 的搜索范围是「题干 + 知识点标签」，所以标签命中也算；
+        # 用关联子查询而不是 join，否则一题命中多个标签会在列表里重复出现
+        tag_hit = (
+            select(QuestionTag.question_id)
+            .join(Tag, Tag.id == QuestionTag.tag_id)
+            .where(QuestionTag.question_id == Question.id)
+            .where(func.lower(Tag.name).like(pattern, escape="\\"))
+            .exists()
+        )
+        stmt = stmt.where(or_(content_hit, tag_hit))
 
     total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = session.scalars(
@@ -153,7 +163,15 @@ def update(
     question = get_owned(session, user_id, question_id)
     changed = data.model_dump(exclude_unset=True)
 
-    for field in ("subject", "chapter", "content_md", "answer_md", "explanation_md", "analysis"):
+    for field in (
+        "subject",
+        "chapter",
+        "content_md",
+        "answer_md",
+        "explanation_md",
+        "mastery_status",
+        "analysis",
+    ):
         if field in changed:
             setattr(question, field, changed[field])
     if "tags" in changed:

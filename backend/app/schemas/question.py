@@ -145,6 +145,9 @@ QuestionInput = Annotated[
 # 05 只说「列表不返回全文，返回 excerpt」，没定长度；取 100 字符，超出加省略号
 EXCERPT_LEN = 100
 
+# 05 §5.2：错题题干 ≤5000 字符；生成题题干 ≤3000（在 ai/validator 里管）
+CONTENT_MD_MAX = 5000
+
 MasterStatus = Literal["unmastered", "reviewing", "mastered"]
 
 
@@ -196,6 +199,7 @@ class QuestionCreate(QuestionBase):
     chapter: str | None = Field(default=None, max_length=64)
     source_type: Literal["text", "image"] = "text"
     question_type: Literal["choice", "blank", "solve"]
+    content_md: str = Field(max_length=CONTENT_MD_MAX)
     answer_md: str | None = None
     explanation_md: str | None = None
     options: list[ChoiceOption] | None = None
@@ -218,13 +222,16 @@ class QuestionUpdate(BaseModel):
     """PATCH /questions/{id}；05 §6.4 允许改：题干/答案/解析/学科/标签/analysis。
 
     options/blanks 不在可改清单里——改题型等于换一道题，MVP 不支持。
+    mastery_status 也在可改清单里：前端自评后顺手 PATCH（确认单 B-5 定的口径），
+    后端不做「答对 N 次自动升 reviewing」的流转，那属于 P1。
     """
 
     subject: str | None = Field(default=None, min_length=1, max_length=32)
     chapter: str | None = Field(default=None, max_length=64)
-    content_md: str | None = None
+    content_md: str | None = Field(default=None, max_length=CONTENT_MD_MAX)
     answer_md: str | None = None
     explanation_md: str | None = None
+    mastery_status: MasterStatus | None = None
     tags: list[str] | None = Field(default=None, max_length=10)
     analysis: dict | None = None
 

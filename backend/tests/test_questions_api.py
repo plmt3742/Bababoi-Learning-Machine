@@ -254,3 +254,63 @@ def test_questions_require_auth(client) -> None:
     resp = client.get("/api/v1/questions")
     assert resp.status_code == 401
     assert resp.json()["detail"]["code"] == "AUTH_INVALID_CREDENTIALS"
+
+
+def test_search_matches_tag_name_not_only_content(client) -> None:
+    """PRD 的搜索范围是「题干 + 知识点标签」：题干里没有关键词、标签里有，也要命中。"""
+    token = register_user(client)["access_token"]
+    _create(client, token, _choice_payload(tags=["洛朗展开"]))
+    hit = client.get("/api/v1/questions", params={"q": "洛朗"}, headers=auth_headers(token))
+    assert hit.json()["total"] == 1
+
+    miss = client.get("/api/v1/questions", params={"q": "不存在词"}, headers=auth_headers(token))
+    assert miss.json()["total"] == 0
+
+
+def test_search_returns_each_question_once_with_multiple_tags(client) -> None:
+    """一题挂两个都命中的标签时不能出现两行——所以搜索用 EXISTS 子查询而不是 join。"""
+    token = register_user(client)["access_token"]
+    _create(client, token, _choice_payload(tags=["极值", "极值点"]))
+    page = client.get("/api/v1/questions", params={"q": "极值"}, headers=auth_headers(token)).json()
+    assert page["total"] == 1
+    assert len(page["items"]) == 1
+
+
+def test_content_md_over_5000_rejected(client) -> None:
+    """05 §5.2：题干 ≤5000 字符。"""
+    token = register_user(client)["access_token"]
+    resp = client.post(
+        "/api/v1/questions",
+        json=_choice_payload(content_md="x" * 5001),
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
+
+
+def test_patch_mastery_status_roundtrip(client) -> None:
+    """确认单 B-5：掌握状态走 PATCH，前端自评后顺手改；后端不自动流转。"""
+    token = register_user(client)["access_token"]
+    qid = _create(client, token, _choice_payload())["question"]["id"]
+
+    resp = client.patch(
+        f"/api/v1/questions/{qid}",
+        json={"mastery_status": "reviewing"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["mastery_status"] == "reviewing"
+
+    # 能改就能按新状态筛出来
+    page = client.get(
+        "/api/v1/questions", params={"mastery_status": "reviewing"}, headers=auth_headers(token)
+    ).json()
+    assert page["total"] == 1
+
+    bad = client.patch(
+        f"/api/v1/questions/{qid}",
+        json={"mastery_status": "已掌握"},
+        headers=auth_headers(token),
+    )
+    assert bad.status_code == 400
+
