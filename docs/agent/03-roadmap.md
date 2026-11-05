@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 status: active
 read_when: 每次开工先看“现在到哪一步”；每次收工更新状态
 ---
@@ -49,9 +49,9 @@ read_when: 每次开工先看“现在到哪一步”；每次收工更新状态
 - [ ] `docs/product/03-page-specs.md` 至少覆盖登录、首页、录入/编辑（三种题型）、任务中心、列表、详情、练习、统计（P1，可合并）。（当前有示例+页面要点，8 页规范待填）
 - [x] `docs/product/04-design-system.md` 有 tokens + 组件清单 + 状态规范。
 - [ ] `docs/agent/05-architecture.md` 的 API v0（含图片 v2 文本提取）与搭档确认。
-- [ ] `frontend/` 能 `pnpm dev`；`backend/` 能 `uv run uvicorn`；`/health` 返回 200。
+- [x] `frontend/` 能 `pnpm dev`；`backend/` 能 `uv run uvicorn`；`/health` 返回 200。（前端 2026-11-06 已验证）
 - [ ] `docker compose -f deploy/docker-compose.dev.yml up` 能起 MySQL（或明确本地不用 MySQL）。
-- [ ] CI 在 PR 上跑 lint/test/build。
+- [x] CI 在 PR 上跑 lint/test/build。（frontend + backend job 均绿）
 - [ ] `04-todos.md` 的 M0 任务 ≥ 80% DONE；未完成项有明确原因和顺延计划。
 - [ ] 产品评审我想抓住风的影子收到一次同步（范围、风险、下周计划）。
 
@@ -143,17 +143,18 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 - [ ] 无 P0/P1 bug；已知问题有说明。
 - [ ] 仓库 README、文档、commit 记录完整。
 
-## 6. 当前进度（2026-11-05）
+## 6. 当前进度（2026-11-06）
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
 | 文档体系 | DONE | `docs/agent/`（含 12/13）、`docs/product/` 01–08、`docs/adr/`（含 ADR-004）；PRD v0.8 已归档为参考 |
 | 根级 AGENTS.md | DONE | agent 入口 |
 | 关键决策 | DONE | 大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态、图片 v2（裁剪 + 多题文本提取）、数据库 schema 归人机 |
-| 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；03 页面规范待按 8 页填全；07/08/原型待按图片 v2 更新；PRD v0.9 待合并；可用性测试待做 |
-| 设计原型 | DONE（旧版） | `docs/product/drafts/prototype.html` + `interaction-map.html` 可本地打开；旧框题版，待按图片 v2 更新 |
+| 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；2026-11-06 全量 Calm Academic 视觉定稿并落到前端；03 页面规范待按 8 页填全；PRD v0.9 待合并；可用性测试待做 |
+| 设计原型 | DONE（视觉定稿） | `calm-academic/index.html` 四屏为最终视觉基准，前端已按原型覆写；仓库内 `docs/product/drafts/` 仍是旧框题线框，待归档/更新 |
+| 前端视觉 | DONE（PR #21 待合并） | AppShell/列表/录入/详情/任务中心/登录/占位/404 已按 Calm 原型覆写；1366/375 + 核心路径验证通过；PR #21 stacked 在 PR #19 上 |
 | API 契约 v0 | DOING | `05-architecture.md` v0.4 草案（图片 v2/队列/草稿/题型/掌握状态）；`12-backend-alignment.md` 已对齐，待两人逐节确认后冻结 |
-| 仓库骨架 | DONE | `origin/main @ afa881d`：BE-001/002/003 + CI #10 + 前端 FE-001~012/015（PR #16~#18）；FE-009/019 在 PR #19；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
+| 仓库骨架 | DONE | `origin/main @ afa881d`：BE-001/002/003 + CI #10 + 前端 FE-001~012/015（PR #16~#18）；FE-009/019 在 PR #19；Calm 视觉覆写在 PR #21（stacked）；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
 | 后端后续 | DOING | PR #5/#6/#7/#9 open；PR #8 docs 暂缓；issue #11 跟踪 BE-001~003 follow-up |
 | CI | DONE | `.github/workflows/ci.yml`；PR #10 已合；frontend 在 FE-001 后改为真实命令 |
 | 部署 | TODO | 11.14 前必须完成 |
