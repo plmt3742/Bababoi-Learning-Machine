@@ -1,0 +1,49 @@
+"""应用配置：环境变量 / .env 集中管理，PRD 里那些 🔵 数值定稿后只改这里。"""
+from __future__ import annotations
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    project_name: str = "Bababoi Learning Machine"
+    version: str = "0.1.0"
+    api_prefix: str = "/api/v1"
+
+    # CORS：只列允许的来源，不用 *（05 §9.4）
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    # FR-7 账号：JWT 有效期 7 天（05 §6.3）；secret 必须由环境变量注入
+    jwt_secret: str = ""
+    access_token_expire_days: int = 7
+
+    # 数据库：BE-001 只提供配置项，连接与建表在 BE-002
+    database_url: str = ""
+
+    # LLM（ADR-003：DeepSeek deepseek-flash，OpenAI 兼容接口）
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.deepseek.com"
+    llm_model: str = "deepseek-flash"
+    llm_mock: bool = True  # CI 与本地默认不调真实模型（12号 §6.1）
+
+    # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
+    recognize_client_timeout_s: int = 90  # 前端等待上限
+    task_hard_timeout_s: int = 120  # 单任务服务端硬超时
+    task_max_concurrency: int = 2  # 🔵 待用 RPM/TPM 实测核定
+    task_retry_limit: int = 1
+
+    # 图片（12号 §5；上传兜底 10MB，落库前压到 5MB/2000px）
+    image_max_upload_bytes: int = 10 * 1024 * 1024
+    image_max_stored_bytes: int = 5 * 1024 * 1024
+    image_max_edge_px: int = 2000
+    image_allowed_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
+
+    # 分页（05 §6.1）
+    page_size_default: int = 20
+    page_size_max: int = 100
+
+
+settings = Settings()

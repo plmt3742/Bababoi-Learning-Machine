@@ -1,0 +1,33 @@
+[project]
+name = "bababoi-backend"
+version = "0.1.0"
+description = "巴巴博弈学习机后端（FastAPI）"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.162",
+    "uvicorn[standard]>=0.54",
+    "pydantic>=2.14",
+    "pydantic-settings>=2.16",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2",
+    "ruff>=0.17",
+    "httpx>=0.28",  # fastapi TestClient 依赖它
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+# 行长由人工守（ruff 的 E501 与格式化工具冲突，不启用）
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# 不写 [build-system]：这是应用不是库，uv 按虚拟项目处理，避免每次 sync 都构建自身包

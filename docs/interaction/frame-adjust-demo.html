@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>巴巴博弈学习机 · 简单 Demo</title>
+
+<!-- KaTeX：走 bootcdn。加载失败就换 unpkg 再试一次；都失败则 renderOne 降级显示原文，不白屏 -->
+<script>
+function katexCdnFailed(which) {
+  var el = document.createElement(which === 'css' ? 'link' : 'script');
+  if (which === 'css') { el.rel = 'stylesheet'; el.href = 'https://unpkg.com/katex@0.16.9/dist/katex.min.css'; }
+  else { el.src = 'https://unpkg.com/katex@0.16.9/dist/katex.min.js'; }
+  document.head.appendChild(el);
+}
+</script>
+<link rel="stylesheet" onerror="katexCdnFailed('css')"
+      href="https://cdn.bootcdn.net/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer onerror="katexCdnFailed('js')"
+        src="https://cdn.bootcdn.net/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+
+<style>
+/* 视觉按提示词 §五：Arco 风格配色 */
+:root{
+  --primary:#165DFF; --bg:#F7F8FA; --card:#fff; --border:#E5E6EB;
+  --text:#1D2129; --sub:#86909C; --danger:#F53F3F;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;background:var(--card);border-bottom:1px solid var(--border)}
+header h1{font-size:18px;margin:0}
+.wrap{max-width:1040px;margin:0 auto;padding:16px 24px 60px}
+.notice{background:#E8F3FF;color:#1D3970;border:1px solid #BED8FF;
+  border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:12px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+button{font:inherit;border-radius:8px;padding:7px 14px;cursor:pointer;border:1px solid var(--border)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-ghost{background:#fff;color:var(--text)}
+.btn-sm{padding:4px 10px;font-size:13px}
+input[type=text],textarea,select{font:inherit;padding:7px 10px;border:1px solid var(--border);
+  border-radius:8px;background:#fff;width:100%}
+textarea{resize:vertical;min-height:72px;font-family:ui-monospace,Consolas,monospace}
+label{display:block;margin:14px 0 4px;font-weight:600}
+.tag{display:inline-block;background:#F2F3F5;border-radius:4px;padding:1px 8px;
+  margin-right:6px;font-size:12px;color:var(--sub)}
+.sub{color:var(--sub);font-size:13px}
+.pill{border:1px solid var(--border);border-radius:4px;padding:1px 8px;font-size:12px;background:#fff}
+.mastery-no{color:var(--danger)} .mastering{color:#FF7D00} .mastery-ok{color:#00B42A}
+.opt-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.opt-letter{width:26px;text-align:center;color:var(--sub);font-weight:600}
+.err{color:var(--danger);font-size:13px;margin-top:6px}
+/* 公式渲染失败：标红 + 保留原文（PRD §5.2.3「不丢内容」） */
+.katex-error{color:var(--danger);background:#FFECE8;border-bottom:1px dashed var(--danger);
+  padding:0 2px;cursor:help}
+.preview{border:1px dashed var(--border);border-radius:8px;padding:12px;background:#FAFBFC;min-height:72px}
+.tab{padding:8px 18px;border:1px solid var(--border);background:#fff;border-radius:8px 8px 0 0}
+.tab-on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.fold{margin-top:8px}
+.fold-body{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;background:#FAFBFC}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+h3{font-size:15px;margin:0 0 10px}
+.hide{display:none}
+/* 照片识别（FR-1 / 5.2.1）：粘贴方框、缩略图、裁剪态、识别等待 */
+.paste-box{border:2px dashed var(--border);border-radius:8px;padding:18px;text-align:center;
+  background:#fff;color:var(--sub)}
+.paste-box.on{border-color:var(--primary);background:#F7FBFF;color:var(--text)}
+.thumb-wrap{position:relative;display:inline-block;margin-top:10px}
+.thumb-wrap img{display:block;max-width:320px;max-height:220px;border:1px solid var(--border);border-radius:8px}
+.thumb-del{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+  background:#C9CDD4;color:#1D2129;border:none;line-height:24px;padding:0;font-weight:700}
+.spin{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--primary);
+  border-radius:50%;display:inline-block;animation:sp 0.9s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.crop-stage{position:relative;display:inline-block;margin-top:10px;border:1px solid var(--border)}
+.crop-stage img{display:block;max-width:460px;max-height:300px;opacity:.55}
+.crop-sel{position:absolute;border:2px solid var(--primary);background:rgba(22,93,255,.12);cursor:move}
+.crop-handle{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;background:var(--primary);
+  border-radius:50%;cursor:nwse-resize}
+.fail-hint{color:var(--danger);font-size:13px;margin-top:8px}
+.tool-note{background:#FFF7E8;border:1px solid #FFDFB3;color:#7A4A00;border-radius:8px;
+  padding:8px 12px;margin-top:10px;font-size:13px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>巴巴博弈学习机 <span class="sub">简单 Demo</span></h1>
+  <div class="row">
+    <button class="btn-primary" id="btn-add">+ 添加错题</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="notice">简单 Demo · 数据存本地 localStorage · AI 为 mock（含照片识别）· 公式按 $...$ 渲染</div>
+
+  <!-- ========== 视图 1：错题本列表（PRD FR-6） ========== -->
+  <section id="view-list">
+    <div class="card">
+      <div class="row">
+        <span class="sub">学科</span>
+        <select id="filter-subject" style="width:130px"><option value="">全部</option></select>
+        <span class="sub">掌握状态</span>
+        <select id="filter-mastery" style="width:130px">
+          <option value="">全部</option>
+          <option value="no">未掌握</option>
+          <option value="mid">复习中</option>
+          <option value="yes">已掌握</option>
+        </select>
+        <div class="spacer"></div>
+        <input type="text" id="filter-q" placeholder="搜索题干 / 标签" style="width:220px">
+        <button class="btn-ghost" id="btn-search">搜索</button>
+      </div>
+    </div>
+    <div id="list"></div>
+    <div class="sub" id="list-count"></div>
+  </section>
+
+  <!-- ========== 视图 2：录入页（PRD FR-1 / FR-3 / 5.2.2 / 5.2.4） ========== -->
+  <section id="view-edit" class="hide">
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn-ghost" id="btn-back-list">← 返回错题本</button>
+      <div class="spacer"></div>
+      <span class="sub">题型（PRD 5.2.2，MVP 三种）</span>
+    </div>
+
+    <div class="row" style="margin-bottom:0">
+      <button class="tab" data-type="choice">选择题</button>
+      <button class="tab" data-type="blank">填空题</button>
+      <button class="tab" data-type="solve">解答题</button>
+    </div>
+
+    <div class="card" style="border-radius:0 8px 8px 8px">
+      <div class="grid2">
+        <div>
+          <!-- ===== 照片识别题目（FR-1 / PRD 5.2.1）：与手动录入并列的辅助入口 ===== -->
+          <div id="photo-stage" class="paste-box">
+            <div>Ctrl+V 粘贴图片，或点击选择文件（jpg/png，≤10 MB）</div>
+            <div class="sub" style="margin-top:6px">
+              粘贴来源直接识别（系统截图已框好题）；拍照/相册/文件来源先进入裁剪态（PRD 5.2.1 分端路径，裁剪为 P0）
+            </div>
+            <input type="file" id="file-input" accept="image/jpeg,image/png" class="hide">
+            <button class="btn-sm btn-ghost" id="btn-pick" style="margin-top:10px">选择文件</button>
+            <label class="sub" style="margin:10px 0 0;font-weight:400;display:block">
+              <input type="checkbox" id="in-fail" style="width:auto"> 模拟识别失败（演示「无限次重传、不设上限」用）
+            </label>
+            <div class="fail-hint" id="paste-hint"></div>
+          </div>
+
+          <!-- 缩略图 + 上传反馈（PRD 5.2.1 第 5 条） -->
+          <div id="photo-thumb" class="hide">
+            <div class="thumb-wrap">
+              <img id="thumb-img" alt="题目图片">
+              <button class="thumb-del" id="btn-thumb-del" title="删除图片">×</button>
+            </div>
+            <div class="sub" id="thumb-status"></div>
+          </div>
+
+          <!-- 裁剪态（PRD 5.2.1 裁剪态交互 1/2） -->
+          <div id="photo-crop" class="hide">
+            <div class="crop-stage" id="crop-stage">
+              <img id="crop-img" alt="待裁剪题目">
+              <div class="crop-sel" id="crop-sel"><div class="crop-handle" id="crop-handle"></div></div>
+            </div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn-sm btn-primary" id="btn-crop-ok">确认裁剪</button>
+              <button class="btn-sm btn-ghost" id="btn-crop-reset">重置为整图</button>
+              <button class="btn-sm btn-ghost" id="btn-crop-cancel">取消</button>
+              <span class="sub">拖框移动，右下角圆点改大小</span>
+            </div>
+          </div>
+
+          <!-- 识别等待态（PRD 5.2.5 第 4 步：进度动画 + 已用时计时 + 可取消） -->
+          <div id="photo-wait" class="hide">
+            <div class="row" style="margin-top:12px">
+              <span class="spin"></span>
+              <span id="wait-timer">识别中 0.0 s</span>
+              <button class="btn-sm btn-ghost" id="btn-rec-cancel">取消</button>
+              <span class="sub">前端上限 90 s（PRD 5.4），本 Demo 用 mock 1.2 s 返回</span>
+            </div>
+          </div>
+
+          <div class="tool-note" id="rec-note">
+            识别结果为 <b>mock</b>：只演示「上传 → 裁剪 → 等待 → 填入编辑器 → 人工核对」这条链路，
+            不验证识别质量（PRD 4.2 双通道对比实验另说）。真实识别要等后端 FR-2 与模型 Key。
+          </div>
+
+          <label>题干（可写 LaTeX，行内公式用一对 <code>$...$</code>）</label>
+          <textarea id="in-content" placeholder="例：已知 $x^2=4$，则 $x=$"></textarea>
+
+          <!-- 选择题字段 -->
+          <div id="box-choice">
+            <label>选项（2–24 个；字母按顺序自动推导，不入库）</label>
+            <div id="options"></div>
+            <div class="row">
+              <button class="btn-sm btn-ghost" id="btn-opt-add">+ 加一个选项</button>
+              <label class="row" style="margin:0;font-weight:400">
+                <input type="checkbox" id="in-multiple" style="width:auto"> 多选
+              </label>
+            </div>
+          </div>
+
+          <!-- 填空题字段：每个空位一个独立输入框 -->
+          <div id="box-blank" class="hide">
+            <label>各空答案（题干里每出现一段连续 3 个以上下划线就多一个输入框）</label>
+            <div id="blanks"></div>
+            <div class="sub">注：提示词原写「用 | 分隔」，绝对值 <code>$|x|$</code> 会被拆坏，故改为每空一框。</div>
+          </div>
+
+          <!-- 解答题字段 -->
+          <div id="box-solve" class="hide">
+            <label>作答区（可选）</label>
+            <textarea id="in-solve" placeholder="本 Demo 存本地；PRD 第 8 节 question 表暂无对应列，接口待定"></textarea>
+          </div>
+
+          <label>学科</label>
+          <select id="in-subject">
+            <option>数学</option><option>物理</option><option>化学</option>
+            <option>生物</option><option>英语</option><option>其他</option>
+          </select>
+
+          <label>知识点标签（逗号分隔，可留空由 mock 生成）</label>
+          <input type="text" id="in-tags" placeholder="例：抛物线,定积分">
+
+          <div class="err" id="save-err"></div>
+          <div class="row" style="margin-top:16px">
+            <button class="btn-primary" id="btn-save">保存</button>
+            <span class="sub">校验规则见 PRD 5.2.4</span>
+          </div>
+        </div>
+
+        <!-- 右侧实时预览：停止输入 400ms 后渲染 -->
+        <div>
+          <h3>预览</h3>
+          <div class="sub" style="margin-bottom:8px">
+            注：PRD 5.2.3 定稿是「失焦后防抖 400ms 重渲染」，本 Demo 有意改成边写边预览，只为演示效果。
+          </div>
+          <div class="preview" id="preview">题干内容会出现在这里</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 视图 3：详情页（PRD FR-4 / FR-5 / US-3 / US-4） ========== -->
+  <section id="view-detail" class="hide">
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn-ghost" id="btn-back-list2">← 返回错题本</button>
+      <div class="spacer"></div>
+      <span class="sub" id="detail-meta"></span>
+    </div>
+    <div id="detail"></div>
+  </section>
+</div>
+
+<script>
+/* =========================================================================
+ * 第 1 层 · 数据：读写 localStorage + 3 条种子（提示词 §二.3、§三.1）
+ * ========================================================================= */
+const STORE_KEY = 'bababoi.demo.questions.v1';
+
+// 种子题干里都带 $...$，用来验 KaTeX 渲染（自查清单第 3 条）
+const SEED = [
+  { id: 1, type: 'choice', subject: '数学', mastery: 'no', date: '2026-11-04',
+    content: '已知 $x^2 = 4$，且 $x < 0$，则 $x = $',
+    options: ['2', '-2', '\\pm 2', '4'], multiple: false, blanks: [], solveArea: '',
+    tags: ['一元二次方程', '不等式'],
+    reason: '忽略条件 $x<0$，直接开方取了正根。候选错因：概念混淆 / 计算失误' },
+  { id: 2, type: 'blank', subject: '数学', mastery: 'mid', date: '2026-11-03',
+    content: '函数 $f(x)=\\frac{1}{x-2}$ 的定义域是 ___ ，值域是 ___ 。',
+    options: [], multiple: false, blanks: ['\\{x \\mid x \\ne 2\\}', '\\{y \\mid y \\ne 0\\}'], solveArea: '',
+    tags: ['函数定义域'],
+    reason: '把定义域与值域写反。候选错因：概念混淆 / 审题失误' },
+  { id: 3, type: 'solve', subject: '物理', mastery: 'no', date: '2026-11-02',
+    content: '一物体做匀加速直线运动，初速度 $v_0 = 2\\,\\text{m/s}$，加速度 $a = 3\\,\\text{m/s}^2$，求前 $4\\,\\text{s}$ 内的位移。',
+    options: [], multiple: false, blanks: [],
+    solveArea: '$s = v_0 t + \\frac{1}{2} a t^2 = 2\\times4 + \\tfrac{1}{2}\\times3\\times16 = 32\\ \\text{m}$',
+    tags: ['匀变速运动'],
+    reason: '公式记成 $s = v_0 t + a t^2$，漏了 $\\frac{1}{2}$。候选错因：公式记忆错误' },
+];
+
+function load() {
+  const raw = localStorage.getItem(STORE_KEY);
+  if (!raw) { persist(SEED); return SEED.slice(); }
+  try { return JSON.parse(raw); } catch (e) { return SEED.slice(); }
+}
+function persist(list) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(list));
+}
+
+let questions = load();
+let state = { type: 'choice', options: ['', '', '', ''], editingId: null };
+
+/* =========================================================================
+ * 第 2 层 · 公式渲染（提示词 §二.2 / PRD 5.2.3）
+ *
+ * 与提示词的一处有意偏离：提示词写 throwOnError:false，但 PRD 5.2.3 定稿要求
+ * 「抛异常 → 出错片段标红 + 显示该错误信息」，而 throwOnError:false 根本不抛异常，
+ * 位置和消息都拿不到。所以这里用 throwOnError:true + 逐片段 try/catch。
+ * ========================================================================= */
+const MATH_SEG = /\$\$([\s\S]+?)\$\$|\$([\s\S]+?)\$/g;
+const ESC_SENTINEL = '\uE0FF';   // 占位代表被转义的 \$，切完公式再还原
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, ch => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ));
+}
+
+function renderRich(src) {
+  // 顺序很重要：先在原文上切公式段，再只对「非公式段」做 HTML 转义。
+  // 反过来（先整体转义再切）会把 $a>0$ 变成 $a&gt;0$ 喂给 KaTeX，直接解析失败。
+  const work = String(src).replace(/\\\$/g, ESC_SENTINEL);   // \$ 不当作分隔符
+  let out = '';
+  let last = 0;
+  let m;
+  MATH_SEG.lastIndex = 0;
+  while ((m = MATH_SEG.exec(work)) !== null) {
+    out += escapeHtml(work.slice(last, m.index));
+    const display = m[1] !== undefined;
+    out += renderOne(display ? m[1] : m[2], display);         // 公式原文交给 KaTeX
+    last = m.index + m[0].length;
+  }
+  out += escapeHtml(work.slice(last));
+  return out.split(ESC_SENTINEL).join('$');
+}
+
+function renderOne(tex, display) {
+  if (!window.katex) {
+    // CDN 没加载成功：降级显示原文，不白屏（提示词 §二.2 末条）
+    return `<span class="sub">[KaTeX 未加载] ${display ? '$$' : '$'}${escapeHtml(tex)}${display ? '$$' : '$'}</span>`;
+  }
+  try {
+    return window.katex.renderToString(tex, { displayMode: display, throwOnError: true });
+  } catch (err) {
+    // PRD 5.2.3：标红 + 显示错误信息 + 内容不丢
+    const msg = escapeHtml(String(err.message || err));
+    return `<span class="katex-error" title="${msg}">${display ? '$$' : '$'}${escapeHtml(tex)}${display ? '$$' : '$'}</span>`;
+  }
+}
+
+/* =========================================================================
+ * 第 3 层 · 题型结构与校验（PRD 5.2.2 / 5.2.4，与后端 app/schemas/question.py 同口径）
+ * ========================================================================= */
+const MIN_OPTIONS = 2, MAX_OPTIONS = 24, MAX_BLANKS = 20;
+// 空位口径：一段连续 3 个及以上下划线算 1 个空位。后端用 re.compile(r"_{3,}")，此处一致
+const BLANK_RUN = /_{3,}/g;
+
+function countBlanks(content) {
+  return (content.match(BLANK_RUN) || []).length;
+}
+
+function validateDraft() {
+  const content = document.getElementById('in-content').value;
+  if (!content.trim()) return '题干不能为空';
+
+  if (state.type === 'choice') {
+    const opts = state.options.map(s => s.trim()).filter(Boolean);
+    if (opts.length < MIN_OPTIONS) return `选择题至少 ${MIN_OPTIONS} 个选项`;
+    if (opts.length > MAX_OPTIONS) return `选择题最多 ${MAX_OPTIONS} 个选项`;
+    if (state.options.length > MAX_OPTIONS) return `选项不能超过 ${MAX_OPTIONS} 个`;
+  }
+
+  if (state.type === 'blank') {
+    const n = countBlanks(content);
+    if (n === 0) return '题干里要有空位标记 ___';
+    if (n > MAX_BLANKS) return `空位数上限 ${MAX_BLANKS} 个`;
+    const filled = readBlankInputs();
+    if (filled.length !== n) return `题干有 ${n} 个空位，答案框却是 ${filled.length} 个`;
+    if (filled.some(v => !v.trim())) return '每个空位都要有答案';
+  }
+  return null;
+}
+
+/* =========================================================================
+ * 第 4 层 · mock AI（提示词 §二.4：不调真实模型，只验链路与交互）
+ * ========================================================================= */
+function mockTags(content, type) {
+  const table = { choice: '选择题专项', blank: '概念辨析', solve: '综合应用' };
+  return [table[type] || '综合'];
+}
+
+function mockQuizzes(content, type, tags) {
+  // 固定 3 道（PRD FR-5 对齐申报书「举一反三」）
+  const stem = `【mock】与原题同知识点（${tags[0]}）· 同题型（${type}）的第 ${1} 题：${content.slice(0, 24)}…`;
+  return [1, 2, 3].map(i => ({
+    no: i,
+    content: `【mock 相似题 ${i}】沿用原题知识点 ${tags.map(t => '#' + t).join(' ')}，把 $2$ 换成 $2+${i}$ 再练一次：${content.slice(0, 18)}…`,
+    answer: `mock 参考答案 ${i}：$x = ${i}$`,
+    explain: `mock 简要思路：先定 ${type} 的解法，再代回原题条件检验。`,
+  }));
+}
+
+/* =========================================================================
+ * 第 5 层 · 视图切换（提示词 §六：不上路由库，用 display 切）
+ * ========================================================================= */
+const views = { list: 'view-list', edit: 'view-edit', detail: 'view-detail' };
+function show(name) {
+  Object.values(views).forEach(id => document.getElementById(id).classList.add('hide'));
+  document.getElementById(views[name]).classList.remove('hide');
+}
+
+/* ---------- 列表 ---------- */
+function renderList() {
+  const subject = document.getElementById('filter-subject').value;
+  const mastery = document.getElementById('filter-mastery').value;
+  const q = document.getElementById('filter-q').value.trim();
+
+  const rows = questions.filter(item =>
+    (!subject || item.subject === subject) &&
+    (!mastery || item.mastery === mastery) &&
+    (!q || item.content.includes(q) || item.tags.join(' ').includes(q))
+  );
+
+  const box = document.getElementById('list');
+  box.innerHTML = rows.map(item => `
+    <div class="card">
+      <div class="row">
+        <span class="pill">${escapeHtml(item.subject)}</span>
+        <strong>${escapeHtml(summary(item))}</strong>
+        <div class="spacer"></div>
+        <span class="${masteryClass(item.mastery)}">${masteryText(item.mastery)}</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span>${item.tags.map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join('')}</span>
+        <div class="spacer"></div>
+        <span class="sub">${escapeHtml(item.date)} 录入 · ${typeText(item.type)}</span>
+        <button class="btn-sm btn-ghost" data-open="${item.id}">详情</button>
+      </div>
+    </div>`).join('') || '<div class="card sub">没有符合条件的错题</div>';
+
+  document.getElementById('list-count').textContent = `共 ${rows.length} 条 · 20 条/页`;
+  box.querySelectorAll('[data-open]').forEach(btn =>
+    btn.addEventListener('click', () => openDetail(Number(btn.dataset.open))));
+}
+
+function summary(item) {
+  // 摘要：第 8 节 question 表没有 title 列，这里先按「题干去公式标记取前 28 字」实现，已提给产品
+  return item.content.replace(/\$[^$]*\$/g, '□').replace(/_{3,}/g, '＿').slice(0, 28);
+}
+function typeText(t) { return { choice: '选择题', blank: '填空题', solve: '解答题' }[t] || t; }
+function masteryText(m) { return { no: '未掌握', mid: '复习中', yes: '已掌握' }[m]; }
+function masteryClass(m) { return 'sub ' + { no: 'mastery-no', mid: 'mastering', yes: 'mastery-ok' }[m]; }
+
+/* ---------- 录入 ---------- */
+function openEdit() {
+  state = { type: 'choice', options: ['', '', '', ''], editingId: null };
+  resetPhoto();                                       // 每次进录入页都从干净的图片状态开始
+  document.getElementById('in-content').value = '';
+  document.getElementById('in-solve').value = '';
+  document.getElementById('in-tags').value = '';
+  document.getElementById('in-multiple').checked = false;
+  document.getElementById('save-err').textContent = '';
+  syncTabs(); renderOptions(); renderBlankInputs(); refreshPreview();
+  show('edit');
+}
+
+function syncTabs() {
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('tab-on', t.dataset.type === state.type));
+  document.getElementById('box-choice').classList.toggle('hide', state.type !== 'choice');
+  document.getElementById('box-blank').classList.toggle('hide', state.type !== 'blank');
+  document.getElementById('box-solve').classList.toggle('hide', state.type !== 'solve');
+}
+
+function renderOptions() {
+  const box = document.getElementById('options');
+  box.innerHTML = state.options.map((val, i) => `
+    <div class="opt-row">
+      <span class="opt-letter">${String.fromCharCode(65 + i)}</span>
+      <input type="text" data-opt="${i}" value="${escapeHtml(val)}">
+      <button class="btn-sm btn-ghost" data-del="${i}" ${state.options.length <= MIN_OPTIONS ? 'disabled' : ''}>删</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-opt]').forEach(inp =>
+    inp.addEventListener('input', () => { state.options[Number(inp.dataset.opt)] = inp.value; }));
+  box.querySelectorAll('[data-del]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      state.options.splice(Number(btn.dataset.del), 1);
+      renderOptions();
+    }));
+}
+
+function renderBlankInputs() {
+  // 空位数由题干推导，输入框跟着长——这是把「答案数 == 空位数」做成结构性保证，而不是靠报错
+  const n = countBlanks(document.getElementById('in-content').value);
+  const box = document.getElementById('blanks');
+  const old = readBlankInputs();
+  box.innerHTML = Array.from({ length: Math.min(n, MAX_BLANKS) }, (_, i) => `
+    <div class="opt-row">
+      <span class="opt-letter">空${i + 1}</span>
+      <input type="text" class="blank-in" value="${escapeHtml(old[i] || '')}">
+    </div>`).join('') || '<div class="sub">题干里还没有 ___ 空位</div>';
+}
+function readBlankInputs() {
+  return Array.from(document.querySelectorAll('.blank-in')).map(inp => inp.value);
+}
+
+let previewTimer = null;
+function refreshPreview() {
+  // 防抖 400ms（PRD 5.2.3 的数值，只是触发时机从「失焦」换成「停止输入」）
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    const content = document.getElementById('in-content').value;
+    document.getElementById('preview').innerHTML =
+      content.trim() ? renderRich(content) : '题干内容会出现在这里';
+    if (state.type === 'blank') renderBlankInputs();
+  }, 400);
+}
+
+function saveQuestion() {
+  const err = validateDraft();
+  const errBox = document.getElementById('save-err');
+  errBox.textContent = '';            // 先清掉上次的提示，成功路径才不会留残影
+  if (err) { errBox.textContent = '保存失败：' + err; return; }   // 停留录入页，内容不丢
+
+  const content = document.getElementById('in-content').value;
+  const tagsRaw = document.getElementById('in-tags').value.trim();
+  const tags = tagsRaw ? tagsRaw.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+                       : mockTags(content, state.type);
+  const item = {
+    id: Date.now(),
+    type: state.type,
+    subject: document.getElementById('in-subject').value,
+    mastery: 'no',
+    date: new Date().toISOString().slice(0, 10),
+    content,
+    options: state.type === 'choice' ? state.options.map(s => s.trim()).filter(Boolean) : [],
+    multiple: state.type === 'choice' && document.getElementById('in-multiple').checked,
+    blanks: state.type === 'blank' ? readBlankInputs().map(s => s.trim()) : [],
+    solveArea: state.type === 'solve' ? document.getElementById('in-solve').value.trim() : '',
+    tags,
+    reason: '【mock】错因分析：本题关键在于把题干条件逐条落到公式上。候选错因：概念混淆 / 计算失误',
+  };
+  questions.unshift(item);
+  persist(questions);
+  fillSubjectFilter();
+  show('list');
+  renderList();
+}
+
+/* ---------- 详情 ---------- */
+function openDetail(id) {
+  const item = questions.find(q => q.id === id);
+  if (!item) return;
+  state.editingId = id;
+  const quizzes = mockQuizzes(item.content, item.type, item.tags);
+
+  document.getElementById('detail-meta').textContent =
+    `状态：已入库 · ${item.date} 录入 · ${typeText(item.type)}`;
+
+  const optionsHtml = item.type === 'choice' ? `
+    <ol type="A" style="padding-left:22px">
+      ${item.options.map(o => `<li>${renderRich(o)}</li>`).join('')}
+    </ol>
+    <div class="sub">${item.multiple ? '多选' : '单选'}（字母按顺序推导，不入库）</div>` : '';
+
+  const blanksHtml = item.type === 'blank' ? `
+    <div class="sub">参考答案（每空一条）</div>
+    ${item.blanks.map((b, i) => `<div>空${i + 1}：${renderRich(b)}</div>`).join('')}` : '';
+
+  const solveHtml = item.solveArea ? `
+    <div class="sub" style="margin-top:10px">作答区</div>
+    <div>${renderRich(item.solveArea)}</div>` : '';
+
+  document.getElementById('detail').innerHTML = `
+    <div class="card">
+      <h3>题干</h3>
+      <div>${renderRich(item.content)}</div>
+      ${optionsHtml}${blanksHtml}${solveHtml}
+    </div>
+    <div class="card">
+      <h3>错因分析（可编辑）</h3>
+      <div>${renderRich(item.reason)}</div>
+      <h3 style="margin-top:16px">知识点</h3>
+      <div>${item.tags.map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join('')}</div>
+    </div>
+    <div class="card">
+      <h3>举一反三 · 3 道相似题（mock）</h3>
+      ${quizzes.map(qz => `
+        <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px">
+          <div class="row">
+            <span class="pill">第 ${qz.no} 题</span>
+            <div class="spacer"></div>
+            <button class="btn-sm btn-ghost" disabled>重新生成本题（需后端）</button>
+          </div>
+          <div style="margin-top:8px">${renderRich(qz.content)}</div>
+          <div class="fold">
+            <button class="btn-sm btn-ghost" data-fold="${qz.no}">显示答案</button>
+            <div class="fold-body hide" id="fold-${qz.no}">
+              <div>${renderRich(qz.answer)}</div>
+              <div class="sub" style="margin-top:6px">${escapeHtml(qz.explain)}</div>
+            </div>
+          </div>
+        </div>`).join('')}
+      <div class="sub">注：相似题的「答案 / 思路」在 PRD 第 8 节 generated_quiz 里还没有列，本 Demo 先按两字段画（已提给产品）。</div>
+    </div>`;
+
+  document.querySelectorAll('[data-fold]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const body = document.getElementById('fold-' + btn.dataset.fold);
+      body.classList.toggle('hide');
+      btn.textContent = body.classList.contains('hide') ? '显示答案' : '收起答案';
+    }));
+
+  show('detail');
+}
+
+/* ---------- 筛选项 ---------- */
+function fillSubjectFilter() {
+  const sel = document.getElementById('filter-subject');
+  const keep = sel.value;
+  const subjects = Array.from(new Set(questions.map(q => q.subject)));
+  sel.innerHTML = '<option value="">全部</option>' +
+    subjects.map(s => `<option>${escapeHtml(s)}</option>`).join('');
+  sel.value = keep;
+}
+
+/* =========================================================================
+ * 第 6 层 · 照片识别（FR-1 / PRD 5.2.1、5.2.5 第 4 步、5.4 识别同步 90s）
+ *
+ * 全链路都是 mock：校验 → 缩略图/loading → 粘贴直接识别、文件先裁剪 → 等待态 →
+ * 按题型把结构化结果填进编辑器。图片一律用 createObjectURL，避免 file:// 下 canvas 被污染。
+ * ========================================================================= */
+const MAX_BYTES = 10 * 1024 * 1024;
+const OK_TYPES = ['image/jpeg', 'image/png'];
+const photo = { url: null, source: '', img: null, box: null, timer: null, tick: null, t0: 0 };
+
+const $stage = document.getElementById('photo-stage');
+const $thumb = document.getElementById('photo-thumb');
+const $crop = document.getElementById('photo-crop');
+const $wait = document.getElementById('photo-wait');
+const $hint = document.getElementById('paste-hint');
+
+function showStage(which) {
+  $stage.classList.toggle('hide', which !== 'stage');
+  $thumb.classList.toggle('hide', which !== 'thumb');
+  $crop.classList.toggle('hide', which !== 'crop');
+  $wait.classList.toggle('hide', which !== 'wait');
+}
+
+function resetPhoto() {
+  clearTimeout(photo.timer);
+  clearInterval(photo.tick);
+  if (photo.url) { URL.revokeObjectURL(photo.url); }
+  photo.url = null; photo.img = null; photo.box = null;
+  $hint.textContent = '';
+  document.getElementById('in-fail').checked = false;
+  showStage('stage');
+}
+
+// PRD 5.2.1 第 4 条：前端 1s 内完成格式与大小校验，不合规提示并停留
+function checkFile(file) {
+  if (!OK_TYPES.includes(file.type)) return '只支持 jpg / png（当前 ' + (file.type || '未知类型') + '）';
+  if (file.size > MAX_BYTES) return '图片 ' + (file.size / 1048576).toFixed(1) + ' MB，超过 10 MB 上限';
+  return null;
+}
+
+function acceptImage(file, source) {
+  // PRD 5.2.4 要求「有内容时点拍照识别先弹确认」。Demo 只做两选项（继续/取消），
+  // 「保存为草稿并继续」这一支涉及 draft 表与 localStorage 双写，超出本 Demo 范围。
+  if (document.getElementById('in-content').value.trim() &&
+      !window.confirm('当前题目尚未保存，继续识别会覆盖已填内容。确定继续？')) {
+    return;
+  }
+  const err = checkFile(file);
+  if (err) { $hint.textContent = err; return; }   // 红字保留至下一次操作（PRD 5.2.1 第 5 条）
+  $hint.textContent = '';
+  if (photo.url) { URL.revokeObjectURL(photo.url); }
+  photo.url = URL.createObjectURL(file);
+  photo.source = source;
+  document.getElementById('thumb-img').src = photo.url;
+  showStage('thumb');                                     // 300ms 内出占位 + loading
+  document.getElementById('thumb-status').innerHTML = '<span class="spin"></span> 上传中…';
+  const img = new Image();
+  img.onload = () => {
+    photo.img = img;
+    document.getElementById('thumb-status').textContent = '已成功上传';
+    if (source === 'paste') {
+      startRecognize(photo.url);                          // 粘贴来源：直接识别，不裁剪
+    } else {
+      enterCrop();                                        // 拍照/相册/文件来源：必经裁剪态
+    }
+  };
+  img.src = photo.url;
+}
+
+/* ---------- 裁剪态：默认框整图，可拖拽、可重置（PRD 5.2.1 裁剪态 1） ---------- */
+function enterCrop() {
+  const shown = document.getElementById('crop-img');
+  shown.src = photo.url;
+  showStage('crop');
+  shown.onload = () => {
+    const w = shown.clientWidth, h = shown.clientHeight;
+    setBox({ x: w * 0.08, y: h * 0.08, w: w * 0.84, h: h * 0.84 });
+  };
+  if (shown.complete && shown.clientWidth) {
+    const w = shown.clientWidth, h = shown.clientHeight;
+    setBox({ x: w * 0.08, y: h * 0.08, w: w * 0.84, h: h * 0.84 });
+  }
+}
+
+function setBox(box) {
+  photo.box = box;
+  const sel = document.getElementById('crop-sel');
+  sel.style.left = box.x + 'px';
+  sel.style.top = box.y + 'px';
+  sel.style.width = box.w + 'px';
+  sel.style.height = box.h + 'px';
+}
+
+function bindCropDrag() {
+  const sel = document.getElementById('crop-sel');
+  const handle = document.getElementById('crop-handle');
+  const shown = document.getElementById('crop-img');
+  let mode = null, sx = 0, sy = 0, origin = null;
+
+  const start = (e, m) => {
+    if (!photo.box) return;
+    mode = m; sx = e.clientX; sy = e.clientY; origin = Object.assign({}, photo.box);
+    e.preventDefault();
+  };
+  sel.addEventListener('mousedown', e => start(e, e.target === handle ? 'resize' : 'move'));
+  handle.addEventListener('mousedown', e => start(e, 'resize'));
+  document.addEventListener('mousemove', e => {
+    if (!mode) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    const cw = shown.clientWidth, ch = shown.clientHeight;
+    const box = Object.assign({}, origin);
+    if (mode === 'move') {
+      box.x = Math.min(Math.max(0, origin.x + dx), cw - origin.w);
+      box.y = Math.min(Math.max(0, origin.y + dy), ch - origin.h);
+    } else {
+      box.w = Math.min(Math.max(24, origin.w + dx), cw - origin.x);
+      box.h = Math.min(Math.max(24, origin.h + dy), ch - origin.y);
+    }
+    setBox(box);
+  });
+  document.addEventListener('mouseup', () => { mode = null; });
+}
+
+// 确认裁剪 → 按选框从原图裁切（按显示尺寸换算回自然像素），再进识别等待
+function confirmCrop() {
+  const shown = document.getElementById('crop-img');
+  const scale = photo.img.naturalWidth / shown.clientWidth;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(photo.box.w * scale);
+  canvas.height = Math.round(photo.box.h * scale);
+  canvas.getContext('2d').drawImage(
+    photo.img, photo.box.x * scale, photo.box.y * scale, canvas.width, canvas.height,
+    0, 0, canvas.width, canvas.height);
+  startRecognize(canvas.toDataURL('image/jpeg', 0.9));
+}
+
+/* ---------- 识别等待 + mock 返回 ---------- */
+function startRecognize(imageUrl) {
+  showStage('wait');
+  photo.t0 = Date.now();
+  document.getElementById('wait-timer').textContent = '识别中 0.0 s';
+  photo.tick = setInterval(() => {
+    document.getElementById('wait-timer').textContent =
+      '识别中 ' + ((Date.now() - photo.t0) / 1000).toFixed(1) + ' s';
+  }, 100);
+  photo.timer = setTimeout(finishRecognize, 1200);        // mock 耗时；真链路是同步 90s 上限
+}
+
+function cancelRecognize() {
+  clearTimeout(photo.timer);
+  clearInterval(photo.tick);
+  showStage('thumb');
+  document.getElementById('thumb-status').textContent = '识别已取消，可重新粘贴或选择文件';
+}
+
+function finishRecognize() {
+  clearTimeout(photo.timer);
+  clearInterval(photo.tick);
+  if (document.getElementById('in-fail').checked) {
+    // PRD 4.1 / 5.4：失败有明确信号，提示重新上传，不设次数上限
+    showStage('thumb');
+    document.getElementById('thumb-status').textContent = '识别失败';
+    $hint.textContent = '识别失败（接口报错 / 返回为空 / 结构化解析失败都可能）。图片已保留，可直接重新粘贴或重选文件，不限次数。';
+    document.getElementById('in-fail').checked = false;
+    return;
+  }
+  fillEditorFromRecognition();
+  showStage('thumb');
+  document.getElementById('thumb-status').textContent = '识别完成，结果已填入下方编辑器，请人工核对（PRD 5.2.1：确认保存才入库）';
+}
+
+// 按当前题型给结构化 mock 结果，公式一律 LaTeX 源码（PRD FR-2 / 5.2.2）
+function fillEditorFromRecognition() {
+  const bank = {
+    choice: {
+      content: '如图，抛物线 $y = x^2 - 4x + 3$ 与 $x$ 轴围成图形的面积为',
+      options: ['$3$', '$4$', '$\\frac{9}{2}$', '$8$'],
+      multiple: false,
+    },
+    blank: {
+      content: '已知 $a \\ne 0$，则 $\\frac{1}{a}$ 的符号由 ___ 决定；当 $a < 0$ 时，$\\frac{1}{a}$ ___ 0。',
+      blanks: ['$a$ 的符号', '$<$'],
+    },
+    solve: {
+      content: '一物体由静止做匀加速直线运动，加速度 $a = 2\\,\\text{m/s}^2$，求前 $5\\,\\text{s}$ 的位移与末速度。',
+      solveArea: '$s = \\tfrac{1}{2} a t^2 = 25\\ \\text{m}$，$v = a t = 10\\ \\text{m/s}$',
+    },
+  };
+  const hit = bank[state.type];
+  document.getElementById('in-content').value = hit.content;
+  if (state.type === 'choice') {
+    state.options = hit.options.slice();
+    renderOptions();
+    document.getElementById('in-multiple').checked = hit.multiple;
+  }
+  if (state.type === 'blank') {
+    renderBlankInputs();
+    document.querySelectorAll('.blank-in').forEach((inp, i) => { inp.value = hit.blanks[i] || ''; });
+  }
+  if (state.type === 'solve') {
+    document.getElementById('in-solve').value = hit.solveArea;
+  }
+  refreshPreview();
+}
+
+/* ---------- 入口绑定：粘贴、选文件、删除、裁剪按钮、取消识别 ---------- */
+document.addEventListener('paste', e => {
+  if (document.getElementById('view-edit').classList.contains('hide')) return;
+  const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+  const img = items.find(it => it.type.indexOf('image/') === 0);
+  if (img) { acceptImage(img.getAsFile(), 'paste'); }     // 再次粘贴 → 替换旧图并重新走流程
+});
+document.getElementById('btn-pick').addEventListener('click', () =>
+  document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) { acceptImage(file, 'file'); }
+  e.target.value = '';                                    // 允许重复选同一个文件
+});
+document.getElementById('btn-thumb-del').addEventListener('click', () => {
+  clearTimeout(photo.timer);
+  clearInterval(photo.tick);                              // 识别等待全程可删除，删除同时取消识别
+  resetPhoto();
+});
+document.getElementById('btn-crop-ok').addEventListener('click', confirmCrop);
+document.getElementById('btn-crop-reset').addEventListener('click', enterCrop);
+document.getElementById('btn-crop-cancel').addEventListener('click', resetPhoto);
+document.getElementById('btn-rec-cancel').addEventListener('click', cancelRecognize);
+bindCropDrag();
+
+/* =========================================================================
+ * 第 7 层 · 事件绑定
+ * ========================================================================= */
+document.getElementById('btn-add').addEventListener('click', openEdit);
+document.getElementById('btn-back-list').addEventListener('click', () => { show('list'); renderList(); });
+document.getElementById('btn-back-list2').addEventListener('click', () => { show('list'); renderList(); });
+document.getElementById('btn-save').addEventListener('click', saveQuestion);
+document.getElementById('btn-opt-add').addEventListener('click', () => {
+  if (state.options.length >= MAX_OPTIONS) return;
+  state.options.push('');
+  renderOptions();
+});
+document.querySelectorAll('.tab').forEach(t =>
+  t.addEventListener('click', () => { state.type = t.dataset.type; syncTabs(); }));
+document.getElementById('in-content').addEventListener('input', refreshPreview);
+['filter-subject', 'filter-mastery'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderList));
+// 提示词 §三.1 要「即时刷新」，PRD 5.2.3 的 400ms 只用于渲染；这里搜索也做 300ms 防抖
+let searchTimer = null;
+document.getElementById('filter-q').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderList, 300);
+});
+document.getElementById('btn-search').addEventListener('click', renderList);
+
+// 首屏
+fillSubjectFilter();
+renderList();
+show('list');
+</script>
+</body>
+</html>
