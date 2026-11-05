@@ -64,12 +64,12 @@ AI 分析（知识点、题型、错误原因）
 
 ## 当前实际状态（2026-11-05，已同步 origin/main）
 
-- `origin/main @ 2335773`：BE-001 / BE-002 / BE-003 已合并（PR #2/#3/#4）；CI 已加固（PR #10）
+- `origin/main @ 6ae980a`：BE-001 / BE-002 / BE-003 已合并（PR #2/#3/#4）；CI 已加固（PR #10）
 - 后端待合并：PR #5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
 - 后端 follow-up：issue #11（health、MySQL 驱动、文档、限流等）
-- 前端：`feat/frontend-m0-foundation` 持有 07/08/原型/交互地图；FE-001 尚未开始
+- 前端：FE-001/002/003 已合（PR #16）；FE-004/005/006/011 已合（PR #17：API client + 登录/注册 + Mock + 路由守卫）；下一步 FE-007/008/010/012
 - `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
-- CI：`.github/workflows/ci.yml` 已存在；frontend job 在 FE-001 后改为真实命令
+- CI：`.github/workflows/ci.yml` 已存在；frontend job 已跑真实 lint/typecheck/build
 - 图片录入正式决策已变更：不再 AI 框题，改为用户裁剪 + 图片转文本 + 多题条目（见 Q-013 / ADR-004）
 
 ## 当前阶段：M0
@@ -120,6 +120,6 @@ AI 分析（知识点、题型、错误原因）
 
 1. 后端按 issue #11 修 BE-001~003 follow-up；按 `#7 → #6 → #5 → rebase #9 → #8` 推进 open PR；图片 v2 见 issue #13
 2. 开启 `main` 分支保护：Require PR + 1 approval + CI + no bypass
-3. 前端在 `feat/frontend-m0-foundation` 做 FE-001；完成后 rebase/merge 最新 main；图片 v2 先按 ADR-004 + 05 v0.4 设计
+3. 前端 FE-001~006/011 已合；下一步 FE-007/008/010/012（录入、列表/详情、Markdown/KaTeX、空/错/loading）；图片 v2 按 ADR-004 + 05 v0.4 设计
 4. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
 5. 每天结束更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`

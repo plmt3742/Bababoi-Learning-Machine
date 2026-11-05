@@ -2,23 +2,24 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态：FE-001 / FE-002 / FE-003 已完成（2026-11-05）。应用壳、路由、设计 tokens 已就位；
-> 业务页面目前是占位页，未接 API，未实现登录/上传/生成等业务逻辑。
+> 状态：FE-001 ~ FE-006 已完成（2026-11-05）。应用壳、路由、设计 tokens、API client、
+> Mock API、登录/注册与路由守卫已就位；业务页面目前仍是占位页。
 
 ## 技术栈（实际安装版本）
 
-| 依赖            | 版本                           |
-| --------------- | ------------------------------ |
-| Vue             | 3.5.44                         |
-| Vite            | 8.3.5                          |
-| TypeScript      | 5.9.3（strict）                |
-| Arco Design Vue | 2.59.0                         |
-| Vue Router      | 4.6.4                          |
-| Pinia           | 3.0.4                          |
-| Axios           | 1.21.0                         |
-| ESLint          | 10.14.0（flat config）         |
-| Prettier        | 3.9.10                         |
-| 组件自动导入    | unplugin-vue-components 32.1.0 |
+| 依赖               | 版本                           |
+| ------------------ | ------------------------------ |
+| Vue                | 3.5.44                         |
+| Vite               | 8.3.5                          |
+| TypeScript         | 5.9.3（strict）                |
+| Arco Design Vue    | 2.59.0                         |
+| Vue Router         | 4.6.4                          |
+| Pinia              | 3.0.4                          |
+| Axios              | 1.21.0                         |
+| axios-mock-adapter | 2.1.0（devDependency）         |
+| ESLint             | 10.14.0（flat config）         |
+| Prettier           | 3.9.10                         |
+| 组件自动导入       | unplugin-vue-components 32.1.0 |
 
 ## 环境要求
 
@@ -46,11 +47,27 @@ pnpm format:check  # Prettier 检查
 
 ```dotenv
 VITE_API_BASE_URL=/api/v1
+VITE_USE_MOCK=true
 ```
 
 - 开发时 Vite 将 `/api` 代理到 `http://127.0.0.1:8000`（见 `vite.config.ts`）。
 - 后端接口前缀是 `/api/v1`，例如 `GET /api/v1/health`。
+- `VITE_USE_MOCK` 仅在开发环境生效：默认开启内存 Mock；设为 `false` 时走真实后端。
+- Mock 通过 `axios-mock-adapter` 挂在共享 Axios 实例上，入口为
+  `src/api/mocks/index.ts`，由 `main.ts` 动态导入，不会进入生产包。
 - 前端只放 API 基地址；任何密钥、LLM Key 都不能进入前端环境变量。
+
+## 登录与 Mock
+
+- 演示账号：`student01` / `password123`。
+- `/login` 支持登录/注册（注册成功自动登录）；登录后跳转到合法的 `redirect`
+  或首页，`redirect` 只允许站内绝对路径。
+- token 存放在 `localStorage` 的 `bababoi:token`；刷新时通过 `GET /auth/me`
+  恢复用户，token 失效会清空登录态并回到 `/login`。
+- 受保护页面通过 `meta.requiresAuth` + 全局路由守卫拦截；任意接口返回 401 会
+  触发统一的清 token / 跳登录处理。
+- Mock 覆盖：认证、错题 CRUD/筛选、任务列表与重试、草稿 GET/PUT/DELETE、
+  练习记录创建/列表。Mock 数据在内存中，刷新后新增数据会重置（演示账号保留）。
 
 ## 路由
 
@@ -58,7 +75,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 路径             | 页面                  | 布局     |
 | ---------------- | --------------------- | -------- |
-| `/login`         | 登录占位              | 独立页   |
+| `/login`         | 登录/注册             | 独立页   |
 | `/`              | 首页占位              | AppShell |
 | `/questions`     | 错题本占位            | AppShell |
 | `/questions/new` | 录入错题占位          | AppShell |
@@ -91,22 +108,26 @@ VITE_API_BASE_URL=/api/v1
 
 ```text
 src/
-├── main.ts
+├── main.ts              # pinia → mock(dev) → auth restore → router → mount
 ├── App.vue
+├── api/                 # client/errors/types/endpoints + mocks
 ├── components/
 │   ├── common/          # PageHeader、PlaceholderPanel
 │   └── layout/          # AppShell、AppSidebar、AppTopBar、AppNavigation
-├── router/              # 路由表 + 404 + 标题同步
+├── router/              # 路由表 + 登录守卫 + 标题同步
+├── stores/              # pinia 单例 + auth store
 ├── styles/              # tokens / arco-theme / global
 ├── types/               # env、RouteMeta 类型扩展
-└── views/               # 9 个占位页面
+└── views/               # 登录/注册 + 8 个占位业务页面
 ```
+
+除 `/login` 外，AppShell 下的页面都需要登录；未登录访问会跳转到
+`/login?redirect=<原路径>`。
 
 ## 尚未实现
 
-- FE-004：Axios 实例、token 注入、错误归一化、API 类型。
-- FE-005 / FE-006：登录注册页、Mock API。
-- FE-007 及以后：录入、列表/详情、AI 生成、练习、统计等业务页面。
+- FE-007 及以后：录入、列表/详情、AI 生成、练习、统计等业务页面（API 层与 Mock
+  已按 P0 契约准备好）。
 - 图片上传/裁剪/多题识别（FE-016 / FE-021）。
 
 ## 约定

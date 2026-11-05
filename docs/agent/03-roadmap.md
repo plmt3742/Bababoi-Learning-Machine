@@ -153,7 +153,7 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 | 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；03 页面规范待按 8 页填全；07/08/原型待按图片 v2 更新；PRD v0.9 待合并；可用性测试待做 |
 | 设计原型 | DONE（旧版） | `docs/product/drafts/prototype.html` + `interaction-map.html` 可本地打开；旧框题版，待按图片 v2 更新 |
 | API 契约 v0 | DOING | `05-architecture.md` v0.4 草案（图片 v2/队列/草稿/题型/掌握状态）；`12-backend-alignment.md` 已对齐，待两人逐节确认后冻结 |
-| 仓库骨架 | DOING | `origin/main` 已有 BE-001/002/003 + CI #10；前端分支 `feat/frontend-m0-foundation` 待合并 main；`frontend/` FE-001 TODO；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
+| 仓库骨架 | DONE | `origin/main @ 6ae980a`：BE-001/002/003 + CI #10 + 前端 FE-001/002/003（PR #16）；FE-004/005/006/011（PR #17 待合）；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
 | 后端后续 | DOING | PR #5/#6/#7/#9 open；PR #8 docs 暂缓；issue #11 跟踪 BE-001~003 follow-up |
 | CI | DONE | `.github/workflows/ci.yml`；PR #10 已合；frontend 在 FE-001 后改为真实命令 |
 | 部署 | TODO | 11.14 前必须完成 |

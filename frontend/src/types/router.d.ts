@@ -6,5 +6,7 @@ declare module 'vue-router' {
     title: string
     /** Sidebar item to highlight; absent for standalone pages such as 404. */
     navKey?: string
+    /** Redirect to /login when there is no token. */
+    requiresAuth?: boolean
   }
 }

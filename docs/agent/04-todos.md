@@ -67,15 +67,16 @@ ID:
 ### 1.3 前端（霹雳马桶）
 
 > 开发页面时参照 `docs/product/drafts/prototype.html` 的结构 + `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与旧原型冲突时以 ADR-004 / 05 v0.4 为准。
+> 2026-11-05：FE-001/002/003 已通过 PR #16 合入 main；FE-004/005/006 在 `feat/frontend-fe-004-006` 进行中。
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| FE-001 | 前端脚手架 | 霹雳马桶 | P0 | SH-002 | Vue3+Vite+TS+Arco+Router+Pinia+ESLint+Prettier；`pnpm dev` 可跑 | TODO |
-| FE-002 | 设计 tokens + 基础样式 | 霹雳马桶 | P0 | FE-001/DS-005 | CSS 变量、Arco 主题、字体、reset；与设计稿一致 | TODO |
-| FE-003 | 应用壳 + 路由 | 霹雳马桶 | P0 | FE-001 | 侧边栏/顶栏/内容区；路由表；404；未登录占位 | TODO |
-| FE-004 | API client + 类型 | 霹雳马桶 | P0 | SH-001 | Axios 实例、token 注入、401 处理、错误归一化、类型定义 | TODO |
-| FE-005 | 登录/注册页 | 霹雳马桶 | P0 | FE-003/004 | 表单校验、错误提示、loading、跳转 | TODO |
-| FE-006 | Mock API | 霹雳马桶 | P0 | SH-001 | P0 接口全部可 mock；前端不依赖后端也能走通页面 | TODO |
+| FE-001 | 前端脚手架 | 霹雳马桶 | P0 | SH-002 | Vue3+Vite+TS+Arco+Router+Pinia+ESLint+Prettier；`pnpm dev` 可跑 | DONE（PR #16） |
+| FE-002 | 设计 tokens + 基础样式 | 霹雳马桶 | P0 | FE-001/DS-005 | CSS 变量、Arco 主题、字体、reset；与设计稿一致 | DONE（PR #16） |
+| FE-003 | 应用壳 + 路由 | 霹雳马桶 | P0 | FE-001 | 侧边栏/顶栏/内容区；路由表；404；未登录占位 | DONE（PR #16） |
+| FE-004 | API client + 类型 | 霹雳马桶 | P0 | SH-001 | Axios 实例、token 注入、401 处理、错误归一化、类型定义 | DONE（PR #17） |
+| FE-005 | 登录/注册页 | 霹雳马桶 | P0 | FE-003/004 | 表单校验、错误提示、loading、跳转 | DONE（PR #17） |
+| FE-006 | Mock API | 霹雳马桶 | P0 | SH-001 | P0 接口全部可 mock；前端不依赖后端也能走通页面 | DONE（PR #17） |
 
 ### 1.4 后端（人机）
 
@@ -112,7 +113,7 @@ ID:
 | FE-008 | 列表/详情页 | 霹雳马桶 | P0 | FE-004/006 | 分页、筛选、搜索、详情、空状态、删除确认 | TODO |
 | FE-009 | AI 生成 UI | 霹雳马桶 | P0 | FE-007/008/BE-007 | `GET /tasks` 轮询进度、3 张题卡、重试/取消、错误提示 | TODO |
 | FE-010 | Markdown + 公式渲染 | 霹雳马桶 | P0 | FE-001 | markdown-it + KaTeX + DOMPurify；长题干/公式/表格测试 | TODO |
-| FE-011 | Auth store + 路由守卫 | 霹雳马桶 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | TODO |
+| FE-011 | Auth store + 路由守卫 | 霹雳马桶 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | DONE（PR #17） |
 | FE-012 | 空/错/loading 组件 | 霹雳马桶 | P0 | FE-003 | 统一组件 + 至少 5 处使用 | TODO |
 | SH-008 | 契约同步 + 联调 | 两人 | P0 | BE-009/FE-010 | OpenAPI diff；字段/错误码一致；联调记录 | TODO |
 | OPS-005 | Staging 部署 | 人机 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | TODO |
