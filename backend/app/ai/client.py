@@ -20,6 +20,16 @@ from app.core.config import settings
 OPERATION_ANALYSIS = "analysis"
 OPERATION_QUIZ = "quiz"
 
+# 05 §8：识图是同步等待（90s）；分析/生题在队列里跑（单任务硬超时 120s）。
+# 之前统一用 90s，等于把后台任务也按同步请求掐——这里按操作分档。
+OPERATION_VISION = "vision"
+
+
+def _timeout_for(operation: str) -> int:
+    if operation == OPERATION_VISION:
+        return settings.recognize_client_timeout_s
+    return settings.task_hard_timeout_s
+
 
 @dataclass(frozen=True)
 class LLMResponse:
@@ -54,7 +64,8 @@ class DeepSeekClient:
         self._client = openai.OpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
-            timeout=settings.recognize_client_timeout_s,
+            # 兜底值；真正生效的是每次请求按 operation 覆盖的 timeout
+            timeout=settings.task_hard_timeout_s,
             max_retries=settings.task_retry_limit,  # SDK 自带传输层重试
         )
         self._model = settings.llm_model
@@ -62,7 +73,7 @@ class DeepSeekClient:
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         start = time.monotonic()
         try:
-            resp = self._client.chat.completions.create(
+            resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
                 model=self._model, messages=messages
             )
         except openai.APITimeoutError as exc:

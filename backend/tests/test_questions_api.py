@@ -314,3 +314,39 @@ def test_patch_mastery_status_roundtrip(client) -> None:
     )
     assert bad.status_code == 400
 
+
+def test_patch_analysis_must_match_schema(client) -> None:
+    """BE-005 review 第 4 条：analysis 允许编辑写回，但形状必须还是 AnalysisResult。"""
+    token = register_user(client)["access_token"]
+    qid = _create(client, token, _choice_payload())["question"]["id"]
+
+    bad = client.patch(
+        f"/api/v1/questions/{qid}",
+        json={"analysis": {"topic_type": "极值", "difficulty": "很难"}},
+        headers=auth_headers(token),
+    )
+    assert bad.status_code == 400
+    assert bad.json()["detail"]["code"] == "VALIDATION_ERROR"
+
+    good = client.patch(
+        f"/api/v1/questions/{qid}",
+        json={
+            "analysis": {
+                "topic_type": "导数与极值",
+                "difficulty": "medium",
+                "knowledge_points": ["导数"],
+                "error_reasons": ["没判符号变化"],
+                "solution_summary": "求导后判断符号。",
+            }
+        },
+        headers=auth_headers(token),
+    )
+    assert good.status_code == 200, good.text
+    assert good.json()["analysis"]["topic_type"] == "导数与极值"
+
+    # 清空分析仍然允许（analysis=null 不是坏结构）
+    cleared = client.patch(
+        f"/api/v1/questions/{qid}", json={"analysis": None}, headers=auth_headers(token)
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["analysis"] is None

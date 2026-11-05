@@ -144,3 +144,85 @@ def test_analysis_knowledge_point_limit() -> None:
     }
     with pytest.raises(ValidationError):
         validator.validate_analysis(payload)
+
+
+# ---- PR review 补的 05 §7.2/§7.3 规则 ----
+
+
+def _quiz_payload(*contents: str) -> dict:
+    base = json.loads(json.dumps(_MOCK_QUIZ))  # 深拷贝，改完不影响别的用例
+    for item, content in zip(base["questions"], contents, strict=False):
+        item["content_md"] = content
+    return base
+
+
+def test_validate_quiz_rejects_image_dependency() -> None:
+    """05 §7.2 第 4 条：生成题不许依赖图片。"""
+    broken = _quiz_payload("如图所示，求阴影部分面积。")
+    with pytest.raises(ValueError, match="依赖图片"):
+        validator.validate_quiz(broken)
+
+
+def test_validate_quiz_rejects_unpaired_latex() -> None:
+    """05 §7.2 第 5 条：LaTeX 分隔符成对。"""
+    broken = _quiz_payload("求 $f(x)=x^2 的最小值。")
+    with pytest.raises(ValueError, match="不成对"):
+        validator.validate_quiz(broken)
+
+
+def test_validate_quiz_rejects_backslash_paren_math() -> None:
+    r"""05 §7.3：公式统一 $...$，模型爱写的 \(...\) 要拦。"""
+    broken = _quiz_payload(r"求 \(f(x)=x^2\) 的最小值。")
+    with pytest.raises(ValueError, match="公式统一"):
+        validator.validate_quiz(broken)
+
+
+def test_validate_quiz_rejects_overlong_content() -> None:
+    """05 §5.2：生成题题干 ≤3000。"""
+    broken = _quiz_payload("x" * 3001)
+    with pytest.raises(ValidationError):
+        validator.validate_quiz(broken)
+
+
+def test_validate_quiz_rejects_duplicate_of_original() -> None:
+    """05 §7.2 第 3 条：与原题归一化相似度 ≥0.9 判失败。"""
+    original = "按导数与极值的方法，求函数 $g(x)=x^3-3x$ 的单调区间。"
+    with pytest.raises(ValueError, match="原题高度重复"):
+        validator.validate_quiz(_quiz_payload(), original_content_md=original)
+
+
+def test_validate_quiz_rejects_two_identical_questions() -> None:
+    """三题彼此也不能是复制粘贴——只写「恰好 3 题」拦不住这个。"""
+
+    def solve(content: str) -> dict:
+        return {
+            "question_type": "solve",
+            "content_md": content,
+            "answer_md": "略",
+            "explanation_md": "略",
+            "difficulty": "easy",
+        }
+
+    same = "求 $h(x)=x^2-2x$ 的最小值。"
+    duplicated = {"questions": [solve(same), solve(same), solve("求 $k(x)=x^2+4x$ 的最小值。")]}
+    with pytest.raises(ValueError, match="高度重复"):
+        validator.validate_quiz(duplicated)
+
+
+def test_prompt_versions_are_per_operation() -> None:
+    """05 §7.3：analyze_v1 / generate_v1 各自计版，不再共用一个 v0。"""
+    assert prompts.prompt_version(OPERATION_ANALYSIS) == "analyze_v1"
+    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v1"
+    with pytest.raises(ValueError):
+        prompts.prompt_version("unknown_op")
+
+
+def test_timeout_is_per_operation(monkeypatch) -> None:
+    """05 §8：识图同步等 90s，后台任务 120s——之前两者共用 90s。"""
+    from app.ai.client import _timeout_for
+
+    monkeypatch.setattr(settings, "recognize_client_timeout_s", 90)
+    monkeypatch.setattr(settings, "task_hard_timeout_s", 120)
+    assert _timeout_for("vision") == 90
+    assert _timeout_for(OPERATION_ANALYSIS) == 120
+    assert _timeout_for(OPERATION_QUIZ) == 120

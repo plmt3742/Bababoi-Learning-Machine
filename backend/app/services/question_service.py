@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.ai.validator import AnalysisResult
 from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
 from app.models import GenerationTask, Question, QuestionTag, Tag
@@ -162,6 +163,16 @@ def update(
 ) -> Question:
     question = get_owned(session, user_id, question_id)
     changed = data.model_dump(exclude_unset=True)
+
+    # analysis 是可编辑写回的（05 §6.4），但形状必须还是 AnalysisResult 那一套——
+    # 否则前端详情页按字段读的时候会拿到缺 key/错类型的脏结构
+    if changed.get("analysis") is not None:
+        try:
+            changed["analysis"] = AnalysisResult.model_validate(changed["analysis"]).model_dump()
+        except ValidationError as exc:
+            raise ApiError(
+                ErrorCode.VALIDATION_ERROR, f"analysis: {exc.errors()[0]['msg']}", 400
+            ) from None
 
     for field in (
         "subject",

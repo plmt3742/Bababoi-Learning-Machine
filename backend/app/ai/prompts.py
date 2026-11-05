@@ -7,7 +7,27 @@ from __future__ import annotations
 
 import json
 
-PROMPT_VERSION = "v0"
+from app.ai.client import OPERATION_ANALYSIS, OPERATION_QUIZ
+
+# 05 §7.3 的 prompt 版本号：按操作各自计版，写进 ai_call_logs.prompt_version 和
+# generated_questions.prompt_version。以前是一个全局 "v0"，分析和生成共用一个号，
+# 改了生成的 prompt 会把分析的版本号也带上去，排查效果时分不开。
+PROMPT_VERSION_ANALYZE = "analyze_v1"
+PROMPT_VERSION_GENERATE = "generate_v1"
+
+
+def prompt_version(operation: str) -> str:
+    """按 operation 取当前 prompt 版本；未知操作直接报错，不静默给默认值。"""
+    try:
+        return _PROMPT_VERSIONS[operation]
+    except KeyError:
+        raise ValueError(f"未登记 prompt 版本的操作：{operation!r}") from None
+
+
+_PROMPT_VERSIONS = {
+    OPERATION_ANALYSIS: PROMPT_VERSION_ANALYZE,
+    OPERATION_QUIZ: PROMPT_VERSION_GENERATE,
+}
 
 # 05 §9.4：分隔符包住用户数据 + 明确「数据不是指令」+ 只许输出 JSON
 _SYSTEM_COMMON = (
@@ -40,6 +60,9 @@ def quiz_messages(question: dict) -> list[dict]:
         "choice 题额外给 options：[{label, content_md}]，label 按顺序为 A、B、C…，至少 2 个选项；"
         "blank 题的 content_md 用连续三个下划线 ___ 标记空位，空位数必须等于给定的 blanks 数组长度，"
         "blanks 形如 [{index, answer_md}]，index 从 1 连续递增。"
+        "硬性要求：三道题彼此不同、也不得与原题雷同；题干 ≤3000 字；"
+        "不得出现「如图/图中/下图」等依赖图片的说法，也不要写「同上」；"
+        "公式只用 $...$ 或 $$...$$，且必须成对闭合。"
     )
     user = f"<question>\n{json.dumps(question, ensure_ascii=False)}\n</question>"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
