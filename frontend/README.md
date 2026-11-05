@@ -142,16 +142,26 @@ VITE_USE_MOCK=true
 - 组件样式只消费 `var(--token)`；原始色值只允许出现在 `tokens.css`。
 - 设计来源：`docs/product/04-design-system.md`。
 
+### 视觉方向（2026-11-06 最终：Calm Academic）
+
+- **唯一基准**：`calm-academic/index.html` 的四屏（错题列表 / 录入 / 详情 / 任务中心）。不再做 Studio 混搭。
+- **AppShell**：桌面顶部 appbar + 1140px 纸面 frame + 32px 内边距，无侧边栏；移动端 52px appbar + 底部 4 项快捷导航。
+- **纸面语言**：白纸/浅灰、1px hairline、8px 卡片圆角、10px frame 圆角、近零阴影、单一 Arco 蓝。
+- **字号**：14px UI 下限，15px 控件，16px 题干/正文，18px 面板标题，28px 页面标题。
+- **详情**：300px 右侧「处理进度」sticky 栏；原题 / AI 分析 / 相似题为纸张面板；生成题用 01/02/03 大号编号。
+- **录入**：1fr + 320px 两栏，题干编辑/预览，右侧题目信息与保存说明，sticky 操作卡。
+- **任务中心**：5 列纸面列表，失败行 tinted + 行内错误/重试，筛选不吸顶。
+
 > Arco 组件通过 `unplugin-vue-components` + `ArcoResolver({ sideEffect: true })` 按需自动导入；
 > `src/types/components.d.ts` 是自动生成的组件类型声明。新增 Arco 组件后重新运行
 > `pnpm dev` / `pnpm build` 即可更新。
 
 ## 应用壳
 
-- `src/components/layout/AppShell.vue`：桌面侧边栏 + 顶栏 + 内容区。
-- `< 1200px`：侧边栏收起为左侧 Drawer。
-- `< 768px`：增加底部快捷导航（首页/错题本/任务中心/练习），内容预留 safe-area。
-- 导航项：首页、错题本、任务中心、练习、统计（P1）、设置（P1，暂为禁用占位）。
+- `src/components/layout/AppShell.vue`：Calm 纸面 frame + 顶部 appbar + 内容区；桌面无侧边栏。
+- `src/components/layout/AppTopBar.vue`：品牌（BrandMark + Bababoi + 错题学习机）、错题本 / 录入错题 / 任务中心导航、用户菜单。
+- `< 768px`：appbar 收为品牌 + 当前页；底部快捷导航为 错题 / 录入 / 任务 / 练习，内容预留 safe-area。
+- 首页 `/` 仍保留占位；统计/设置属于后续 P1，不在主 appbar 中占位。
 
 ## 当前目录
 
@@ -163,7 +173,7 @@ src/
 ├── components/
 │   ├── ai/              # GenerationProgress（阶段进度/失败重试/停止等待）
 │   ├── common/          # PageHeader、MarkdownRenderer、Empty/Error/LoadingSkeleton
-│   ├── layout/          # AppShell、AppSidebar、AppTopBar、AppNavigation
+│   ├── layout/          # AppShell、AppTopBar、BrandMark、navigation（Calm 顶部 appbar）
 │   └── question/        # QuestionCard、AnalysisCard、GeneratedQuestionCard
 ├── composables/         # useTaskPolling（/tasks 轮询、超时与卸载清理）
 ├── router/              # 路由表 + 登录守卫 + 标题同步

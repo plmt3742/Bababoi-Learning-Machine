@@ -23,25 +23,40 @@
 
 > 可读性/流畅性不达标的方案不进入定稿；风格评审先看 1/2，再看 3/4。
 >
-> 2026-11-05 已确认：`--color-text-3` 用 `#6B7280`；详情页难度/删除只保留页头入口；录入页使用底部吸底操作栏；未掌握状态用红色；移除 M0 开发标识。
+> 2026-11-05 已确认：详情页难度/删除只保留页头入口；录入页使用底部吸底操作栏；未掌握状态用红色；移除 M0 开发标识。
+
+### 1.2 最终视觉方向（2026-11-06 更新：全量 Calm Academic）
+
+以 `calm-academic/index.html` 为唯一视觉基准，前端整体覆写，不再做变体混搭：
+
+- **AppShell**：桌面顶部 appbar + 1140px 纸面 frame + 32px 内边距，无侧边栏；移动端 52px appbar + 底部 4 项快捷导航。
+- **页面结构**：Calm 的 kicker + 28px 标题 + 15/24 描述 + 右侧主操作；纸张面板用 1px hairline、8px 圆角、近零阴影。
+- **列表**：可折叠筛选面板、卡片列表、mono 元数据、自定义分页。
+- **录入**：1fr + 320px 两栏、题干编辑/预览、右侧题目信息与保存说明、sticky 操作卡。
+- **详情**：主列 + 300px 右侧「处理进度」；原题/AI 分析/相似题为纸张面板；AI 分析 3 列元信息、编号错误原因、浅色解题摘要；生成题使用 01/02/03 大号编号 + 单条答案/解析折叠。
+- **任务中心**：5 列纸面列表（任务/题目、阶段、状态、时间、操作），失败行 tinted + 行内错误/重试；筛选不吸顶。
+- **色彩**：单一 Arco 蓝强调色；语义色使用低饱和深色 ink（success `#1B6E43`、warning `#8A5A00`、danger `#B42318`）。
+- **不采用**：Studio 深色侧栏/全局高密度/编号步骤/sticky 筛选；Editorial 暖纸背景/衬线标题。
 
 ## 2. 颜色 Tokens
 
 | Token | 建议值 | 用途 |
 |---|---|---|
 | `--color-primary` | `#165DFF`（Arco 蓝） | 主按钮、链接、选中 |
-| `--color-primary-hover` | `#4080FF` | 悬停 |
+| `--color-primary-hover` | `#0E42D2` | 悬停（Calm 只加深，不提亮） |
 | `--color-primary-active` | `#0E42D2` | 按下 |
-| `--color-success` | `#00B42A` | 正确、完成 |
-| `--color-warning` | `#FF7D00` | 警告、待处理 |
-| `--color-danger` | `#F53F3F` | 错误、删除 |
-| `--color-bg` | `#F7F8FA` | 页面背景 |
+| `--color-primary-soft` | `#EDF3FF` | 选中背景/浅蓝 wash |
+| `--color-success` | `#1B6E43` | 正确、完成 |
+| `--color-warning` | `#8A5A00` | 警告、待处理 |
+| `--color-danger` | `#B42318` | 错误、删除 |
+| `--color-bg` | `#F3F4F6` | 页面背景 |
 | `--color-surface` | `#FFFFFF` | 卡片/面板 |
-| `--color-text-1` | `#1D2129` | 标题/正文 |
-| `--color-text-2` | `#4E5969` | 次要文字 |
-| `--color-text-3` | `#6B7280` | 辅助/占位；小字号对比度 ≥ 4.5:1 |
-| `--color-border` | `#E5E6EB` | 分割线/边框 |
-| `--color-fill` | `#F2F3F5` | 标签/次级背景 |
+| `--color-text-1` | `#1B1F24` | 标题/正文 |
+| `--color-text-2` | `#414A57` | 次要文字 |
+| `--color-text-3` | `#5F6775` | 辅助/占位；小字号对比度 ≥ 4.5:1 |
+| `--color-border` | `#E4E6EA` | 分割线/边框 |
+| `--color-border-strong` | `#CFD3DA` | 输入/强调边框 |
+| `--color-fill` | `#F3F4F6` | 标签/次级背景 |
 
 > 不要超过 1 个主色 + 3 个语义色；不要用渐变做主背景。教育产品优先“干净、可信”，不是“炫酷 AI”。
 
@@ -49,15 +64,16 @@
 
 | Token | 值 | 用途 |
 |---|---|---|
-| `--font-sans` | `Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif` | 正文/UI |
-| `--font-mono` | `"JetBrains Mono", Consolas, monospace` | 代码/公式源码 |
-| `--text-xs` | 12px / 20px | 标签/辅助 |
-| `--text-sm` | 14px / 22px | 正文/表格 |
-| `--text-base` | 16px / 26px | 题干/主要正文 |
+| `--font-sans` | `-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif` | 正文/UI |
+| `--font-mono` | `"SFMono-Regular", Consolas, "Liberation Mono", monospace` | ID/时间/代码 |
+| `--font-math` | `"Cambria Math", Cambria, "Times New Roman", "Songti SC", serif` | 讲义式数学/编号 |
+| `--text-xs` | 14px / 22px | 标签/辅助（UI 下限） |
+| `--text-sm` | 14px / 22px | 正文/表格/按钮 |
+| `--text-base` | 16px / 28px | 题干/主要正文 |
 | `--text-lg` | 18px / 28px | 小标题 |
-| `--text-xl` | 20px / 30px | 页面标题 |
-| `--text-2xl` | 24px / 32px | 大标题/统计数字 |
-| `--text-3xl` | 30px / 38px | 首页主数字 |
+| `--text-xl` | 22px / 32px | 卡片标题 |
+| `--text-2xl` | 28px / 36px | 页面标题 |
+| `--text-3xl` | 34px / 42px | 展示型数字 |
 
 > 数学公式用 KaTeX 字体；不要给公式单独设中文字体。
 
@@ -69,39 +85,58 @@
 | `--space-2` | 8px | 标签/紧凑 |
 | `--space-3` | 12px | 表单内 |
 | `--space-4` | 16px | 卡片内/常规 |
-| `--space-5` | 24px | 区块间距 |
-| `--space-6` | 32px | 页面区块 |
-| `--space-7` | 48px | 大区块 |
-| `--space-8` | 64px | 页面顶部/底部 |
-| `--radius-sm` | 6px | 标签/输入 |
-| `--radius-md` | 8px | 按钮/卡片 |
-| `--radius-lg` | 12px | 大卡片/弹窗 |
-| `--shadow-card` | `0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.04)` | 卡片 |
-| `--shadow-pop` | `0 8px 24px rgba(0,0,0,.12)` | 弹窗/下拉 |
+| `--space-5` | 20px | 区块间距 |
+| `--space-6` | 24px | 面板内边距 |
+| `--space-7` | 32px | 页面区块 |
+| `--space-8` | 40px | 大区块 |
+| `--space-9` | 48px | 页面留白 |
+| `--space-10` | 64px | 展示型留白 |
+| `--radius-sm` | 4px | 标签/筛选项 |
+| `--radius-md` | 6px | 按钮/输入 |
+| `--radius-lg` | 8px | 纸张面板/生成题卡 |
+| `--radius-frame` | 10px | 纸面 frame/登录卡/弹窗 |
+| `--shadow-card` | none | 纸张卡片只靠 border，不用阴影 |
+| `--shadow-frame` | `0 1px 2px rgba(20,28,45,.05), 0 14px 40px rgba(20,28,45,.05)` | App frame/登录卡 |
+| `--shadow-bar` | `0 4px 20px rgba(20,28,45,.09)` | sticky 操作卡 |
+| `--shadow-pop` | `0 8px 24px rgba(20,28,45,.12)` | 弹窗/下拉 |
+
+### 4.1 布局 Tokens（Calm）
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--layout-frame-max` | 1140px | 桌面 App frame 最大宽度 |
+| `--layout-content-max` | 1188px | 文档/内容最大宽度 |
+| `--layout-frame-gutter` | 32px | frame 内边距（桌面） |
+| `--layout-frame-gutter-mobile` | 16px | frame 内边距（移动） |
+| `--layout-topbar-height` | 56px | 桌面 appbar |
+| `--layout-mobile-header-height` | 52px | 移动 appbar |
+| `--layout-bottom-nav-height` | 60px | 移动底部导航 |
+| `--control-height` | 42px | 输入/选择 |
 
 ## 5. 断点
 
 | Token | 宽度 | 布局 |
 |---|---|---|
-| `--bp-sm` | 375px | 单列；底部导航；拍照/相册入口明显 |
-| `--bp-md` | 768px | 两列/抽屉 |
-| `--bp-lg` | 1200px | 侧边栏 + 内容 |
-| `--bp-xl` | 1440px | 内容最大宽度 1200px |
+| `--bp-sm` | 375px | 单列；移动 appbar + 底部 4 项导航；拍照/相册入口明显 |
+| `--bp-md` | 768px | 单列纸面 frame；sticky 操作卡在底栏上方 |
+| `--bp-lg` | 1024px | 详情/任务等窄桌面降为单列（详情进度栏置顶） |
+| `--bp-xl` | 1440px | 1140px App frame 居中，两侧留白 |
 
 ## 6. 组件清单
 
 | 组件 | 用途 | 优先级 | Arco 对应 |
 |---|---|---|---|
-| `AppShell` | 侧边栏 + 顶栏 + 内容 | P0 | Layout |
-| `PageHeader` | 标题 + 描述 + 主操作 | P0 | 自建（简单） |
+| `AppShell` | 顶部 appbar + 纸面 frame + 移动底栏 | P0 | Layout（自建 Calm 壳） |
+| `BrandMark` | 3×3 点阵品牌标记 | P0 | 自建 SVG |
+| `PageHeader` | kicker + 标题 + 描述 + 主操作 | P0 | 自建（简单） |
 | `StatCard` | 数字 + 标签 + 趋势 | P1 | Card/Statistic |
-| `QuestionCard` | 题干摘要 + 标签 + 时间 | P0 | Card |
+| `QuestionCard` | 题干摘要 + 标签 + mono 元数据 | P0 | 自建 article + MarkdownRenderer |
 | `QuestionEditor` | 三种题型编辑 + 渲染切换 | P0 | 自建 |
 | `EditorToolbar` | LaTeX/编号/表格/插图 | P0 | 自建 |
 | `ImageCropper` | 上传前裁剪图片 + 重置原图 | P0 | 自建（canvas/cropper） |
 | `RecognizedQuestionList` | 多题提取结果 ① ② ③ … 列表 + 选择 | P0 | 自建 + List/Checkbox |
 | `RecognizedQuestionItem` | 单题条目：编辑/删除/含图提示 | P0 | 自建 + Card |
-| `TaskCenter` | 任务列表 + 状态 + 重试 | P0 | List/Table |
+| `TaskCenter` | 5 列纸面任务列表 + 状态 + 重试 | P0 | 自建 list（非 Table） |
 | `DraftBar` | 草稿行 + 继续编辑 | P0 | Alert/Card |
 | `TagList` | 知识点/自定义标签 | P0 | Tag |
 | `FilterBar` | 学科/标签/搜索 | P0 | Select/Input/Tag |
@@ -164,6 +199,7 @@
 - [ ] 组件清单每个都有负责人/状态。
 - [ ] 状态矩阵覆盖 P0 组件。
 - [ ] 375/768/1366/1920 检查。
+- [ ] 与 `calm-academic/index.html` 的 list/create/detail/tasks 四屏逐页对照（结构、间距、字号、状态）。
 - [ ] 对比度/焦点/键盘检查。
 - [ ] 设计稿与 Arco 组件一致；自定义组件注明原因。
 - [ ] 前端能照着建样式文件，不需要再问颜色/间距。

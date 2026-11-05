@@ -132,7 +132,7 @@ BababoiLearningMachine/
 │   │   ├── api/                   # HTTP 客户端、端点、类型
 │   │   ├── assets/                # 图片/字体等静态资源
 │   │   ├── components/
-│   │   │   ├── layout/            # AppShell/Sidebar/TopBar
+│   │   │   ├── layout/            # AppShell/AppTopBar/BrandMark/navigation（Calm 顶部 appbar，无 sidebar）
 │   │   │   ├── question/          # QuestionCard/TagList
 │   │   │   ├── ai/                # AIGenerationPanel/StreamStatus
 │   │   │   ├── upload/            # ImageInput/图片预览/拍照相册入口

@@ -20,62 +20,86 @@ const emit = defineEmits<{ retry: [] }>()
 </script>
 
 <template>
-  <div class="error-state" role="alert">
-    <a-result class="error-state__result" status="error" :title="title">
-      <template #subtitle>
-        <p class="error-state__message">{{ message }}</p>
-        <p v-if="code" class="error-state__code">错误码：{{ code }}</p>
-      </template>
-      <template #extra>
-        <div class="error-state__actions">
-          <a-button v-if="showRetry" type="primary" @click="emit('retry')">
-            {{ retryLabel }}
-          </a-button>
-          <slot />
-        </div>
-      </template>
-    </a-result>
+  <div class="state-card state-card--error" role="alert">
+    <div class="state-illustration state-illustration--error" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v6M12 17h.01" />
+      </svg>
+    </div>
+    <h3>{{ title }}</h3>
+    <p>{{ message }}</p>
+    <p v-if="code" class="error-code">{{ code }}</p>
+    <div class="state-card__actions">
+      <button v-if="showRetry" class="btn btn--danger btn--sm" type="button" @click="emit('retry')">
+        {{ retryLabel }}
+      </button>
+      <slot />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.error-state {
+.state-card {
   display: flex;
-  justify-content: center;
-  padding: var(--space-6) var(--space-4);
-}
-
-.error-state__result {
-  width: 100%;
-  max-width: 520px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: var(--layout-empty-min-height);
   padding: var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
-.error-state__message {
-  max-width: 44ch;
-  margin: 0 auto;
+.state-illustration {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 2px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-3);
+}
+
+.state-illustration--error {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.state-illustration svg {
+  width: 22px;
+  height: 22px;
+}
+
+.state-card h3 {
+  font-size: var(--text-base);
+  line-height: 24px;
+  font-weight: 650;
+}
+
+.state-card > p {
+  max-width: 46ch;
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
   text-wrap: pretty;
 }
 
-.error-state__code {
-  margin-top: var(--space-1);
-  color: var(--color-text-3);
+.error-code {
+  color: var(--color-danger-text);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+  font-size: var(--text-sm);
+  line-height: 20px;
 }
 
-.error-state__actions {
+.state-card__actions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: var(--space-2);
+  margin-top: auto;
 }
 </style>

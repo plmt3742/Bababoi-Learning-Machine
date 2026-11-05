@@ -15,63 +15,50 @@ withDefaults(
 
 <template>
   <div class="loading-skeleton" role="status" aria-live="polite" :aria-label="label">
-    <span class="loading-skeleton__sr-only">{{ label }}…</span>
+    <span class="sr-only">{{ label }}…</span>
 
     <template v-if="variant === 'list'">
-      <div v-for="row in rows" :key="row" class="loading-skeleton__card">
-        <a-skeleton :animation="true">
-          <a-skeleton-line
-            :rows="3"
-            :widths="['34%', '100%', '58%']"
-            :line-height="12"
-            :line-spacing="12"
-          />
-        </a-skeleton>
+      <div v-for="row in rows" :key="row" class="skeleton-card">
+        <div class="skeleton">
+          <div class="sk sk--badge" />
+          <div class="sk sk--long" />
+          <div class="sk sk--medium" />
+          <div class="sk sk--short" />
+        </div>
       </div>
     </template>
 
     <template v-else-if="variant === 'detail'">
-      <div class="loading-skeleton__card loading-skeleton__card--hero">
-        <a-skeleton :animation="true">
-          <a-skeleton-line
-            :rows="5"
-            :widths="['28%', '92%', '100%', '76%', '42%']"
-            :line-height="14"
-            :line-spacing="14"
-          />
-        </a-skeleton>
+      <div class="skeleton-card skeleton-card--hero">
+        <div class="skeleton">
+          <div class="sk sk--badge" />
+          <div class="sk sk--long" />
+          <div class="sk sk--medium" />
+          <div class="sk sk--short" />
+        </div>
       </div>
-      <div class="loading-skeleton__card">
-        <a-skeleton :animation="true">
-          <a-skeleton-line
-            :rows="4"
-            :widths="['24%', '100%', '84%', '64%']"
-            :line-height="12"
-            :line-spacing="12"
-          />
-        </a-skeleton>
+      <div class="skeleton-card">
+        <div class="skeleton">
+          <div class="sk sk--badge" />
+          <div class="sk sk--long" />
+          <div class="sk sk--medium" />
+        </div>
       </div>
-      <div class="loading-skeleton__card">
-        <a-skeleton :animation="true">
-          <a-skeleton-line
-            :rows="3"
-            :widths="['22%', '96%', '58%']"
-            :line-height="12"
-            :line-spacing="12"
-          />
-        </a-skeleton>
+      <div class="skeleton-card">
+        <div class="skeleton">
+          <div class="sk sk--badge" />
+          <div class="sk sk--long" />
+          <div class="sk sk--medium" />
+        </div>
       </div>
     </template>
 
-    <div v-else class="loading-skeleton__card">
-      <a-skeleton :animation="true">
-        <a-skeleton-line
-          :rows="4"
-          :widths="['30%', '100%', '88%', '52%']"
-          :line-height="12"
-          :line-spacing="12"
-        />
-      </a-skeleton>
+    <div v-else class="skeleton-card">
+      <div class="skeleton">
+        <div class="sk sk--badge" />
+        <div class="sk sk--long" />
+        <div class="sk sk--medium" />
+      </div>
     </div>
   </div>
 </template>
@@ -83,31 +70,66 @@ withDefaults(
   gap: var(--space-3);
 }
 
-.loading-skeleton__sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  margin: -1px;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-
-.loading-skeleton__card {
+.skeleton-card {
   padding: var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
-.loading-skeleton__card--hero {
+.skeleton-card--hero {
   padding: var(--space-6);
 }
 
-.loading-skeleton :deep(.arco-skeleton-line-row) {
-  background: var(--color-fill);
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 100%;
+  padding: 2px 0 4px;
+}
+
+.sk {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--color-page-deep);
+  animation: calm-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+.sk--badge {
+  width: 52px;
+  height: 24px;
+}
+
+.sk--long {
+  width: 100%;
+  height: 16px;
+}
+
+.sk--medium {
+  width: 76%;
+}
+
+.sk--short {
+  width: 42%;
+}
+
+.sk:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.sk:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+@keyframes calm-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
 }
 </style>
