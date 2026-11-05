@@ -9,6 +9,18 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 > 目标：让一个新 agent 在 **3 分钟内**知道“项目是什么、现在到哪、我要做什么、不能做什么”，而不是把 `docs/` 全读一遍。
 
+## 0. 当前交接状态（2026-11-05）
+
+- **`main`**：`9814f90`（CI 修复 PR #10 已合）
+- **已合后端**：BE-001/002/003（PR #2/#3/#4）；代码可运行，`pytest 42 passed`
+- **后端 open PR**：#5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
+- **后端 follow-up**：issue #11（`/health`、MySQL 驱动、文档、限流等）
+- **前端进行中**：`feat/frontend-m0-foundation`（07/08/页面原型/交互地图，未合入 main；FE-001 未开始）
+- **PRD**：`docs/prd` 已删除；v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
+- **下一步顺序**：后端 `#7 → #6 → #5 → rebase #9 → #8`；开 `main` 分支保护；前端 FE-001；PRD v0.9
+- **审查报告**：`docs/agent/13-backend-merge-audit.md`（`docs/backend-merge-audit` 分支）
+- **不要做**：不要 revert BE-001/002/003；不要先合 PR #8；不要绕过 PR review/CI
+
 ## 1. 最小启动提示词（复制即用）
 
 ```text

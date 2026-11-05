@@ -155,13 +155,13 @@ flowchart TD
 | 页面 | 主要 API | 关键数据 |
 |---|---|---|
 | 登录/注册 | `POST /auth/login`、`POST /auth/register`、`GET /auth/me` | token、user |
-| 首页 | `GET /questions?page=1`、`GET /tasks?limit=` | 最近错题、任务状态 |
+| 首页 | `GET /questions?page=1`、`GET /tasks` | 最近错题、任务状态 |
 | 错题列表 | `GET /questions`、`DELETE /questions/{id}` | items、total、filters |
 | 录入/编辑（文本） | `POST /questions`、`GET/PUT/DELETE /drafts/me` | question、content_md、options、blanks、analysis |
 | 录入/编辑（图片） | `POST /questions/from-image`（先返回候选框，确认后再识别）、`POST /questions` | image_path、candidates、bbox、content_md、analysis |
-| 任务中心 | `GET /tasks?question_id=`、`GET /questions/{id}/events`、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me` | task status、draft |
-| 详情 | `GET /questions/{id}`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、generated、tasks |
-| 练习 | `GET /questions/{id}/generated`、`POST /practice-records` | 题卡、记录 |
+| 任务中心 | `GET /tasks?question_id=`、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me`；SSE `GET /questions/{id}/events` 为 P1 | task status、draft |
+| 详情 | `GET /questions/{id}?include=generated`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、generated、tasks |
+| 练习 | `GET /questions/{id}?include=generated`、`POST /practice-records` | 题卡、记录 |
 | 统计/概览（P1） | `GET /stats/overview`、`GET /stats/trends`、`GET /stats/weak-points` | 数字、趋势、薄弱点 |
 
 ## 9. 流程设计检查

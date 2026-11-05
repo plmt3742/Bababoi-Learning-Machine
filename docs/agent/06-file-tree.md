@@ -14,6 +14,7 @@ BababoiLearningMachine/
 ├── AGENTS.md
 ├── README.md                      # 项目说明/结构/快速开始
 ├── .gitignore                     # Resource/、.env、依赖、数据等不上传
+├── .github/workflows/ci.yml       # CI：backend + frontend（PR #10）
 ├── Resource/
 │   └── 基于生成式AI的错题整理系统.docx   # 本地只读参考，不上传仓库
 ├── frontend/
@@ -21,9 +22,21 @@ BababoiLearningMachine/
 │   ├── src/.gitkeep
 │   └── tests/.gitkeep
 ├── backend/
-│   ├── README.md                  # 目录骨架；脚手架待 BE-001
-│   ├── app/.gitkeep
-│   └── tests/.gitkeep
+│   ├── README.md                  # 状态过期，issue #11 修
+│   ├── pyproject.toml             # uv + ruff + pytest（BE-001）
+│   ├── uv.lock
+│   ├── .env.example
+│   ├── alembic.ini
+│   ├── alembic/versions/          # 7d155a41e345 initial schema（BE-002）
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── core/                  # config/security/errors/observability
+│   │   ├── db/                    # base/session
+│   │   ├── models/                # user/question/generation/records/draft
+│   │   ├── schemas/               # auth/question
+│   │   ├── api/v1/                # health/auth/deps
+│   │   └── services/              # auth_service
+│   └── tests/                     # health/auth/models/migrations/question_schema
 ├── deploy/
 │   └── README.md                  # compose/nginx 待补
 ├── tools/                         # 本地工具，不上传（gitignore）
@@ -50,17 +63,25 @@ BababoiLearningMachine/
     │   ├── 08-design-playbook.md
     │   ├── 09-risks.md
     │   ├── 10-resources.md
-    │   └── 11-agent-handoff.md
+    │   ├── 11-agent-handoff.md
+    │   └── 12-backend-alignment.md
+    ├── interaction/                 # 框题交互参考 demo（BE-001 附带）
     ├── learning/                    # 本地学习笔记（gitignore，不上传）
     └── product/
         ├── README.md
         ├── 01-prd-lite.md
         ├── 02-ia-and-flows.md
         ├── 03-page-specs.md
-        └── 04-design-system.md
+        ├── 04-design-system.md
+        ├── 05-ue-spec.md
+        ├── 06-draft-dual-write.md
+        ├── PRD-v0.8-reference.md
+        └── 开源项目调研.md
 ```
 
-> `frontend/`、`backend/`、`deploy/` 目录骨架已建立；真正的脚手架（Vue/Vite、FastAPI、compose）待 `FE-001` / `BE-001` / `OPS-001`。下图是完整目标结构。
+> `main` 当前包含 BE-001/002/003 与 CI #10；`frontend/` 仍待 FE-001；`deploy/` 待 OPS-001。
+> 前端 07/08/页面原型/交互地图在 `feat/frontend-m0-foundation` 分支，尚未合入 `main`。
+> `docs/product/PRD.md` v0.9 尚未合并；`docs/prd` 已删除，v0.8 归档在 `PRD-v0.8-reference.md`。
 
 ## 2. 目标文件树
 

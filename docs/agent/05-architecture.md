@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.3 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.3.2 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
 > 本文负责 **API / 数据模型 / 技术栈**；PRD 负责 **范围 / 交互 / 验收**。跨域变更两边同时升版本。
 > 数据库 schema 最终由 **人机** 确认；本文第 5 节是前后端联调所需的最小草案，人机可直接改字段，但需同步 API/前端类型。
 
@@ -33,7 +33,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 |---|---|---|
 | 认证 | `/auth/register`、`/auth/login`、`/auth/me` | 最小账号体系 |
 | 错题 | `/questions`、`/questions/{id}` | CRUD、筛选、搜索、分析编辑 |
-| AI/任务 | `/questions/{id}/analyze`、`/questions/{id}/generate`、`/questions/{id}/events`、`/tasks` | 入队、进度 SSE、重试 |
+| AI/任务 | `/questions/{id}/analyze`、`/questions/{id}/generate`、`/questions/{id}/events`、`/tasks` | 入队、进度轮询（SSE P1）、重试 |
 | 识图 | `/uploads/images`、`/questions/from-image` | 图片上传 + AI 框题 + DeepSeek 多模态识图（结果可编辑） |
 | 草稿 | `/drafts/me` | 服务端草稿 GET/PUT/DELETE |
 | 生成题 | `/generated-questions/{id}`、`/regenerate`、`/feedback` | 详情、单题重生成、质量反馈 |
@@ -362,6 +362,7 @@ erDiagram
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
 | 409 | `DRAFT_VERSION_CONFLICT` | 草稿版本冲突 |
+| 409 | `PRACTICE_DUPLICATE` | 60 秒内相同作答重复提交（BE-012） |
 | 404 | `TASK_NOT_FOUND` | 任务不存在 |
 | 413 | `UPLOAD_TOO_LARGE` | 图片超限 |
 | 415 | `UPLOAD_UNSUPPORTED_TYPE` | 图片格式不支持 |
@@ -392,12 +393,13 @@ erDiagram
 | POST | `/questions` | 创建错题；`{content_md, answer_md?, explanation_md?, subject, chapter?, question_type, options?, blanks?, tags?: string[], image_path?, source_type?}`；保存后自动入队 analysis；返回 `{question, task_id}` |
 | GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt` |
 | GET | `/questions/{id}` | 详情；含 `tags`、`analysis`、`tasks`、`generated_questions`（可选 `include=generated`） |
-| PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`（分析可编辑写回） |
+| PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`/`mastery_status`（分析可编辑写回；掌握状态由前端自评后 PATCH） |
 | DELETE | `/questions/{id}` | 软删除；204 |
 | POST | `/questions/{id}/analyze` | 重新分析，入队 `analysis` 任务；返回 `task_id` |
 | POST | `/questions/{id}/generate` | 入队 `quiz` 任务；返回 `task_id` |
-| GET | `/questions/{id}/events` | SSE 任务进度；见 6.7 |
-| GET | `/questions/{id}/generated` | 该错题的生成题列表 |
+| GET | `/questions/{id}/events` | SSE 任务进度（P1；P0 用 `/tasks` 轮询）；见 6.7 |
+
+> 生成题统一通过 `GET /questions/{id}?include=generated` 返回；不单独提供 `/questions/{id}/generated`，避免两套取法。
 
 **Question JSON（示例）**：
 
@@ -447,6 +449,8 @@ erDiagram
 | DELETE | `/drafts/me` | 保存/放弃后清理 |
 | GET | `/tasks?question_id=&status=` | 任务列表；任务中心/轮询兜底 |
 | POST | `/tasks/{id}/retry` | 失败重试 |
+
+> `TaskOut` 含 `question_id`（任务中心跨题展示必需）；`GET /tasks` 是 P0 进度来源，SSE 为 P1。
 
 ### 6.6 统计与标签（P1）
 
@@ -503,7 +507,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - `AbortController` 支持取消；组件卸载时 abort。
 - SSE 失败时回退到轮询 `GET /tasks?question_id=`，不要假设同步生成。
 
-> MVP 做**任务状态 + 阶段级 SSE**，不做 token 级。SSE 是队列的进度通道，不是队列的替代。
+> P0 任务进度先用 `GET /tasks?question_id=` 轮询（1.5s 可接受）；SSE 为 P1（BE-010），不是 P0 阻塞项。token 级不做。
 
 ### 6.8 图片上传与识图（P0 增强）
 
@@ -740,7 +744,7 @@ src/
 | 录入（文本） | `/questions`、`/questions/{id}/analyze` | 提交中、分析中、AI 失败、草稿 |
 | 录入（图片） | `/uploads/images`、`/questions/from-image`、`/questions`、`/questions/{id}/analyze` | 上传中、识图中、识图失败、可编辑、退回文本 |
 | 详情 | `/questions/{id}`、`/questions/{id}/generate` | 生成中、部分题、重试、删除 |
-| 练习 | `/questions/{id}/generated`、`/practice-records` | 计时、未作答、已揭晓、提交失败 |
+| 练习 | `/questions/{id}?include=generated`、`/practice-records` | 计时、未作答、已揭晓、提交失败 |
 | 统计 | `/stats/overview`、`/stats/trends`、`/stats/weak-points` | 空、加载、图表无数据 |
 
 ### 8.4 Arco Design Vue 集成注意（2026-11 调研）
@@ -892,7 +896,7 @@ VITE_API_BASE_URL=/api/v1
 |---|---|---|---|---|
 | TQ-01 | sync 还是 async SQLAlchemy | sync-first / async | sync-first；11.5 spike 后定 | 11.5 |
 | TQ-02 | LLM 供应商与 JSON mode | DeepSeek / Qwen / GLM | **已定 DeepSeek `deepseek-flash`**；spike 只验证 JSON/图片/延迟/价格 | 11.5 |
-| TQ-03 | SSE 粒度 | 阶段级 / token 级 | 阶段级 P0；token 级 P1 | 11.7 |
+| TQ-03 | 任务进度方式 | 轮询 / 阶段级 SSE / token 级 | P0 用 `/tasks` 轮询；阶段级 SSE 为 P1；token 级不做 | 11.7 |
 | TQ-04 | 图片存储 | 本地卷 / OSS | 本地卷；P1 再考虑 OSS | 11.14 |
 | TQ-05 | 演示数据库 | MySQL / SQLite | MySQL；未稳定则 SQLite + WAL；schema 人机定 | 11.14 |
 | TQ-06 | TS 严格度 | strict / loose | strict；API 类型由 OpenAPI 生成 | 11.7 |
@@ -910,4 +914,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3.1 | 框题 P0 改为可移动/缩放 AI 框；`from-image` 第二阶段支持 `crop_box`；整页/无 candidate 走整图识别 | 霹雳马桶 / agent |
+| 2026-11-05 | v0.3.2 | 补 `PRACTICE_DUPLICATE`、mastery PATCH、`include=generated`、轮询 P0/SSE P1、TaskOut.question_id | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
