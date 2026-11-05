@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-network-caching: true
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+      - name: Lint
+        run: uv run ruff check app tests
+      - name: Test
+        run: uv run pytest
+        env:
+          LLM_MOCK: "true"
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect frontend scaffold
+        id: detect
+        run: |
+          if [ -f frontend/package.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::frontend/package.json not found; skipping frontend checks until FE-001"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm lint
+      - name: Typecheck
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm typecheck
+      - name: Build
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm build
+      - name: Test
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+            pnpm test
+          else
+            echo "No test script in frontend/package.json; skipping"
+          fi
