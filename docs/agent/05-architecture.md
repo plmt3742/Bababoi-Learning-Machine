@@ -395,10 +395,10 @@ erDiagram
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/questions` | 创建错题；`{content_md, answer_md?, explanation_md?, subject, chapter?, question_type, options?, blanks?, tags?: string[], image_path?, source_type?}`；保存后自动入队 analysis；返回 `{question, task_id}` |
-| GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt` |
+| POST | `/questions` | 创建错题；`{content_md, answer_md?, explanation_md?, subject, chapter?, question_type, options?, blanks?, tags?: string[], image_path?, source_type?}`；`content_md` ≤5000（§5.2）；保存后自动入队 analysis；返回 `{question, task_id}` |
+| GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt`；`q` 的搜索范围 = 题干 + 知识点标签名（PRD 5.2.3），大小写不敏感 |
 | GET | `/questions/{id}` | 详情；含 `tags`、`analysis`、`tasks`、`generated_questions`（可选 `include=generated`） |
-| PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`/`mastery_status`（分析可编辑写回；掌握状态由前端自评后 PATCH） |
+| PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`（分析可编辑写回）/`mastery_status`（v0.3.2 确认单 B-5：掌握状态由前端自评后 PATCH，后端不做自动流转） |
 | DELETE | `/questions/{id}` | 软删除；204 |
 | POST | `/questions/{id}/analyze` | 重新分析，入队 `analysis` 任务；返回 `task_id` |
 | POST | `/questions/{id}/generate` | 入队 `quiz` 任务；返回 `task_id`；多选时前端对每个选中题目并行调用 |
@@ -933,6 +933,7 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3.1 | 框题 P0 改为可移动/缩放 AI 框；`from-image` 第二阶段支持 `crop_box`；整页/无 candidate 走整图识别 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3.2 | issue #11 / 13号 §4 修复：`/health` 真查库（不可用 503）+ 新增 `/ready`；框架错误按状态码分派（新增 `FORBIDDEN`/`METHOD_NOT_ALLOWED`）；MySQL 驱动定为 `pymysql`；登录限流引入 `TRUSTED_PROXIES`；JWT/LLM 配置启动即校验 | 人机 |
+| 2026-11-05 | v0.3.2 | BE-004 review 修复：`content_md` ≤5000 落地、列表 `q` 搜索范围含标签、`PATCH` 可改 `mastery_status`（确认单 B-5） | 人机 |
 | 2026-11-05 | v0.3.2 | 补 `PRACTICE_DUPLICATE`、mastery PATCH、`include=generated`、轮询 P0/SSE P1、TaskOut.question_id | 霹雳马桶 / agent |
 | 2026-11-05 | v0.4 | **图片录入改为用户裁剪 + 多题文本提取（`questions[]`，① ②… 条目）+ 选择 1–3 道生成**；删除 bbox/candidates/detection_confidence；分析补 answer/explanation；Prompt `vision_extract_v2` | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
