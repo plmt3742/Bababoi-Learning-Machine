@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # FR-7 账号：JWT 有效期 7 天（05 §6.3）；secret 必须由环境变量注入
     jwt_secret: str = ""
     access_token_expire_days: int = 7
+    # 登录失败限流（05 §6.3：5 次/分钟/IP，内存计数即可，不引入 Redis）
+    login_rate_limit: int = 5
+    login_rate_window_s: int = 60
 
     # 数据库：BE-001 只提供配置项，连接与建表在 BE-002
     database_url: str = ""

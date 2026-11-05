@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health
+from app.api.v1 import auth, health
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import register_observability, setup_logging
@@ -25,3 +25,4 @@ register_observability(app)
 register_exception_handlers(app)
 
 app.include_router(health.router, prefix=settings.api_prefix)
+app.include_router(auth.router, prefix=settings.api_prefix)
