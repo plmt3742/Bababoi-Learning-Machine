@@ -1,15 +1,28 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
 import PageHeader from '../components/common/PageHeader.vue'
-import MarkdownRenderer from '../components/common/MarkdownRenderer.vue'
+import BlankEditor from '../components/question/editor/BlankEditor.vue'
+import ChoiceEditor from '../components/question/editor/ChoiceEditor.vue'
+import QuestionPreview from '../components/question/editor/QuestionPreview.vue'
+import QuestionTypeSelector from '../components/question/editor/QuestionTypeSelector.vue'
 import { createQuestion } from '../api/questions'
 import { normalizeApiError } from '../api/errors'
-import type { QuestionCreate } from '../api/types'
+import {
+  createDefaultChoiceOptions,
+  optionLabel,
+  toBlankAnswers,
+  toChoiceOptions,
+  validateBlankAnswers,
+  validateChoiceOptions,
+} from '../utils/questionEditor'
+import type { BlankAnswerDraft } from '../utils/questionEditor'
+import { questionTypeLabel } from '../utils/question'
+import type { QuestionCreate, QuestionType } from '../api/types'
 
 const MAX_CONTENT_LENGTH = 5000
 const MAX_TAGS = 10
@@ -20,15 +33,59 @@ const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const editMode = ref(true)
 const errorMessage = ref('')
+const attemptedSubmit = ref(false)
+const choiceCorrectLabel = ref('')
 
 const form = reactive({
   subject: '',
   chapter: '',
+  question_type: 'solve' as QuestionType,
   content_md: '',
   answer_md: '',
   explanation_md: '',
   tags: [] as string[],
+  options: createDefaultChoiceOptions(),
+  blanks: [] as BlankAnswerDraft[],
 })
+
+const structureError = computed(() => {
+  if (form.question_type === 'choice') return validateChoiceOptions(form.options)
+  if (form.question_type === 'blank') return validateBlankAnswers(form.content_md, form.blanks)
+  return null
+})
+
+const correctLabelModel = computed({
+  get: () => choiceCorrectLabel.value,
+  set: (label: string) => {
+    choiceCorrectLabel.value = label
+    if (label) form.answer_md = `选 ${label}`
+  },
+})
+
+watch(
+  () => form.options.length,
+  () => {
+    if (!choiceCorrectLabel.value) return
+
+    const exists = form.options.some(
+      (_option, position) => optionLabel(position) === choiceCorrectLabel.value,
+    )
+    if (exists) return
+
+    const staleLabel = choiceCorrectLabel.value
+    choiceCorrectLabel.value = ''
+    if (form.answer_md.trim() === `选 ${staleLabel}`) form.answer_md = ''
+  },
+)
+
+watch(
+  () => form.answer_md,
+  (value) => {
+    if (!choiceCorrectLabel.value) return
+    if (value.trim() === `选 ${choiceCorrectLabel.value}`) return
+    choiceCorrectLabel.value = ''
+  },
+)
 
 const rules: Record<string, FieldRule[]> = {
   subject: [{ required: true, message: '请选择学科' }],
@@ -73,10 +130,20 @@ function normalizedTags(): string[] {
 async function handleSubmit(): Promise<void> {
   if (submitting.value || !formRef.value) return
 
+  attemptedSubmit.value = true
   const validationErrors = await formRef.value.validate()
   if (validationErrors) {
     // Keep the stem error visible when the user submits from preview mode.
     if (validationErrors.content_md) editMode.value = true
+    return
+  }
+
+  if (structureError.value) {
+    Message.error(structureError.value)
+    document.getElementById('structure-heading')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
     return
   }
 
@@ -88,11 +155,17 @@ async function handleSubmit(): Promise<void> {
       subject: form.subject,
       chapter: form.chapter.trim() || null,
       source_type: 'text',
-      question_type: 'solve',
+      question_type: form.question_type,
       content_md: form.content_md.trim(),
       answer_md: form.answer_md.trim() || null,
       explanation_md: form.explanation_md.trim() || null,
       tags: normalizedTags(),
+    }
+
+    if (form.question_type === 'choice') {
+      payload.options = toChoiceOptions(form.options)
+    } else if (form.question_type === 'blank') {
+      payload.blanks = toBlankAnswers(form.blanks)
     }
 
     const result = await createQuestion(payload)
@@ -176,7 +249,13 @@ function handleCancel(): void {
               <div class="preview">
                 <p class="preview__label">渲染预览</p>
                 <div class="preview__body">
-                  <MarkdownRenderer v-if="form.content_md.trim()" :content="form.content_md" />
+                  <QuestionPreview
+                    v-if="form.content_md.trim()"
+                    :content="form.content_md"
+                    :question-type="form.question_type"
+                    :options="form.options"
+                    :correct-label="choiceCorrectLabel"
+                  />
                   <p v-else class="preview__empty">输入题干后，这里会显示渲染结果。</p>
                 </div>
               </div>
@@ -185,7 +264,13 @@ function handleCancel(): void {
             <div v-if="!editMode" class="preview preview--solo">
               <p class="preview__label">渲染预览</p>
               <div class="preview__body">
-                <MarkdownRenderer v-if="form.content_md.trim()" :content="form.content_md" />
+                <QuestionPreview
+                  v-if="form.content_md.trim()"
+                  :content="form.content_md"
+                  :question-type="form.question_type"
+                  :options="form.options"
+                  :correct-label="choiceCorrectLabel"
+                />
                 <p v-else class="preview__empty">还没有内容，切换到编辑模式输入题干。</p>
               </div>
             </div>
@@ -233,15 +318,38 @@ function handleCancel(): void {
         <section class="panel" aria-labelledby="structure-heading">
           <div class="panel__head">
             <h2 id="structure-heading">结构与题型</h2>
+            <span class="tag">{{ questionTypeLabel(form.question_type) }}</span>
           </div>
           <div class="panel__body">
-            <div class="type-row">
-              <span class="type-row__label">题型</span>
-              <span class="tag">解答题</span>
-            </div>
-            <p class="info-note">
-              当前版本按解答题结构保存；选择题选项、填空题空位编辑器将在 FE-020 提供，AI
-              分析结果不受影响。
+            <QuestionTypeSelector v-model="form.question_type" />
+            <p class="hint structure-hint">
+              切换题型会保留题干、答案、解析、章节和标签；选择题选项与填空题空位分别保留，切回时恢复。
+            </p>
+
+            <ChoiceEditor
+              v-if="form.question_type === 'choice'"
+              v-model:options="form.options"
+              v-model:correct-label="correctLabelModel"
+              :show-validation="attemptedSubmit"
+            />
+
+            <BlankEditor
+              v-else-if="form.question_type === 'blank'"
+              v-model:content="form.content_md"
+              v-model:blanks="form.blanks"
+              :show-validation="attemptedSubmit"
+            />
+
+            <p v-else class="info-note">
+              解答题按完整题干保存，不需要额外选项或空位；小问可用 Markdown 编号表达。
+            </p>
+
+            <p
+              v-if="attemptedSubmit && structureError"
+              class="field-error structure-error"
+              role="alert"
+            >
+              {{ structureError }}
             </p>
           </div>
         </section>
@@ -471,16 +579,12 @@ function handleCancel(): void {
   flex: none;
 }
 
-.type-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.structure-hint {
+  margin-top: var(--space-3);
 }
 
-.type-row__label {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 600;
+.structure-error {
+  margin-top: var(--space-3);
 }
 
 .info-note {
