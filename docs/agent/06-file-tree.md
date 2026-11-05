@@ -22,21 +22,26 @@ BababoiLearningMachine/
 │   ├── src/.gitkeep
 │   └── tests/.gitkeep
 ├── backend/
-│   ├── README.md                  # 状态过期，issue #11 修
+│   ├── README.md                  # 现状：BE-001~003 已合，#5/#6/#7/#9 待 review
 │   ├── pyproject.toml             # uv + ruff + pytest（BE-001）
 │   ├── uv.lock
 │   ├── .env.example
 │   ├── alembic.ini
 │   ├── alembic/versions/          # 7d155a41e345 initial schema（BE-002）
+│   ├── start-dev.bat              # 一键起本地服务（mock LLM）
+│   ├── scripts/spike_llm.py       # 真实 Key 连通性自测（BE-005）
+│   ├── static/test-console.html   # 手工测试台，仅本地
 │   ├── app/
-│   │   ├── main.py
+│   │   ├── main.py                # 装配 + lifespan（worker 启停）
 │   │   ├── core/                  # config/security/errors/observability
 │   │   ├── db/                    # base/session
 │   │   ├── models/                # user/question/generation/records/draft
-│   │   ├── schemas/               # auth/question
-│   │   ├── api/v1/                # health/auth/deps
-│   │   └── services/              # auth_service
-│   └── tests/                     # health/auth/models/migrations/question_schema
+│   │   ├── schemas/               # auth/question/practice
+│   │   ├── api/v1/                # health/auth/questions/tasks/practice/deps
+│   │   ├── services/              # auth/question/task_service/task_worker/practice
+│   │   ├── ai/                    # client/prompts/parser/validator/pipeline（BE-005）
+│   │   └── utils/
+│   └── tests/                     # 99 个 pytest；LLM 全 mock，worker 不起线程
 ├── deploy/
 │   └── README.md                  # compose/nginx 待补
 ├── tools/                         # 本地工具，不上传（gitignore）
