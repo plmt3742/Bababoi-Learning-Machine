@@ -2,6 +2,7 @@
 
 覆盖：注册/重名 409/参数校验 400、登录成败与 401 形状、
 过期与伪造 token、未带 token、/auth/me 归属，以及 5 次/分钟/IP 限流。
+fixture 在 tests/conftest.py。
 """
 from __future__ import annotations
 
@@ -9,54 +10,17 @@ from datetime import timedelta
 
 import jwt as pyjwt
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.security import PASSWORD_MAX_BYTES, verify_password
-from app.db.base import Base, utcnow
-from app.db.session import get_session
-from app.main import app
+from app.db.base import utcnow
 from app.models import User
-from app.services.auth_service import LoginRateLimiter, login_limiter
-
-TEST_SECRET = "unit-test-secret-0123456789abcdef0123456789abcdef"
-
-
-@pytest.fixture()
-def db(tmp_path):
-    engine = create_engine(f"sqlite:///{(tmp_path / 'auth.db').as_posix()}")
-    Base.metadata.create_all(engine)
-    yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    engine.dispose()
+from app.services.auth_service import LoginRateLimiter
+from tests.conftest import TEST_SECRET, register_user
 
 
-@pytest.fixture()
-def client(db, monkeypatch):
-    def override_session():
-        s = db()
-        try:
-            yield s
-        finally:
-            s.close()
-
-    app.dependency_overrides[get_session] = override_session
-    monkeypatch.setattr(settings, "jwt_secret", TEST_SECRET)
-    login_limiter.clear()
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
-
-
-def _register(client: TestClient, username: str = "小明_01", password: str = "p@ssw0rd9") -> dict:
-    resp = client.post(
-        "/api/v1/auth/register",
-        json={"username": username, "password": password},
-    )
-    assert resp.status_code == 200, resp.text
-    return resp.json()
+def _register(client, username: str = "小明_01", password: str = "p@ssw0rd9") -> dict:
+    return register_user(client, username, password)
 
 
 def test_register_returns_token_and_user(client) -> None:
@@ -203,6 +167,23 @@ def test_rate_limit_counts_ips_independently() -> None:
     assert exc.value.code == ErrorCode.AUTH_RATE_LIMITED
 
     limiter.check("2.2.2.2")  # 不抛，即未限流
+
+
+def test_rate_limit_drops_expired_ip_entries(monkeypatch) -> None:
+    """记账时顺带清掉过期 IP，字典不会随扫库的 IP 只增不减（issue #11 BE-003）。"""
+    from app.services import auth_service
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(auth_service, "monotonic", lambda: clock["now"])
+    limiter = auth_service.LoginRateLimiter(limit=5, window_s=60)
+
+    for index in range(50):
+        limiter.record_failure(f"10.0.0.{index}")
+    assert len(limiter._failures) == 50
+
+    clock["now"] += 121  # 全部滑出 60 秒窗口
+    limiter.record_failure("198.51.100.7")
+    assert list(limiter._failures) == ["198.51.100.7"]
 
 
 def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
