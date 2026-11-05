@@ -910,4 +910,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3.1 | 框题 P0 改为可移动/缩放 AI 框；`from-image` 第二阶段支持 `crop_box`；整页/无 candidate 走整图识别 | 霹雳马桶 / agent |
+| 2026-11-05 | v0.3.2 | BE-004 review 修复：`content_md` ≤5000 落地、列表 `q` 搜索范围含标签、`PATCH` 可改 `mastery_status`（确认单 B-5） | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
