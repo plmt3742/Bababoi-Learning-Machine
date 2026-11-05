@@ -64,9 +64,9 @@ AI 分析（知识点、题型、错误原因）
 
 ## 当前实际状态（2026-11-06）
 
-- `origin/main @ a65806c`：BE-001/002/003 + follow-up（#14）、BE-004（#7）、FE-009/019（#19）、Calm Academic 视觉（#21）已合并
+- `origin/main @ 55e01b4`：BE-001/002/003 + follow-up（#14）、BE-004（#7）、FE-009/019（#19）、Calm Academic 视觉（#21）、FE-013（#23）、FE-014（#24）、FE-020（#25）已合并
 - 后端待处理：PR #5（BE-006/007）、#6（BE-005）需补 analysis `answer_md`/`explanation_md` 与标签合并；#9（BE-012）已 approve，等 #5；#8（docs）最后合
-- 前端：FE-001~012/015/009/019/022 已合；剩余 FE-013/014/016/018/020/021 与 FE-023（三段并发 UI 适配）
+- 前端：FE-001~015/009/019/020/022 已合；剩余 FE-016/018/021 与 FE-023（三段并发 UI 适配）
 - 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
 - CI：`.github/workflows/ci.yml` 已存在；frontend job 已跑真实 lint/typecheck/build

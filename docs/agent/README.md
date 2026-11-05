@@ -88,8 +88,9 @@
 - 头号目标：把 P0 范围、API 契约 v0、设计稿、仓库骨架在 11.7 24:00 前落地
 - 已确认：大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态、图片 v2（裁剪 + 多题文本提取）、数据库 schema 由人机负责、两位开发共同负责产品设计
 - 设计产出：01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；03 页面规范待填；07/08/原型待按图片 v2 更新
-- 当前代码：`origin/main @ 2335773`；BE-001/002/003 已合（PR #2/#3/#4）；CI #10 已合；PR #5/#6/#7/#8/#9 open；issue #11 follow-up
-- 前端：`feat/frontend-m0-foundation` 有 07/08/页面原型/交互地图；FE-001 尚未开始
+- 当前代码：`origin/main @ 55e01b4`；BE-001/002/003 + follow-up（#14）、BE-004（#7）、FE-001~015/009/019/020/022 已合；#6/#5 待补 analysis 字段；#9 approved 等 #5；#8 docs 最后合
+- 前端：Calm Academic 四核心屏 + 练习/统计/三题型编辑器已完成；剩余 FE-016/018/021 + FE-023
+- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - 头号风险：范围过大 + 部署拖到最后（见 `09-risks.md` R-001、R-010）
-- 下一步：按 [12-backend-alignment.md](12-backend-alignment.md) 确认 05 v0.4（图片 v2/队列/草稿/题型）；完成 FE-001；合并 PRD v0.9
+- 下一步：修 #6/#5 的 analysis 字段；合 #9/#8；完成 FE-016/018/021；M0 验收
 - 新会话交接：用 [11-agent-handoff.md](11-agent-handoff.md) 的提示词

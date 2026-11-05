@@ -152,10 +152,10 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 | 关键决策 | DONE | 大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态、图片 v2（裁剪 + 多题文本提取）、数据库 schema 归人机 |
 | 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；2026-11-06 全量 Calm Academic 视觉定稿并落到前端；03 页面规范待按 8 页填全；PRD v0.9 待合并；可用性测试待做 |
 | 设计原型 | DONE（视觉定稿） | `calm-academic/index.html` 四屏为最终视觉基准，前端已按原型覆写；仓库内 `docs/product/drafts/` 仍是旧框题线框，待归档/更新 |
-| 前端视觉 | DONE（PR #21 待合并） | AppShell/列表/录入/详情/任务中心/登录/占位/404 已按 Calm 原型覆写；1366/375 + 核心路径验证通过；PR #21 stacked 在 PR #19 上 |
+| 前端视觉 | DONE（PR #19/#21/#23/#24/#25 已合） | AppShell/列表/录入/详情/任务中心/登录/占位/404 已按 Calm 原型覆写；练习/统计/三题型编辑器已补齐；1366/375 + 核心路径验证通过 |
 | API 契约 v0 | DOING | `05-architecture.md` v0.4 草案（图片 v2/队列/草稿/题型/掌握状态）；`12-backend-alignment.md` 已对齐，待两人逐节确认后冻结 |
-| 仓库骨架 | DONE | `origin/main @ afa881d`：BE-001/002/003 + CI #10 + 前端 FE-001~012/015（PR #16~#18）；FE-009/019 在 PR #19；Calm 视觉覆写在 PR #21（stacked）；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
-| 后端后续 | DOING | PR #5/#6/#7/#9 open；PR #8 docs 暂缓；issue #11 跟踪 BE-001~003 follow-up |
+| 仓库骨架 | DONE | `origin/main @ 55e01b4`：BE-001/002/003 + #14 + BE-004 #7 + 前端 #16~#21/#23~#25；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
+| 后端后续 | DOING | #14/#7 已合；#6/#5 需补 analysis 字段与标签合并；#9 approved 等 #5；#8 docs 最后合 |
 | CI | DONE | `.github/workflows/ci.yml`；PR #10 已合；frontend 在 FE-001 后改为真实命令 |
 | 部署 | TODO | 11.14 前必须完成 |
 | 种子数据 | TODO | 需要 10+ 道大学理科真实错题；3 道含图/公式题用于图片提取 |
