@@ -1,7 +1,7 @@
 """initial schema
 
 Revision ID: 7d155a41e345
-Revises: 
+Revises:
 Create Date: 2026-11-05 04:13:25.449384
 """
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = '7d155a41e345'
