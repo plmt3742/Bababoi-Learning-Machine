@@ -359,11 +359,13 @@ erDiagram
 | 401 | `AUTH_TOKEN_EXPIRED` | JWT 过期 |
 | 403 | `QUESTION_FORBIDDEN` | 访问他人错题 |
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
+| 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
 | 409 | `DRAFT_VERSION_CONFLICT` | 草稿版本冲突 |
 | 404 | `TASK_NOT_FOUND` | 任务不存在 |
 | 413 | `UPLOAD_TOO_LARGE` | 图片超限 |
 | 415 | `UPLOAD_UNSUPPORTED_TYPE` | 图片格式不支持 |
+| 429 | `AUTH_RATE_LIMITED` | 登录失败过于频繁（5 次/分钟/IP，见 §6.3；BE-003 新增） |
 | 429 | `AI_RATE_LIMITED` | AI 调用过于频繁 |
 | 502 | `AI_PROVIDER_ERROR` | LLM 供应商错误 |
 | 504 | `AI_TIMEOUT` | LLM 超时 |
