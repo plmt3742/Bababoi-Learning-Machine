@@ -37,26 +37,27 @@
 | [agent/09-risks.md](agent/09-risks.md) | 风险登记册 + 实现注意事项 + 演示兜底 | 每周复盘 + 答辩准备 |
 | [agent/10-resources.md](agent/10-resources.md) | 本地资料、docx 摘要、外部链接、术语表 | 查资料 |
 | [agent/11-agent-handoff.md](agent/11-agent-handoff.md) | 新会话交接提示词、角色模板、交接检查 | 切换会话/换 agent |
-| [agent/12-backend-alignment.md](agent/12-backend-alignment.md) | 后端对接结果：队列、裁剪、PRD、分支合并决策 | 后端对接 / M0 契约确认 |
+| [agent/12-backend-alignment.md](agent/12-backend-alignment.md) | 后端对接结果：队列、图片 v2、PRD、分支合并决策 | 后端对接 / M0 契约确认 |
+| [agent/13-backend-merge-audit.md](agent/13-backend-merge-audit.md) | 后端合并审查、未合并分支 review、CI 方案 | 合并审查 / 交接 |
 
 ### 产品设计
 
 | 文件 | 内容 | 状态 |
 |---|---|---|
-| [product/README.md](product/README.md) | 设计产出索引与当前状态 | 待填写 |
+| [product/README.md](product/README.md) | 设计产出索引与当前状态 | 有效 |
 | [product/PRD.md](product/PRD.md) | 完整产品契约：范围/交互/验收（从 `docs/prd` 分支合并，修订 v0.9） | 待合并 |
 | [product/PRD-v0.8-reference.md](product/PRD-v0.8-reference.md) | PRD v0.8 归档参考；不构成契约 | 归档 |
 | [product/开源项目调研.md](product/开源项目调研.md) | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
-| [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 模板 | 模板 |
-| [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构 + 核心流程图模板 | 模板 |
-| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面） | 模板 |
-| [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单模板 | 模板 |
+| [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 速览（大学理科、闭环、P0/P1/P2、指标） | 已定稿 |
+| [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构、sitemap、3 条核心流程、AI 状态机 | 已定稿 |
+| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面；示例+要点已填） | 部分完成 |
+| [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单 + 状态矩阵 | 已定稿 |
 | [product/05-ue-spec.md](product/05-ue-spec.md) | UE 稿/交互地图规范与模板 | 模板 |
 | [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
-| [product/07-page-drafts.md](product/07-page-drafts.md) | 8 个关键页面的草稿设计（线框级） | 草稿 |
-| [product/08-interaction-map.md](product/08-interaction-map.md) | 页面交互地图、跳转关系、数据流 | 草稿 |
-| [product/drafts/prototype.html](product/drafts/prototype.html) | 可本地打开的页面原型（8 页线框） | 草稿 |
-| [product/drafts/interaction-map.html](product/drafts/interaction-map.html) | 可本地打开的页面地图（HTML，点击页面框打开原型） | 草稿 |
+| [product/07-page-drafts.md](product/07-page-drafts.md) | 8 个关键页面的线框级设计 | 已定稿（待按图片 v2 更新） |
+| [product/08-interaction-map.md](product/08-interaction-map.md) | 页面交互地图、跳转关系、数据流、状态机 | 已定稿（待按图片 v2 更新） |
+| [product/drafts/prototype.html](product/drafts/prototype.html) | 可本地打开的页面原型（8 页线框） | 旧框题版；待更新 |
+| [product/drafts/interaction-map.html](product/drafts/interaction-map.html) | 可本地打开的页面地图（HTML，点击页面框打开原型） | 旧框题版；待更新 |
 
 ### 架构决策
 
@@ -67,6 +68,7 @@
 | [adr/ADR-001-tech-stack.md](adr/ADR-001-tech-stack.md) | 技术栈确认（含与 docx 的差异） | Accepted |
 | [adr/ADR-002-mvp-scope.md](adr/ADR-002-mvp-scope.md) | MVP 范围与 P0/P1/P2 | Proposed |
 | [adr/ADR-003-image-input-vision.md](adr/ADR-003-image-input-vision.md) | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted |
+| [adr/ADR-004-image-text-extraction.md](adr/ADR-004-image-text-extraction.md) | 图片录入：用户裁剪 + 文本提取 + 多题条目 | Accepted |
 
 ## 状态图例
 
@@ -95,3 +97,5 @@
 |---|---|---|
 | 2026-11-04 | 初始化文档体系 | 霹雳马桶 / agent |
 | 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归人机；新增 ADR-003、11-agent-handoff、.gitignore | 霹雳马桶 / agent |
+| 2026-11-05 | 同步产品设计状态：01/02/04/06/07/08 已定稿，03 部分完成，原型可用；补充 12-backend-alignment | 霹雳马桶 / agent |
+| 2026-11-05 | 同步 origin/main：补 13-backend-merge-audit；新增 ADR-004 图片文本提取 v2；后端通知 issue #13 | 霹雳马桶 / agent |

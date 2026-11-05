@@ -1,6 +1,6 @@
 # 产品设计产出
 
-> owner: 霹雳马桶 · last_updated: 2026-11-05 · 状态：01 已定稿，其余待填写
+> owner: 霹雳马桶 · last_updated: 2026-11-05 · 状态：01/02/04/06/07/08 已定稿（07 为线框级），03 部分完成，05 模板；图片录入 v2 已定（ADR-004），07/08/原型需按 v2 更新
 
 这个目录放**产品设计阶段**的产出。工程上下文在 `docs/agent/`；本目录只放产品/设计内容。
 
@@ -12,15 +12,15 @@
 | `PRD-v0.8-reference.md` | PRD v0.8 归档参考；不构成契约；原型图已完成参考，后续独立设计 | 归档 |
 | `01-prd-lite.md` | 一页纸 PRD 速览：用户、问题、闭环、范围、指标 | 已定稿（图片框题确认为 P0 增强） |
 | `开源项目调研.md` | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
-| `02-ia-and-flows.md` | 信息架构、sitemap、3 条核心流程、AI 状态机 | 待填写 |
-| `03-page-specs.md` | 8 个核心页面的规范（布局/组件/API/状态/验收） | 待填写 |
-| `04-design-system.md` | 设计 tokens、组件清单、状态规范 | 待填写 |
+| `02-ia-and-flows.md` | 信息架构、sitemap、3 条核心流程、AI 状态机 | 已定稿 |
+| `03-page-specs.md` | 8 个核心页面的规范（布局/组件/API/状态/验收） | 部分完成（示例+要点已填，8 页待填） |
+| `04-design-system.md` | 设计 tokens、组件清单、状态规范 | 已定稿 |
 | `05-ue-spec.md` | UE 稿/交互地图规范、页面 ID、输出与验收 | 模板 |
 | `06-draft-dual-write.md` | 草稿：服务端 + localStorage 双写、接口、冲突处理、验收 | 已定稿 |
-| `07-page-drafts.md` | 8 个关键页面的草稿设计（线框级，无视觉风格） | 草稿 |
-| `08-interaction-map.md` | 页面交互地图、跳转关系、数据流 | 草稿 |
-| `drafts/prototype.html` | 可本地打开的页面原型（8 页线框，点击总览卡片查看详情） | 草稿 |
-| `drafts/interaction-map.html` | 可本地打开的页面地图（页面框 + 连线 + 数据流；点击页面框打开原型） | 草稿 |
+| `07-page-drafts.md` | 8 个关键页面的线框级设计（无视觉风格） | 已定稿（线框级；待按图片 v2 更新） |
+| `08-interaction-map.md` | 页面交互地图、跳转关系、数据流、状态机 | 已定稿（待按图片 v2 更新） |
+| `drafts/prototype.html` | 可本地打开的页面原型（8 页线框，点击总览卡片查看详情） | 旧框题版；待按图片 v2 更新 |
+| `drafts/interaction-map.html` | 可本地打开的页面地图（页面框 + 连线 + 数据流；点击页面框打开原型） | 旧框题版；待按图片 v2 更新 |
 
 ## 设计阶段时间盒（11.4–11.7）
 
@@ -35,14 +35,14 @@
 
 ## 设计交付检查
 
-- [ ] PRD-lite 一页完成，P0 不超过 10 项，文本闭环优先。
-- [ ] sitemap + 3 条流程（核心闭环、练习、薄弱点复习）+ 图片录入分支。
-- [ ] AI 状态机（idle/vision/analyzing/generating/validating/partial/success/error）。
-- [ ] 8 页线框，核心 4 页有状态标注。
-- [ ] tokens + 组件清单。
-- [ ] 5–6 页高保真/可点击原型（时间不够可只用线框）。
+- [x] PRD-lite 一页完成，P0 不超过 10 项，文本闭环优先。
+- [x] sitemap + 3 条流程（核心闭环、练习、薄弱点复习）+ 图片录入分支。
+- [x] AI 状态机（idle/cropping/uploading/extracting/confirming_items/analyzing/generating/validating/partial/success/error）。
+- [x] 8 页线框，核心 4 页有状态标注。
+- [x] tokens + 组件清单。
+- [x] 可点击线框原型（`drafts/prototype.html`）；高保真未做。
 - [ ] 3 人可用性测试，blocker 已修。
-- [ ] 页面规范 + API 映射交接给前端/后端。
+- [ ] 页面规范 + API 映射交接给前端/后端（02 已有 API 映射；03 的 8 页规范待填）。
 - [ ] 产品评审/搭档评审记录。
 
 ## 反馈记录
@@ -59,8 +59,8 @@
 |---|---|---|
 | 线框图 | | Excalidraw/Figma |
 | 高保真 | | Figma/即时设计 |
-| 可点击原型 | | |
-| 设计 tokens | `04-design-system.md` | 以文档为准 |
+| 可点击原型 | `drafts/prototype.html` | 旧框题版；开发时参照结构，图片 v2 以 ADR-004/05 v0.4 为准 |
+| 设计 tokens | `04-design-system.md` | 以文档为准；代码落 `frontend/src/styles/tokens.css` |
 
 ## 设计评审清单
 

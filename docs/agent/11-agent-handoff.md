@@ -9,6 +9,19 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 > 目标：让一个新 agent 在 **3 分钟内**知道“项目是什么、现在到哪、我要做什么、不能做什么”，而不是把 `docs/` 全读一遍。
 
+## 0. 当前交接状态（2026-11-05，origin/main @ 2335773）
+
+- **`main`**：`2335773`（docs 同步 #12；CI #10 已合）
+- **已合后端**：BE-001/002/003（PR #2/#3/#4）；代码可运行，`pytest 42 passed`
+- **后端 open PR**：#5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
+- **后端 follow-up**：issue #11（`/health`、MySQL 驱动、文档、限流等）
+- **前端进行中**：`feat/frontend-m0-foundation`（07/08/页面原型/交互地图，未合入 main；FE-001 未开始）
+- **PRD**：`docs/prd` 已删除；v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
+- **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不再做 bbox/框题；见 ADR-004 / issue #13
+- **下一步顺序**：后端 `#7 → #6 → #5 → rebase #9 → #8`；开 `main` 分支保护；前端 FE-001 + 图片 v2；PRD v0.9
+- **审查报告**：`docs/agent/13-backend-merge-audit.md`
+- **不要做**：不要 revert BE-001/002/003；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题方案
+
 ## 1. 最小启动提示词（复制即用）
 
 ```text
@@ -39,12 +52,14 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 ```text
 你是本项目前端 agent（Vue 3 + Vite + TypeScript + Arco Design Vue）。
-先读：AGENTS.md → docs/agent/00-context.md → docs/agent/04-todos.md → docs/agent/05-architecture.md「0/6/8 节」→ docs/agent/06-file-tree.md → docs/product/03-page-specs.md。
+先读：AGENTS.md → docs/agent/00-context.md → docs/agent/04-todos.md → docs/agent/05-architecture.md「0/6.8/7/8 节」→ docs/agent/06-file-tree.md → docs/product/03-page-specs.md + 07-page-drafts.md + 08-interaction-map.md。
 
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
+开发页面时参照 `docs/product/drafts/prototype.html` 的结构和 `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
-必须覆盖 loading/empty/error/success；AI 页面加 partial/retry。
+图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题。
+必须覆盖 cropping/uploading/extracting/confirming_items/editing/saving/error 等状态；AI 页面加 partial/retry。
 完成后跑 pnpm lint / pnpm typecheck / pnpm build，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。
 ```
@@ -59,6 +74,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 只改 backend/ 下与任务相关的文件；数据库 schema 最终由人机确认，不要擅自改字段/迁移。
 AI 调用必须服务端；LLM 测试用 mock，不花真实额度。
 接口/字段/错误码必须与 05 一致；改了就先更新 05 和 OpenAPI。
+图片录入按 v2：`from-image` 返回 `questions[]`（1..N），不做 bbox/candidates；用户裁剪后上传；确认后逐条 `POST /questions`。
 完成后跑 uv run ruff check / uv run pytest，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。
 ```
@@ -71,7 +87,7 @@ AI 调用必须服务端；LLM 测试用 mock，不花真实额度。
 任务：<DS-xxx>。
 只产出设计文档/线框/页面规范，不写业务代码。
 目标用户是大学理科生；输入方式有文本和图片（电脑上传 / 手机拍照或相册）。
-必须覆盖 AI 状态：vision/analyzing/generating/validating/partial/error；必须有空/错/loading。
+必须覆盖 AI 状态：cropping/uploading/extracting/confirming_items/analyzing/generating/validating/partial/error；必须有空/错/loading。
 不要设计 P2 功能；不要做像素级高保真；11.7 后不再大改。
 先复述用户/闭环/页面清单，再开始画。
 ```

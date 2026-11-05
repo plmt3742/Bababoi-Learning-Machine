@@ -62,6 +62,16 @@ AI 分析（知识点、题型、错误原因）
 
 > 今天是 11.5，距离 M0 截止只有 2 天。设计阶段必须“够用就停”，不要追求完整 PRD。
 
+## 当前实际状态（2026-11-05，已同步 origin/main）
+
+- `origin/main @ 2335773`：BE-001 / BE-002 / BE-003 已合并（PR #2/#3/#4）；CI 已加固（PR #10）
+- 后端待合并：PR #5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
+- 后端 follow-up：issue #11（health、MySQL 驱动、文档、限流等）
+- 前端：`feat/frontend-m0-foundation` 持有 07/08/原型/交互地图；FE-001 尚未开始
+- `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
+- CI：`.github/workflows/ci.yml` 已存在；frontend job 在 FE-001 后改为真实命令
+- 图片录入正式决策已变更：不再 AI 框题，改为用户裁剪 + 图片转文本 + 多题条目（见 Q-013 / ADR-004）
+
 ## 当前阶段：M0
 
 **目标**：在 11.7 24:00 前拿到四样东西：
@@ -73,25 +83,26 @@ AI 分析（知识点、题型、错误原因）
 
 **当前不在范围**：独立 OCR、模型训练、知识图谱、复杂推荐算法、社区、教师端、付费。
 
-## 已确认决策（11.4）
+## 已确认决策（11.4–11.5）
 
 | ID | 决策 | 影响 |
 |---|---|---|
 | Q-001 | 当前阶段优先大学理科生（高数/线代/概率论/大学物理），用大学理科错题做种子数据；通用学段/其他学科后续扩展，优先级低 | 文案、演示数据、知识点体系按大学理科；数据模型保留 subject 字符串，不写死学段枚举 |
-| Q-003 | 不做独立 OCR；用 DeepSeek `deepseek-flash` 多模态识图；识别文本可编辑；图片入口为 P0 增强，文本兜底 | 后端加 vision 步骤；前端加图片入口 |
+| Q-002 | 最小登录（注册/登录/JWT）；不做找回密码/邮箱验证 | BE-003 已实现 |
+| Q-003 | 不做独立 OCR；用 DeepSeek `deepseek-flash` 多模态提取题目文本（公式 LaTeX）；结果可编辑；图片入口为 P0 增强，文本兜底 | 后端加文本提取步骤；前端加裁剪/多题条目 |
+| Q-004 | P0 任务进度用 `GET /tasks` 轮询；SSE 为 P1 | FE-009 用轮询；BE-010 P1 |
 | Q-006 | LLM 默认 DeepSeek `deepseek-flash`；`deepseek-v4-pro` 不支持图片 | 文本与识图用同一模型；env 配置 |
 | Q-009 | 数据库 schema 由人机负责；霹雳马桶只提字段/查询需求 | `05-architecture.md` 的数据模型是草案，人机可改 |
 | Q-010 | 网页端；电脑上传图片；手机拍照或相册 | 手机相机需要 HTTPS/安全上下文；桌面不受限 |
 | Q-011 | 后端统一 Python 3.13 | 用 uv 固定 3.13；BE-001 后尽早做依赖兼容 spike |
-| Q-012 | 图片框题确认：P0 增强；P0 可移动/缩放 AI 框，从零画框 P1 | 新增 detecting/confirming 状态；`from-image` 第二阶段支持 `crop_box` |
+| Q-012 | 原「AI 框题 + 移动/缩放框」方案已被 Q-013 取代 | 不再做 bbox 检测/框题确认；前端改为上传阶段裁剪 |
+| Q-013 | **图片录入 v2（正式决策）**：图片 → 用户裁剪 → AI 提取题目文本（公式 LaTeX）→ 多题条目 ①②… → 用户确认 → 分析/答案/解析 → 选择题目条目（P0 上限 3 道）→ 生成相似题 | 前端加图片裁剪、多题列表/选择；后端改 `from-image` 返回 `questions[]`；不再返回 bbox/candidates；当前阶段不做附图识别 |
 
 ## 待确认
 
 | ID | 问题 | 建议 | 截止 |
 |---|---|---|---|
-| Q-002 | 登录做不做？ | 做最小登录（注册/登录/JWT），不做找回密码/邮箱验证 | 11.5 |
-| Q-004 | 流式做到什么程度？ | 阶段级 SSE；token 级为 stretch | 11.5 |
-| Q-005 | 演示数据库？ | MySQL 部署；未稳定则 SQLite + WAL 兜底（人机定） | 11.14 |
+| Q-005 | 演示数据库？ | SQLite 本地/测试；MySQL 部署后验证；未稳定则 SQLite + WAL 兜底（人机定） | 11.14 |
 | Q-007 | 是否有域名 + HTTPS？ | 手机拍照需要安全上下文；没有 HTTPS 时手机端退回相册/文本 | 11.12 |
 | Q-008 | 答辩分工？ | 前端讲产品/交互，后端讲架构/AI | 11.26 |
 
@@ -107,8 +118,8 @@ AI 分析（知识点、题型、错误原因）
 
 ## 下一步
 
-1. 合并 `docs/prd` 的 PRD v0.8 并修订为 v0.9；`01-prd-lite.md` 保持速览；继续完成 `02-ia-and-flows.md`、`03-page-specs.md`、`04-design-system.md`
-2. 和搭档对齐 `05-architecture.md` v0.2 的 API 契约 + 框题确认接口 + Python 3.13 兼容（60 分钟）
-3. 按 `04-todos.md` 的 M0 任务开工：FE-001、BE-001、SH-003
-4. 每天结束更新 `04-todos.md` 状态；11.7 晚做 M0 验收
-5. 切换会话时用 `11-agent-handoff.md` 的提示词，不要从零解释
+1. 后端按 issue #11 修 BE-001~003 follow-up；按 `#7 → #6 → #5 → rebase #9 → #8` 推进 open PR；图片 v2 见 issue #13
+2. 开启 `main` 分支保护：Require PR + 1 approval + CI + no bypass
+3. 前端在 `feat/frontend-m0-foundation` 做 FE-001；完成后 rebase/merge 最新 main；图片 v2 先按 ADR-004 + 05 v0.4 设计
+4. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
+5. 每天结束更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`
