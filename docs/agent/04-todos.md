@@ -67,6 +67,7 @@ ID:
 ### 1.3 前端（霹雳马桶）
 
 > 开发页面时参照 `docs/product/drafts/prototype.html` 的结构 + `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与旧原型冲突时以 ADR-004 / 05 v0.4 为准。
+> 视觉语言以 `04-design-system.md` 第一/第二原则为准：**可读性优先、整体使用流畅**；风格评审先过这两项，再看一致性/美感。
 > 2026-11-05：FE-001/002/003 已通过 PR #16 合入 main；FE-004/005/006 在 `feat/frontend-fe-004-006` 进行中。
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
