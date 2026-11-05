@@ -382,7 +382,6 @@ onBeforeUnmount(() => {
         <section class="detail-section" aria-labelledby="question-original-heading">
           <div class="section-heading">
             <div class="section-heading__main">
-              <span class="section-heading__index" aria-hidden="true">01</span>
               <h2 id="question-original-heading" class="section-heading__title">原题</h2>
             </div>
             <span class="section-heading__meta">
@@ -441,7 +440,6 @@ onBeforeUnmount(() => {
         </section>
 
         <AnalysisCard
-          index="02"
           :analysis="question.analysis"
           :pending="analysisPending"
           :failed="analysisFailed"
@@ -472,7 +470,6 @@ onBeforeUnmount(() => {
         >
           <div class="section-heading">
             <div class="section-heading__main">
-              <span class="section-heading__index" aria-hidden="true">03</span>
               <h2 id="question-generated-heading" class="section-heading__title">
                 生成题
                 <span v-if="generatedCount > 0" class="section-heading__count">
@@ -596,14 +593,6 @@ onBeforeUnmount(() => {
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
-}
-
-.section-heading__index {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  letter-spacing: 0.06em;
 }
 
 .section-heading__title {

@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { IconArrowRight, IconRecordStop, IconRefresh } from '@arco-design/web-vue/es/icon'
+import type { Component } from 'vue'
+import {
+  IconArrowRight,
+  IconCheckCircleFill,
+  IconClockCircle,
+  IconCloseCircleFill,
+  IconLoading,
+  IconMinusCircle,
+  IconRecordStop,
+  IconRefresh,
+} from '@arco-design/web-vue/es/icon'
 import type { Task } from '../../api/types'
 import { hasActiveTasks, latestTask, taskErrorMessage, taskStageLabel } from '../../utils/task'
 
@@ -8,12 +18,10 @@ type StepState = 'waiting' | 'queued' | 'running' | 'done' | 'failed'
 
 interface StepView {
   key: 'analysis' | 'quiz' | 'validation'
-  no: string
   title: string
   state: StepState
   status: string
   description: string
-  taskId: number | null
 }
 
 const props = withDefaults(
@@ -199,30 +207,24 @@ const validationDescription = computed(() => {
 const steps = computed<StepView[]>(() => [
   {
     key: 'analysis',
-    no: '01',
     title: 'AI 分析',
     state: analysisState.value,
     status: stepStatusLabel(analysisState.value, 'analysis'),
     description: analysisDescription.value,
-    taskId: analysisTask.value?.id ?? null,
   },
   {
     key: 'quiz',
-    no: '02',
     title: '生成相似题',
     state: quizState.value,
     status: stepStatusLabel(quizState.value, 'quiz'),
     description: quizDescription.value,
-    taskId: quizTask.value?.id ?? null,
   },
   {
     key: 'validation',
-    no: '03',
     title: '校验 / 完成',
     state: validationState.value,
     status: stepStatusLabel(validationState.value, 'validation'),
     description: validationDescription.value,
-    taskId: null,
   },
 ])
 
@@ -274,6 +276,21 @@ const overallTag = computed<{ color: string; label: string }>(() => {
   return { color: 'gray', label: '等待中' }
 })
 
+function stepIcon(state: StepState): Component {
+  switch (state) {
+    case 'done':
+      return IconCheckCircleFill
+    case 'failed':
+      return IconCloseCircleFill
+    case 'queued':
+      return IconClockCircle
+    case 'running':
+      return IconLoading
+    case 'waiting':
+      return IconMinusCircle
+  }
+}
+
 function handleRetry(taskId: number): void {
   emit('retry', taskId)
 }
@@ -312,16 +329,16 @@ function handleRetry(taskId: number): void {
         class="generation-progress__step"
         :class="`generation-progress__step--${step.state}`"
       >
-        <span class="generation-progress__step-index" aria-hidden="true">{{ step.no }}</span>
+        <span class="generation-progress__step-icon" aria-hidden="true">
+          <component
+            :is="stepIcon(step.state)"
+            :class="{ 'generation-progress__step-icon--spin': step.state === 'running' }"
+          />
+        </span>
         <div class="generation-progress__step-body">
           <div class="generation-progress__step-heading">
             <h3 class="generation-progress__step-title">{{ step.title }}</h3>
-            <span class="generation-progress__step-status">
-              {{ step.status }}
-              <span v-if="step.taskId" class="generation-progress__step-task">
-                #{{ step.taskId }}
-              </span>
-            </span>
+            <span class="generation-progress__step-status">{{ step.status }}</span>
           </div>
           <p class="generation-progress__step-description">{{ step.description }}</p>
         </div>
@@ -504,41 +521,36 @@ function handleRetry(taskId: number): void {
   gap: var(--space-3);
 }
 
-.generation-progress__step-index {
+.generation-progress__step-icon {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: none;
-  width: 30px;
-  height: 24px;
-  margin-top: 1px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  margin-top: 2px;
   color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--icon-sm);
   line-height: 1;
-  letter-spacing: 0.04em;
 }
 
-.generation-progress__step--queued .generation-progress__step-index,
-.generation-progress__step--running .generation-progress__step-index {
-  border-color: var(--color-primary);
-  background: var(--color-primary-softer);
+.generation-progress__step--queued .generation-progress__step-icon,
+.generation-progress__step--running .generation-progress__step-icon {
   color: var(--color-primary);
 }
 
-.generation-progress__step--done .generation-progress__step-index {
-  border-color: var(--color-success);
-  background: var(--color-success-soft);
-  color: var(--color-success-text);
+.generation-progress__step--done .generation-progress__step-icon {
+  color: var(--color-success);
 }
 
-.generation-progress__step--failed .generation-progress__step-index {
-  border-color: var(--color-danger);
-  background: var(--color-danger-soft);
-  color: var(--color-danger-text);
+.generation-progress__step--failed .generation-progress__step-icon {
+  color: var(--color-danger);
+}
+
+.generation-progress__step-icon--spin {
+  animation: generation-step-spin 1s linear infinite;
+}
+
+@keyframes generation-step-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .generation-progress__step-body {
@@ -571,12 +583,6 @@ function handleRetry(taskId: number): void {
   color: var(--color-text-3);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
-}
-
-.generation-progress__step-task {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
 }
 
 .generation-progress__step--queued .generation-progress__step-status,

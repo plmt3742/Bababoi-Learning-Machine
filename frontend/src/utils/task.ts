@@ -7,7 +7,7 @@ const TASK_STAGE_LABELS: Record<TaskStage, string> = {
 
 const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   queued: '排队中',
-  running: '进行中',
+  running: '生成中',
   done: '完成',
   failed: '失败',
 }

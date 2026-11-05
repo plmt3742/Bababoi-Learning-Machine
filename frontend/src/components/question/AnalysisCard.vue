@@ -9,12 +9,10 @@ const props = withDefaults(
     analysis: Analysis | null
     pending?: boolean
     failed?: boolean
-    index?: string
   }>(),
   {
     pending: false,
     failed: false,
-    index: '',
   },
 )
 
@@ -26,7 +24,6 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
   <a-card class="analysis-card" :bordered="false">
     <header class="analysis-card__header">
       <div class="analysis-card__heading">
-        <span v-if="index" class="analysis-card__index" aria-hidden="true">{{ index }}</span>
         <h2 class="analysis-card__title">AI 分析</h2>
       </div>
       <a-tag v-if="analysis" size="small" :color="difficultyTone">
@@ -111,14 +108,6 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
-}
-
-.analysis-card__index {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  letter-spacing: 0.06em;
 }
 
 .analysis-card__title {

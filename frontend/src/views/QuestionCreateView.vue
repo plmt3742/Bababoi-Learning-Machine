@@ -139,7 +139,6 @@ function handleCancel(): void {
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
             <div class="editor-card__heading">
-              <span class="editor-card__index" aria-hidden="true">01</span>
               <div>
                 <h2 class="editor-card__title">题干</h2>
                 <p class="editor-card__hint">支持 Markdown；公式用 $...$ 或 $$...$$ 包裹。</p>
@@ -164,7 +163,6 @@ function handleCancel(): void {
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
             <div class="editor-card__heading">
-              <span class="editor-card__index" aria-hidden="true">02</span>
               <div>
                 <h2 class="editor-card__title">答案与解析</h2>
                 <p class="editor-card__hint">
@@ -200,7 +198,6 @@ function handleCancel(): void {
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
             <div class="editor-card__heading">
-              <span class="editor-card__index" aria-hidden="true">03</span>
               <div>
                 <h2 class="editor-card__title">结构与题型</h2>
                 <p class="editor-card__hint">
@@ -362,15 +359,6 @@ function handleCancel(): void {
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
-}
-
-.editor-card__index {
-  flex: none;
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  letter-spacing: 0.06em;
 }
 
 .editor-card__title,

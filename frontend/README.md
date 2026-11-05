@@ -142,16 +142,16 @@ VITE_USE_MOCK=true
 - 组件样式只消费 `var(--token)`；原始色值只允许出现在 `tokens.css`。
 - 设计来源：`docs/product/04-design-system.md`。
 
-### 视觉方向（2026-11-06 确认：Calm + Studio）
+### 视觉方向（2026-11-06 更新：纯 Calm）
 
-- **基底 Calm Academic**：白/浅灰表面、Arco 蓝 `#165DFF` 单一强调色、1px 细边框、
+- **Calm Academic**：白/浅灰表面、Arco 蓝 `#165DFF` 单一强调色、1px 细边框、
   小圆角、近平面阴影、14px UI 文字下限；题干/公式/解析优先。
-- **借 Studio Tool**：任务中心改为紧凑 ledger 表格（任务 / 阶段 / 状态 / 题目 /
-  创建时间 / 操作），任务号、时间、计数用等宽字体；表头与 ledger 外框使用更强分隔线；
-  筛选工具栏吸顶；失败行使用 tinted 背景 + 错误码/文案 + 行内重试；详情与生成进度使用
-  `01/02/03` 编号步骤。
-- **保留**：白色侧栏 + 顶栏 AppShell、列表卡片布局（不转表格）、详情纵向堆叠
-  （不转两栏）、录入双栏 + 吸底操作栏。
+- **任务中心**：Calm 的 5 列列表（任务 / 题目、阶段、状态、时间、操作），任务号与
+  时间使用等宽字体；失败行使用 tinted 背景 + 错误码/文案 + 行内重试。
+- **布局**：白色侧栏 + 顶栏 AppShell、列表卡片布局、详情纵向堆叠、录入双栏 +
+  吸底操作栏。
+- **不使用**：Studio 的深色侧栏、全局高密度、编号步骤、sticky 筛选；Editorial 的
+  暖纸背景与衬线标题。
 - **Tokens**：`--text-xs` 提升为 `14px / 22px`；`--radius-sm/md/lg` 收敛为
   `4px / 6px / 8px`；新增 `--color-border-strong`、`--color-success-text`、
   `--color-warning-text`、`--color-danger-text` 及语义 wash；`--shadow-card` 收敛为
