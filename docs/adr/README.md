@@ -34,6 +34,7 @@ ADR = Architecture Decision Record（架构决策记录）。用来记录**不�
 | ADR-001 | 技术栈确认 | Accepted | 2026-11-04 |
 | ADR-002 | MVP 范围与 P0/P1/P2 | Proposed | 2026-11-04 |
 | ADR-003 | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted | 2026-11-04 |
+| ADR-004 | 图片录入改为「文本提取 + 多题条目」 | Accepted | 2026-11-05 |
 
 ## 写 ADR 的最小结构
 

@@ -168,10 +168,10 @@
 
 ## 4. QEDIT-01 录入/编辑（P0）
 
-**目的**：文本/图片录入 → AI 框题/识图 → 显示题目 → 编辑 → 保存；同时管理草稿。
+**目的**：文本/图片录入 → 用户裁剪 → AI 提取多题文本 → 逐条确认 → 编辑 → 保存；同时管理草稿。
 **路由**：`/questions/new`；编辑用 `/questions/:id/edit`
 **主操作**：保存
-**P0 增强**：三种题型 + 工具栏；AI 框题可移动/缩放/重置整图。
+**P0 增强**：三种题型 + 工具栏；图片上传前裁剪；提取结果按 ① ② ③ … 条目展示；当前阶段只提取文本。
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -193,9 +193,16 @@
 │                                                              │
 │ 图片模式：                                                    │
 │ ┌──────────────────────────────┐  ┌─────────────────────────┐ │
-│ │ 原图预览                      │  │ AI 框题                  │ │
-│ │ [可移动/缩放 AI 框]           │  │ “是这道题吗？”           │ │
-│ │ [重置整图]                    │  │ [确认] [切换候选] [重拍] │ │
+│ │ 原图预览 + 裁剪器             │  │ 识别结果（N 道题）        │ │
+│ │ [裁剪] [重置原图]             │  │ ① 题干… [编辑][删除]     │ │
+│ │                              │  │ ② 题干… [编辑][删除]     │ │
+│ │                              │  │ ③ 题干… [编辑][删除]     │ │
+│ │                              │  │ [确认并创建] [重拍]       │ │
+│ ├──────────────────────────────┤  ├─────────────────────────┤ │
+│ │ 确认后：每道题显示答案/解析   │  │ ☑ ① 题干… 答案/解析      │ │
+│ │                              │  │ ☑ ② 题干… 答案/解析      │ │
+│ │                              │  │ ☐ ③ 题干… 答案/解析      │ │
+│ │                              │  │ [生成相似题（2）]         │ │
 │ └──────────────────────────────┘  └─────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -208,16 +215,17 @@
 | 填空题 | 题干、每个空答案 | `blanks: [{index, answer_md}]`；空位 ≤20 |
 | 解答题 | 题干 | `answer_md` / `explanation_md` 可选 |
 
-**关键组件**：`QuestionEditor`、`EditorToolbar`、`QuestionTypeSwitcher`、`OptionEditor`、`BlankEditor`、`ImageInput`、`ImageFrameConfirm`、`DraftBar`、`MarkdownRenderer`、`SaveBar`。
+**关键组件**：`QuestionEditor`、`EditorToolbar`、`QuestionTypeSwitcher`、`OptionEditor`、`BlankEditor`、`ImageInput`、`ImageCropper`、`RecognizedQuestionList`、`RecognizedQuestionItem`、`DraftBar`、`MarkdownRenderer`、`SaveBar`。
 **数据流入**：
 - 编辑：`GET /questions/{id}`
 - 草稿：`GET /drafts/me` + localStorage
-- 图片：`POST /questions/from-image`（第一阶段 candidates；第二阶段 `candidate_index` + 可选 `crop_box`）
+- 图片：`POST /uploads/images`（裁剪后）→ `POST /questions/from-image`（返回 `questions[]`，1..N 道）
 **数据流出**：
-- 保存：`POST /questions`（`content_md`、`answer_md`、`explanation_md`、`question_type`、`options`、`blanks`、`subject`、`chapter`、`tags`、`source_type`、`image_path`）→ `question + task_id`
+- 保存：确认后的每道题 `POST /questions`（`content_md`、`answer_md`、`explanation_md`、`question_type`、`options`、`blanks`、`subject`、`chapter`、`tags`、`source_type`、`image_path`）→ 每道 `question + task_id`
 - 草稿：`PUT /drafts/me`（防抖 5s）、`DELETE /drafts/me`
-**状态**：draft / detecting / confirming（可移动/缩放/重置整图）/ vision / editing / saving / saved / error。
-**跳转**：保存成功 → TASK-01 或 QDETAIL-01；取消 → 三选项（取消退出 / 保存草稿 / 直接退出）；图片失败 → 退回文本。
+**状态**：draft / cropping / uploading / extracting / confirming_items（逐条编辑/删除）/ editing / saving / saved / error。
+**跳转**：保存成功 → TASK-01 或 QDETAIL-01；取消 → 三选项（取消退出 / 保存草稿 / 直接退出）；图片提取失败 → 退回文本。
+**多题选择/生成**：确认创建后，每道题展示答案/解析；勾选 1–3 道（选中高亮）→【生成相似题】；每个选中题目独立生成 3 道相似题，任务在任务中心/详情查看。
 **示例**：
 - 高数：求 `f(x)=x^3-3x+1` 的极值
 - 线代：设 `A=[[1,2],[2,1]]`，求特征值
@@ -260,9 +268,10 @@
 
 ## 6. QDETAIL-01 错题详情/生成（P0）
 
-**目的**：看原题、分析、3 道生成题；去练习；重新生成。
+**目的**：查看单道题的原题、答案/解析、分析、3 道生成题；去练习；重新生成。
 **路由**：`/questions/:id`
 **主操作**：去练习 / 重新生成
+**说明**：多题识别后的「选择 1–3 道生成」在 QEDIT-01 的识别结果面板完成；本页只看单题结果。
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -291,8 +300,8 @@
 ```
 
 **关键组件**：`PageHeader`、`QuestionDetail`、`MarkdownRenderer`、`AnalysisCard`、`GeneratedQuestionCard`、`ConfirmDialog`、`TaskStatus`、`EmptyState`。
-**数据流入**：`GET /questions/{id}`（含 tags、analysis、tasks、generated_questions）；`GET /questions/{id}/events`（可选）。
-**数据流出**：`PATCH /questions/{id}`（analysis 可编辑写回）；`POST /generated-questions/{id}/regenerate`（P0 基础版）；`DELETE /questions/{id}`（软删除）。
+**数据流入**：`GET /questions/{id}?include=generated`（含 tags、analysis、answer/explanation、tasks、generated_questions）；任务进度用 `GET /tasks?question_id=` 轮询。
+**数据流出**：`PATCH /questions/{id}`（analysis/mastery_status 可写回）；`POST /generated-questions/{id}/regenerate`（P0 基础版）；`DELETE /questions/{id}`（软删除）。
 **状态**：loading / analysis pending / generated / partial / error。
 **跳转**：去练习 → PRACTICE-01；返回 → QLIST-01；任务 → TASK-01。
 **示例**：生成题答案/解析默认折叠；重新生成二次确认“是否重新生成第 n 题？”。
@@ -373,7 +382,8 @@
 | `access_token` / `user` | AUTH-01 | 全局 | JWT，`Authorization: Bearer` |
 | `draft.content` | QEDIT-01 | QEDIT-01 / TASK-01 | 服务端 + localStorage 双写 |
 | `image file` | QEDIT-01 | QEDIT-01 | JPEG/PNG/WebP；压缩后上传 |
-| `candidates` / `bbox` / `crop_box` | QEDIT-01（from-image） | QEDIT-01 | 框题确认；最终框用于裁剪 |
+| `questions[]`（提取结果） | QEDIT-01（from-image） | QEDIT-01 | 1..N 道题；逐条确认/编辑；`index` 对应 ① ②… |
+| `crop_box`（用户裁剪） | QEDIT-01（上传前） | 上传接口 | 可选；前端裁剪后上传时可为空 |
 | `content_md` / `options` / `blanks` | QEDIT-01 | QDETAIL-01 / PRACTICE-01 | 结构化题目 |
 | `question + task_id` | QEDIT-01（保存） | TASK-01 / QDETAIL-01 | 后台任务入口 |
 | `analysis` | 后台任务 | QDETAIL-01 | 可编辑写回 |
@@ -387,7 +397,7 @@
 - [ ] 每页主操作只有一个。
 - [ ] 每页数据流入/流出能映射到 05 的 API。
 - [ ] 每页 loading/empty/error/partial/success 状态齐全。
-- [ ] QEDIT 的三种题型、图片框题、草稿三态覆盖。
+- [ ] QEDIT 的三种题型、图片裁剪、多题条目、选择生成、草稿三态覆盖。
 - [ ] TASK/QDETAIL/PRACTICE 的状态机覆盖。
 - [ ] 交互地图（08 + HTML）能讲清页面跳转和数据流。
 - [ ] 不引入视觉风格/品牌/高保真细节。

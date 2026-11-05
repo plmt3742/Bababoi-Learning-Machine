@@ -84,7 +84,9 @@
 | `QuestionCard` | 题干摘要 + 标签 + 时间 | P0 | Card |
 | `QuestionEditor` | 三种题型编辑 + 渲染切换 | P0 | 自建 |
 | `EditorToolbar` | LaTeX/编号/表格/插图 | P0 | 自建 |
-| `ImageFrameConfirm` | AI 预框 + 确认/切换候选 | P0 | 自建 + Image |
+| `ImageCropper` | 上传前裁剪图片 + 重置原图 | P0 | 自建（canvas/cropper） |
+| `RecognizedQuestionList` | 多题提取结果 ① ② ③ … 列表 + 选择 | P0 | 自建 + List/Checkbox |
+| `RecognizedQuestionItem` | 单题条目：编辑/删除/含图提示 | P0 | 自建 + Card |
 | `TaskCenter` | 任务列表 + 状态 + 重试 | P0 | List/Table |
 | `DraftBar` | 草稿行 + 继续编辑 | P0 | Alert/Card |
 | `TagList` | 知识点/自定义标签 | P0 | Tag |
@@ -116,6 +118,8 @@
 | Table/List | ✓ | ✓ | — | — | — | ✓ | ✓ | ✓ |
 | AI Panel | ✓ | — | — | — | ✓ | ✓ | ✓ | ✓ |
 | ImageInput | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ |
+| ImageCropper | ✓ | ✓ | ✓ | — | ✓ | — | ✓ | — |
+| RecognizedQuestionList | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ |
 
 > 设计稿至少要画：按钮 loading、输入 error、列表 empty、AI error/partial、图片上传/识图失败。
 

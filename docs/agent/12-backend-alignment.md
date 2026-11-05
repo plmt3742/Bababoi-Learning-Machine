@@ -8,21 +8,23 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 # 12 · 后端对接结果（对齐单 v2 回复）
 
 > 对象：人机（后端）
-> 基线：`chore/init-repo-structure` + 2026-11-05 决策
-> 结论：**PRD v0.8 已归档为参考，不原样作为契约；`docs/prd` 可以删除，后续从归档修订 PRD v0.9，以 `chore/init-repo-structure` 为开发基准。**
+> 基线：`origin/main @ 2335773` + 2026-11-05 决策
+> 结论：**PRD v0.8 已归档为参考，不原样作为契约；`docs/prd` 已删除；后续从归档修订 PRD v0.9，以 main 为开发基准。**
+> 现状：BE-001/002/003 已合（PR #2/#3/#4）；CI #10 已合；PR #5/#6/#7/#8/#9 open；issue #11 跟踪 follow-up。
+> 2026-11-05 图片流程 v2（正式决策）：不再 AI 框题/bbox，改为「用户裁剪 → 多题文本提取（①②…）→ 确认 → 分析/答案 → 选择题目生成」；详见 §4、ADR-004 和 issue #13。
 
 ## 0. 一句话结论
 
 - 核心闭环：**录入 → 识别/分析 → 显示/编辑 → 保存 → 后台整理/生成 → 练习 → 记录/统计/错题本**；练习 P0，统计/概览 P1。
 - 队列、草稿、结构化题型、单题重新生成：**按 P0 保留**，05 补表/端点。
 - 题型/编辑器：**三种题型 + 工具栏 P0 增强**；表格/复杂编号可按时间降级。
-- 录入：电脑粘贴/拖入；手机相册/拍照；两端都 **AI 预框 + 用户确认**。
-- 裁剪：**保留裁剪步骤 P0；P0 可确认/切换候选，并可移动/缩放 AI 框**；从零画框 P1。AI 判定整页 → 整页识别不框；无 candidate → 整图识别。
+- 录入：电脑粘贴/拖入；手机相册/拍照；上传阶段支持用户裁剪。
+- 图片：**用户裁剪 → AI 提取题目文本（公式 LaTeX）→ 多题条目 ① ②… → 用户确认 → 分析/答案/解析 → 选择题目生成**；不做 bbox/candidates，不做 AI 框题。
 - OCR：**不使用独立 OCR**；FR-11 砍出 11.29 路径。
 - 复习模式：**11.7 前不做，列 P1**。
 - Python：**统一 3.13**，不是 3.12。
 - 产品决策：**霹雳马桶 + 人机共同拍板**；我想抓住风的影子只评审，不参与开发。
-- 分支：`docs/prd` 的 PRD/调研已归档，原型图已完成参考、后续将独立设计；**可以删除**，建议先打 tag 保留历史。
+- 分支：`docs/prd` **已删除**；PRD/调研已归档，原型图已完成参考、后续将独立设计。
 
 ## 1. 基线更正
 
@@ -32,8 +34,8 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | 产品设计 | 产品经理负责，开发执行 | **两位开发共同负责产品设计** |
 | Python | 3.12 | **3.13**；保留 3.13 venv，用 `uv` + `uv.lock` |
 | 真名 | 文档使用真名 | **真名只留本地/私聊**；仓库统一昵称/handle |
-| CI | AGENTS 写 3.12，CI 已有 | **CI 尚未创建**；第一个 PR 补 3.13 版 `ci.yml` |
-| 裁剪 | 前端手动框选 P0 | **AI 预框 + 确认 + 移动/缩放 P0；从零画框 P1** |
+| CI | AGENTS 写 3.12，CI 已有 | **CI #10 已合**；frontend job 在 FE-001 后改为真实命令 |
+| 图片 | 前端手动框选/框题 P0 | **用户裁剪 + 多题文本提取 P0；已改为 v2，不做 bbox/框题** |
 | 模型 Key | 要求前端提供 | **后续由霹雳马桶提供**；后端先用 mock + provider 抽象 |
 
 ## 2. 逐条决策
@@ -41,16 +43,16 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | # | 事项 | 决策 | 类型 |
 |---|---|---|---|
 | 1 | Python 版本 | 统一 3.13；不要重建 3.12 venv | ✅ 已定 |
-| 2 | 后台队列 | 按 PRD P0 保留；`generation_task` + worker + SSE | ✅ 已定 |
+| 2 | 后台队列 | 按 PRD P0 保留；`generation_task` + worker；P0 用 `GET /tasks` 轮询，SSE P1 | ✅ 已定 |
 | 3 | 服务端草稿 | 按 PRD P0 保留；`draft` + `GET/PUT /drafts/me` | ✅ 已定 |
 | 4 | 结构化题型 | 按 PRD P0；`options`/`blanks` JSON；`question_type` 枚举 | ✅ 已定 |
-| 5 | 裁剪/框题 | 裁剪步骤 P0；AI 预框 + 确认/切换 + 移动/缩放 AI 框；从零画框 P1 | ✅ 已定 |
+| 5 | 图片录入 v2 | 用户裁剪 P0；图片 → 多题文本提取（`questions[]`，① ②…）；逐条确认；分析补答案/解析；选择 1–3 道生成；不做 bbox/框题 | ✅ 已定 |
 | 6 | 图片限制 | 前端选图 ≤20MB；压到 ≤5MB/2000px；上传 ≤10MB；服务端再压到 ≤5MB/2000px；支持 JPEG/PNG/WebP | ✅ 已定 |
 | 7 | 单题重新生成 | P0 基础版：卡片图标 + 二次确认 + 队列替换；不做批量/复杂动画；M2 紧张可降 P1 | ✅ 已定 |
 | 8 | 掌握状态 | 加 `mastery_status` 枚举列，默认 `unmastered` | ✅ 已定 |
 | 9 | 密码规则 | 采纳 ≥8 位 + 登录限流；回填 PRD | ✅ 已定 |
 | 10 | `users.email` | P0 注册页不显示；DB 保留 nullable，API 可选 | ✅ 已定 |
-| 11 | 模型/grounding | 需 Key 实测；不支持则框题降级整图识图 | ❓ 待测试 |
+| 11 | 多题提取稳定性 | 需 Key 实测；不稳定则降级单题提取，不回到 bbox | ❓ 待测试 |
 | 12 | PRD 治理 | PRD 管范围/交互/验收；05 管 API/数据/技术 | ✅ 已定 |
 | 13 | 真名 | 仓库只用昵称/handle | ✅ 已定 |
 | 14 | CI | 第一个 PR 补 `ci.yml`；3.13；`LLM_MOCK=true` | ✅ 已定 |
@@ -58,12 +60,13 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | 16 | `backend/` 冲突 | 先合结构/文档/CI，后端再 rebase 本地代码 | ✅ 已定 |
 | 17 | 核心闭环 | 录入 → 识别/分析 → 显示/编辑 → 保存 → 后台整理/生成 → 练习 → 记录/统计/错题本；练习 P0，统计/概览 P1 | ✅ 已定 |
 | 18 | 题型/编辑器 | 三种题型 + 工具栏 P0 增强；表格/复杂编号可按时间降级 | ✅ 已定 |
-| 19 | 录入入口 | 电脑粘贴/拖入；手机相册/拍照；两端都 AI 预框 + 确认 | ✅ 已定 |
+| 19 | 录入入口 | 电脑粘贴/拖入；手机相册/拍照；上传阶段用户裁剪；AI 提取多题文本后逐条确认 | ✅ 已定 |
 | 20 | 任务中心 | P0 只做列表 + 状态 + 失败重试 + 草稿行；不做复杂筛选/通知 | ✅ 已定 |
 | 21 | OCR | 不使用独立 OCR；FR-11 砍出 11.29 路径 | ✅ 已定 |
 | 22 | 复习模式 | 11.7 前不做；列 P1 | ✅ 已定 |
 | 23 | 草稿双写 | 服务端 + localStorage 双写；防抖 5s；三选项退出；见 `06-draft-dual-write.md` | ✅ 已定 |
-| 24 | 数据/API 口径 | 05 v0.3 统一：`content_md`/`answer_md`/`explanation_md`/`options`/`blanks`/`mastery_status`；tags 多对多 | ✅ 已定 |
+| 24 | 数据/API 口径 | 05 v0.4 统一：`content_md`/`answer_md`/`explanation_md`/`options`/`blanks`/`mastery_status`；tags 多对多；`from-image` 返回 `questions[]` | ✅ 已定 |
+| 25 | 多选生成 | P0 支持选中 1–3 道题；每道题独立调用 `/generate`，各自 3 道相似题 | ✅ 已定 |
 
 ## 3. 后台队列：采用方案
 
@@ -130,47 +133,56 @@ data: {"code":"AI_TIMEOUT","message":"..."}
 - 心跳 15s；断线由前端轮询 `GET /questions/{id}` 或 `GET /tasks?question_id=` 兜底。
 - SSE 是进度通道，不是队列替代。
 
-## 4. 裁剪/框题：P0 方案
+## 4. 图片录入 v2：裁剪 + 多题文本提取（2026-11-05 正式决策）
 
 ```text
-电脑粘贴 / 拖入：
-原图 → AI 检测核心题目 → 返回 candidates（bbox + confidence）
-→ 前端高亮“是这道题吗？”→ 用户确认/切换候选 + 移动/缩放 AI 框
-→ 服务端按最终 crop_box 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
-
-手机相册 / 拍照：
-原图 → AI 检测核心题目 → 返回 candidates
-→ 前端高亮“是这道题吗？”→ 用户确认/切换候选 + 移动/缩放 AI 框
-→ 服务端按最终 crop_box 裁剪 → DeepSeek 识图 → 可编辑题干 → 分析
-
-整页 / 无候选：
-AI 判定整页 → 整页识别，不框；无 candidate / grounding 不可用 → 整图识别
+电脑粘贴/拖入、手机相册/拍照
+  → 前端裁剪图片（可选；可重置为原图）
+  → 上传裁剪后的图片
+  → DeepSeek deepseek-flash 提取题目文本（公式 LaTeX）
+  → 返回 1..N 道题，按 ① ② ③ … 单独呈现
+  → 用户逐条确认/编辑（当前阶段只处理文本，不提取附图）
+  → 每道题 POST /questions → 自动入队 analysis
+  → 分析返回答案/解析/知识点/错误原因
+  → 用户选中 1–3 道题（高亮）
+  → 点击「生成相似题」→ 每个选中题目生成 3 道相似题
 ```
 
-两端都走 AI 预框 + 确认；P0 可移动/缩放 AI 框，从零画框 P1。粘贴截图如果 AI 判断是单题高置信，可把“确认”做成一次点击快捷确认，但仍然保留确认入口。
+**后端需要支持：**
 
-- P0：确认/切换候选 + **移动/缩放 AI 框** + 重置为整图；**从零画框 P1**。
-- AI 判定整页 → 整页识别，不框。
-- 无 candidate / grounding 不可用 → 整图识别；此时没有框可调。
-- 框题失败 → 整图识图；识图失败 → 文本录入。
-- 后端需支持：
+- `POST /uploads/images`：接收裁剪后的图片；Pillow 校验/压缩/去 EXIF；返回 `{image_path, url, width, height}`。
+- `POST /questions/from-image`：请求 `{image_path, subject?}`；返回：
+  ```json
+  {
+    "image_path": "uploads/1/xxx.jpg",
+    "questions": [
+      {
+        "index": 1,
+        "content_md": "求函数 $f(x)=x^3-3x+1$ 的极值。",
+        "question_type": "solve",
+        "options": null,
+        "blanks": null,
+        "has_figure": false,
+        "warnings": []
+      }
+    ],
+    "warnings": []
+  }
+  ```
+- 不返回 `candidates` / `bbox` / `confidence`；不做 AI 框题。
+- 一次返回 1..N 道题；`index` 从 1 开始；题干保留 LaTeX；多题按阅读顺序。
+- 当前阶段不提取附图；`has_figure=true` 只加 warning，不生成图形描述。
+- 用户确认后，前端对每道题调用 `POST /questions`；每道题独立入队 analysis。
+- analysis 任务返回 `answer_md`/`explanation_md`（原题已有则保留）、知识点、错误原因。
+- 多选生成：前端对每个选中 `question_id` 调用 `POST /questions/{id}/generate`；P0 上限 3 道。
+- 失败：无题目 → `AI_INVALID_IMAGE`；部分题失败 → `warnings`，可重试/改文本；不阻塞文本入口。
 
-```json
-{
-  "candidates": [
-    {
-      "index": 1,
-      "bbox": [0.12, 0.18, 0.76, 0.42],
-      "confidence": 0.92,
-      "preview_url": "/api/v1/uploads/1/xxx_crop.jpg"
-    }
-  ],
-  "selected_index": 1
-}
-```
+**数据模型变更（05 v0.4）：**
 
-- `bbox` 用归一化 `[x,y,w,h]`（0–1），基于去 EXIF/旋转后的图片。
-- 服务端裁剪；前端只展示高亮框。
+- `questions.crop_box`：只表示用户裁剪（可选）；前端裁剪后上传时可为空。
+- `questions.detection_confidence`：删除；不再做 AI 框题。
+- `questions.image_path`：存裁剪后图片；同一图片的多道题共用。
+- 不新增图片组表；MVP 用 `image_path` 分组。
 
 ## 5. 图片限制
 
@@ -184,9 +196,9 @@ AI 判定整页 → 整页识别，不框；无 candidate / grounding 不可用 
 | 服务端 | Pillow 校验真实格式、纠正旋转、去 EXIF、再压到 ≤5MB/2000px |
 | 存储 | 存压缩后的图；详情页展示压缩图 |
 
-PRD v0.8 的“jpg/png ≤10MB”需要同步改成上表；05 v0.3 按此更新。
+PRD v0.8 的“jpg/png ≤10MB”需要同步改成上表；05 v0.4 按此更新。前端裁剪后上传，服务端只做校验/压缩/去 EXIF。
 
-## 6. 模型 Key 与框选测试
+## 6. 模型 Key 与图片提取测试
 
 ### 6.1 Key
 
@@ -198,8 +210,8 @@ PRD v0.8 的“jpg/png ≤10MB”需要同步改成上表；05 v0.3 按此更新
 
 测试集：10 张左右。
 
-- 4 张单题：打印体、公式、表格、图形
-- 2 张多题图：验证核心题目选择
+- 4 张单题：打印体、公式、表格、含图题
+- 3 张多题图：2 题、3 题、整页多题
 - 1 张旋转图
 - 1 张模糊/低质量图
 - 1 张无题目/空白图
@@ -207,15 +219,16 @@ PRD v0.8 的“jpg/png ≤10MB”需要同步改成上表；05 v0.3 按此更新
 
 验收：
 
-- 单题图 top-1 框包含核心题目 ≥ 80%
-- 多题图 top-1 是用户最可能录入的题；否则可切换
-- 无题目图返回 `candidates: []` + `warnings`，不崩溃
+- 单题图能提取 1 道题，题干/公式可用率 ≥ 80%
+- 多题图能按阅读顺序提取 1..N 道题；条目数与人工判断一致率 ≥ 80%
+- 无题目图返回空 `questions` + `warnings`，不崩溃
+- 含图题返回 `has_figure=true` + warning，不假装提取了图
 - 记录延迟、图片 token 成本、失败模式
 
 降级：
 
-- 若 grounding 不支持：P0 退回整图识图 + 用户编辑；框题降 P1。
-- 不阻塞文本录入闭环。
+- 多题提取不稳定：降级单题提取（每次只返回 1 道），不回到 bbox。
+- 提取失败：退回文本录入；不阻塞主闭环。
 
 ## 7. PRD 与治理
 
@@ -250,15 +263,18 @@ PRD v0.8 的“jpg/png ≤10MB”需要同步改成上表；05 v0.3 按此更新
 questions
 - id, user_id, subject, chapter
 - content_md          # 题干，Markdown + LaTeX
-- answer_md           # 原题答案，可选
-- explanation_md      # 原题解析，可选
+- answer_md           # 答案；原题未提供时由分析任务补全
+- explanation_md      # 解析；原题未提供时由分析任务补全
 - question_type       # choice | blank | solve
 - options             # JSON: [{label, content_md}]
 - blanks              # JSON: [{index, answer_md}]
-- analysis            # JSON: {topic_type, difficulty, knowledge_points, error_reasons, solution_summary}
+- analysis            # JSON: {topic_type, difficulty, knowledge_points, error_reasons, answer_md, explanation_md, solution_summary}
 - mastery_status      # unmastered | reviewing | mastered，默认 unmastered
 - status              # confirmed（MVP 固定；删除用 deleted_at）
-- image_path, crop_box, crop_image_path, detection_confidence
+- image_path          # 裁剪后图片；多题共用
+- crop_box            # 用户裁剪框，可选
+- crop_image_path     # 裁剪图路径，可选
+- # detection_confidence 删除（v0.4 不再做 AI 框题）
 - created_at, updated_at, deleted_at
 
 tags / question_tags  # 多对多；analysis.knowledge_points 同步到 tags
@@ -277,15 +293,15 @@ POST /api/v1/questions
   → 保存 + 自动入队 analysis；返回 {question, task_id}
 
 PATCH /api/v1/questions/{id}
-  {content_md?, answer_md?, subject?, tags?, analysis?}   # analysis 可编辑写回
+  {content_md?, answer_md?, subject?, tags?, analysis?, mastery_status?}   # analysis/mastery 可写回
 
 POST /api/v1/questions/{id}/analyze     # 重新分析，入队
-POST /api/v1/questions/{id}/generate    # 入队 quiz
-GET  /api/v1/questions/{id}/events      # SSE 任务进度
-GET  /api/v1/tasks?question_id=         # 轮询兜底
+POST /api/v1/questions/{id}/generate    # 入队 quiz；多选时每个选中题目调用一次
+GET  /api/v1/questions/{id}/events      # SSE（P1；P0 用 /tasks 轮询）
+GET  /api/v1/tasks?question_id=         # P0 进度来源
 POST /api/v1/tasks/{id}/retry
 
-POST /api/v1/questions/from-image       # 两阶段：candidates → candidate_index + crop_box? 识图
+POST /api/v1/questions/from-image       # {image_path} → {questions:[...]}；多题文本提取，不返回 bbox
 GET/PUT/DELETE /api/v1/drafts/me
 
 POST /api/v1/generated-questions/{id}/regenerate   # P0 基础版
@@ -293,6 +309,8 @@ POST /api/v1/practice-records
 GET  /api/v1/stats/overview                        # P1
 GET  /api/v1/tags
 ```
+
+> 生成题统一通过 `GET /questions/{id}?include=generated` 返回；P0 任务进度用 `GET /tasks?question_id=` 轮询；SSE 为 P1。
 
 ### 7.1.3 命名决策
 
@@ -338,22 +356,14 @@ GET  /api/v1/tags
 
 ### 8.3 结论
 
-**可以删除 `docs/prd`。** 内容已处理：
+**`docs/prd` 已删除（2026-11-05）。** 内容已处理：
 
 1. PRD v0.8 → 已归档 `docs/product/PRD-v0.8-reference.md`（标注“参考，不构成契约”）。
 2. 开源项目调研 → 已归档 `docs/product/开源项目调研.md`。
 3. 10 张原型图 → 已完成参考，后续将独立设计，不归档。
 4. 根 README → 仅一句项目名，无保留价值。
 
-建议保留 git 历史（可选，但推荐）：
-
-```bash
-git tag archive/docs-prd-v0.8 origin/docs/prd
-git push origin archive/docs-prd-v0.8
-git push origin --delete docs/prd
-```
-
-> 删除分支不会删除已归档文件；只是删掉远端的 `docs/prd` 引用。若不需要 PRD 的提交历史，可跳过 tag，直接删除分支。
+> 删除分支不会删除已归档文件；以后需要历史时从归档文件恢复，不要重新拉回 `docs/prd` 分支。
 
 ## 9. 行动项
 
@@ -365,42 +375,44 @@ git push origin --delete docs/prd
 
 ### 后端（人机）
 
-- [ ] BE-001：完成 FastAPI 脚手架（3.13 + `/health` + CORS + 日志 + ruff + pytest + uv）；与 FE-001 对齐 `/health`、错误信封、OpenAPI。
-- [ ] 把 venv 固定到 3.13，`uv.lock` 提交。
-- [ ] 按 05 v0.3 实现 `generation_task`、`draft`、`options/blanks`、`mastery_status`、`content_md` 等字段。
-- [ ] 实现队列 worker + SSE 进度 + 轮询兜底。
+- [x] BE-001：FastAPI 脚手架（3.13 + `/health` + CORS + 日志 + ruff + pytest + uv）；PR #2 已合。
+- [x] BE-002/BE-003：9 张表 + 迁移、注册/登录/me + JWT；PR #3/#4 已合。
+- [ ] 按 05 v0.4 实现 `generation_task`、`draft`、`options/blanks`、`mastery_status`、`content_md` 等字段。
+- [ ] 实现队列 worker + `GET /tasks` 轮询；SSE 为 P1。
 - [ ] 实现 `GET/PUT /drafts/me`。
-- [ ] 实现 `POST /questions/from-image` 两阶段框题。
-- [ ] 三种题型的结构化识别/生成 schema（`content_md`/`options`/`blanks`）。
+- [ ] **实现 `POST /questions/from-image` 多题文本提取**：返回 `questions[]`（1..N），不返回 bbox/candidates；不做 AI 框题。
+- [ ] 三种题型的结构化提取/生成 schema（`content_md`/`options`/`blanks`）。
+- [ ] 分析任务补 `answer_md`/`explanation_md`；原题已有则保留。
 - [ ] 单题重新生成 P0 基础版。
-- [ ] 用 Key 做识图/grounding spike；先 mock。
-- [ ] 第一个 PR 补 `ci.yml`（3.13、`LLM_MOCK=true`）。
+- [ ] 用 Key 做多题提取 spike；先 mock；不稳定则降级单题，不回到 bbox。
+- [ ] `ci.yml` 已由 PR #10 合入；frontend job 在 FE-001 后改为真实命令。
 - [ ] 导出 `contracts/openapi/openapi.json`。
-- [ ] 本地 `backend/` rebase 到 `chore/init-repo-structure`，不要另起一套。
+- [ ] 本地 `backend/` rebase 到最新 main，不要另起一套。
 
 ### 前端（霹雳马桶）
 
 - [ ] PRD v0.9 合并/修订。
 - [ ] 原型/调研归档到 `docs/product/`。
-- [ ] 页面规范补 `detecting/confirming`、任务中心、草稿、三种题型。
-- [ ] 图片输入：电脑粘贴/拖入 + 手机相册/拍照；两端 AI 预框 + 确认/切换 + 移动/缩放 AI 框；从零画框 P1。
+- [ ] 页面规范补 `cropping/extracting/confirming-items/selected`、任务中心、草稿、三种题型。
+- [ ] 图片输入：电脑粘贴/拖入 + 手机相册/拍照；**上传前裁剪**；提取后多题条目 ① ②…；逐条编辑/确认；选择 1–3 道生成。
 - [ ] 三种题型编辑器 + 工具栏（P0 增强）。
 - [ ] 练习 P0；统计/概览 P1。
-- [ ] 任务中心/草稿 UI。
+- [ ] 任务中心/草稿 UI；P0 用 `GET /tasks` 轮询。
 - [ ] FE-004 从 OpenAPI 生成类型。
 
 ### 共同
 
-- [ ] 11.7 前逐节确认 05 v0.3。
+- [ ] 11.7 前逐节确认 05 v0.4（含图片 v2）。
 - [ ] 11.8 冻结 API v1（只加不改）。
-- [ ] 确认 `docs/prd` 删除时间。
+- [x] `docs/prd` 已删除。
 
 ## 10. 未决问题
 
 | ID | 问题 | 负责人 | 截止 |
 |---|---|---|---|
-| O-01 | 框题 grounding 是否可用 | 人机 | Key 到位后 1 天 |
-| O-02 | `docs/prd` 合并 PR 与删除时间 | 两人 | 11.7 前 |
+| O-01 | 多题文本提取是否稳定、单次可返回几题 | 人机 | Key 到位后 1 天 |
+| O-02 | `docs/prd` 已删除 | 两人 | 已完成 |
+| O-03 | 多选生成上限（1–3 道）是否足够；成本是否可接受 | 两人 | 11.14 |
 
 ## 11. 变更记录
 
@@ -409,3 +421,4 @@ git push origin --delete docs/prd
 | 2026-11-05 | 初版：对齐单 v2 回复、队列方案、分支决策 | 霹雳马桶 |
 | 2026-11-05 | 追加：练习 P0、统计 P1、三种题型+工具栏、录入入口、任务中心、草稿双写、无 OCR、单题重生成、图片限制、05 v0.3 口径 | 霹雳马桶 |
 | 2026-11-05 | 按《框题口径-最终》调整：P0 可移动/缩放 AI 框；从零画框 P1；from-image 支持 `crop_box`；补 BE-001 脚手架分工 | 霹雳马桶 |
+| 2026-11-05 | **图片录入 v2（正式决策）**：用户裁剪 + 多题文本提取（`questions[]`）+ 逐条确认 + 分析补答案/解析 + 选择 1–3 道生成；删除 bbox/candidates/detection_confidence；见 ADR-004 | 霹雳马桶 |

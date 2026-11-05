@@ -61,7 +61,8 @@ flowchart TD
 | QLIST-01 | 点编辑 | QEDIT-01 | `question_id`、题目内容 | P0 |
 | QEDIT-01 | 点【保存】 | TASK-01 / QDETAIL-01 | `question`、`task_id` | P0 |
 | QEDIT-01 | 草稿变更 | DRAFT | `content`、`updated_at` | P0 |
-| QEDIT-01 | 图片识别 | QEDIT-01 | `candidates`、`bbox`、`crop_box`、`content_md` | P0 |
+| QEDIT-01 | 图片裁剪/提取 | QEDIT-01 | `crop_box`、`image_path`、`questions[]`（1..N） | P0 |
+| QEDIT-01 | 确认创建后选择题目 | QEDIT-01 / TASK-01 | `question_ids[]`（≤3）、`task_ids[]` | P0 |
 | TASK-01 | 点任务行 | QDETAIL-01 | `question_id`、任务状态 | P0 |
 | TASK-01 | 点失败【重试】 | TASK-01 | `task_id` | P0 |
 | TASK-01 | 点草稿行【继续编辑】 | QEDIT-01 | `draft.content` | P0 |
@@ -78,10 +79,10 @@ flowchart TD
 | AUTH-01 | `redirect`、空表单 | `access_token`、`user` | `POST /auth/login`、`POST /auth/register`、`GET /auth/me` | idle / submitting / error / success |
 | HOME-01 | `user`、最近错题、最近任务 | 入口选择 | `GET /questions?page=1&page_size=3`、`GET /tasks`、`GET /stats/overview`（P1） | loading / empty / partial / error |
 | QLIST-01 | URL filters、`page` | `question_id`、删除请求 | `GET /questions`、`DELETE /questions/{id}` | loading / empty / filter-empty / error |
-| QEDIT-01 | `draft`、`image`、`question`（编辑） | `question + task_id`、`draft` | `GET/PUT/DELETE /drafts/me`、`POST /questions`、`POST /questions/from-image` | draft / detecting / confirming / vision / editing / saving / saved / error |
-| TASK-01 | `tasks`、`draft` | `retry`、`question_id`、`draft.content` | `GET /tasks`、`POST /tasks/{id}/retry`、`GET /drafts/me` | queued / running / done / failed |
-| QDETAIL-01 | `question`、`analysis`、`generated_questions`、`tasks` | `analysis` 更新、`regenerate`、`practice` | `GET /questions/{id}`、`PATCH /questions/{id}`、`POST /generated-questions/{id}/regenerate` | loading / analysis pending / generated / partial / error |
-| PRACTICE-01 | `generated_questions`、`question_id` | `practice_records` | `GET /questions/{id}/generated`、`POST /practice-records` | unanswered / answered / revealed / submit failed / result |
+| QEDIT-01 | `draft`、`image`、`question`（编辑）、`questions[]`（提取结果） | `question + task_id`（每道）、`draft`、`task_ids[]` | `GET/PUT/DELETE /drafts/me`、`POST /uploads/images`、`POST /questions/from-image`、`POST /questions`、`POST /questions/{id}/generate` | draft / cropping / uploading / extracting / confirming_items / editing / saving / saved / error |
+| TASK-01 | `tasks`、`draft` | `retry`、`question_id`、`draft.content` | `GET /tasks`（P0 轮询）、`POST /tasks/{id}/retry`、`GET /drafts/me` | queued / running / done / failed |
+| QDETAIL-01 | `question`、`analysis`、`answer/explanation`、`generated_questions`、`tasks` | `analysis` 更新、`regenerate`、`practice` | `GET /questions/{id}?include=generated`、`PATCH /questions/{id}`、`POST /generated-questions/{id}/regenerate` | loading / analysis pending / generated / partial / error |
+| PRACTICE-01 | `generated_questions`、`question_id` | `practice_records` | `GET /questions/{id}?include=generated`、`POST /practice-records` | unanswered / answered / revealed / submit failed / result |
 | STATS-01 | `overview`、`weak-points`、`trends` | `tag` 筛选 | `GET /stats/overview`、`GET /stats/weak-points`、`GET /stats/trends` | loading / empty / error |
 
 ## 4. 状态机
@@ -92,20 +93,24 @@ flowchart TD
 stateDiagram-v2
   [*] --> draft
   draft --> editing: 输入/恢复草稿
-  editing --> detecting: 选择图片
-  detecting --> confirming: 返回 candidates
-  detecting --> vision: 整页/无 candidate
-  confirming --> vision: 确认/调整 crop_box
-  confirming --> detecting: 切换候选/重拍
-  vision --> editing: 识图结果填入模板
-  editing --> saving: 点保存
+  editing --> cropping: 选择图片
+  cropping --> uploading: 确认裁剪
+  cropping --> editing: 取消/重拍
+  uploading --> extracting: 上传完成
+  extracting --> confirming_items: 返回 1..N 道题（① ②…）
+  extracting --> editing: 提取失败/改文本
+  confirming_items --> editing: 逐条确认/编辑后进入编辑器
+  confirming_items --> cropping: 重拍/换图
+  editing --> saving: 点保存（每道题）
   saving --> saved: 入库 + 入队
   saving --> editing: 校验/网络失败
-  detecting --> editing: 取消/失败退回文本
-  vision --> editing: 识图失败/改文本
+  saved --> analyzing: 分析任务
+  analyzing --> analyzed: 答案/解析/知识点
+  analyzed --> generating: 勾选 1–3 道 + 生成相似题
+  generating --> analyzed: 任务入队/完成
   saving --> error: AI/服务端错误
   error --> editing: 保留草稿
-  saved --> [*]
+  analyzed --> [*]
 ```
 
 ### 4.2 TASK-01
@@ -154,39 +159,40 @@ stateDiagram-v2
 |---|---|---|---|
 | `access_token` / `user` | AUTH-01 | auth store；请求头 `Authorization: Bearer` | 所有受保护页面 |
 | `draft.content` | QEDIT-01 | localStorage + `PUT /drafts/me`；`GET /drafts/me` 恢复 | QEDIT-01、TASK-01 草稿行 |
-| `image file` | QEDIT-01 | 前端压缩 → 上传；`image_path` | from-image、详情原图 |
-| `candidates` / `bbox` / `crop_box` | `POST /questions/from-image` 第一阶段 | 前端高亮 + 移动/缩放/重置；第二阶段回传 `crop_box` | 服务端裁剪、识图 |
-| `content_md` / `options` / `blanks` | QEDIT-01 保存 | `POST /questions` → `questions` | QDETAIL-01、PRACTICE-01 |
-| `question + task_id` | QEDIT-01 保存 | 响应返回；任务中心查询 | TASK-01、QDETAIL-01 |
-| `analysis` | 后台 analysis 任务 | `questions.analysis`；`PATCH /questions/{id}` 可编辑 | QDETAIL-01 |
+| `image file` | QEDIT-01 | 用户裁剪 → 压缩 → 上传；`image_path` | from-image、详情原图 |
+| `crop_box`（用户裁剪） | QEDIT-01 上传前 | 归一化 `[x,y,w,h]`；前端裁剪后上传时可为空 | 上传接口、questions |
+| `questions[]`（提取结果） | `POST /questions/from-image` | 1..N 道题，`index` 对应 ① ②… | QEDIT-01 条目列表、逐条 `POST /questions` |
+| `content_md` / `options` / `blanks` | QEDIT-01 保存 | 每道题 `POST /questions` → `questions` | QDETAIL-01、PRACTICE-01 |
+| `question + task_id` | QEDIT-01 保存 | 每道题一个；任务中心查询 | TASK-01、QDETAIL-01 |
+| `analysis` / `answer_md` / `explanation_md` | 后台 analysis 任务 | `questions.analysis`/`answer_md`/`explanation_md`；可编辑 | QDETAIL-01、QEDIT 条目 |
 | `generated_questions` | 后台 quiz 任务 | `generated_questions`；任务完成 | QDETAIL-01、PRACTICE-01 |
 | `practice_records` | PRACTICE-01 | `POST /practice-records` | STATS-01（P1） |
 | `stats` | 统计接口 | `GET /stats/*` | HOME-01 / STATS-01（P1） |
 
-## 6. 框题确认的数据流（P0）
+## 6. 图片裁剪 + 多题文本提取的数据流（P0）
 
 ```text
 用户选择图片（电脑粘贴/拖入；手机相册/拍照）
-  → 前端压缩：≤5MB / 2000px
-  → POST /questions/from-image（第一阶段）
-  → { candidates: [{index,bbox,confidence,preview_url}], selected_index }
-  → 有 candidate：高亮 top-1
-       → 用户确认/切换候选 + 移动/缩放 AI 框 + 重置整图
-       → POST /questions/from-image（第二阶段）
-          { candidate_index, crop_box? }
-       → 服务端按 crop_box 裁剪 → DeepSeek 识图
-       → { content_md, answer_md?, question_type, options?, blanks?, ... }
-  → 无 candidate / AI 判定整页 / grounding 不可用：
-       → 整图识别，不框；结果按题型模板填入编辑器
-  → 用户编辑 → 保存
+  → 前端裁剪：可选，支持重置原图；裁剪/压缩 ≤5MB / 2000px
+  → POST /uploads/images（裁剪后的图片）
+  → { image_path, url, width, height }
+  → POST /questions/from-image { image_path }
+  → { questions: [{index, content_md, question_type, options?, blanks?, has_figure, warnings?}], warnings? }
+  → 前端按 ① ② ③ … 展示条目；用户逐条编辑/删除/确认
+  → 每道题 POST /questions → { question, task_id }
+  → 分析任务返回 answer_md / explanation_md / analysis
+  → 用户在条目列表中勾选 1–3 道（高亮）
+  → 每个选中题目 POST /questions/{id}/generate → task_id
+  → 任务中心/详情查看 3 道相似题
 ```
 
 **约束**：
 
-- `bbox` / `crop_box` 都是归一化 `[x,y,w,h]`（0–1），基于服务端去 EXIF/旋转后的图。
-- 传了 `crop_box` 按它裁；没传按 `candidate_index` 的 bbox。
-- 重置整图 = `crop_box: [0,0,1,1]`。
-- 从零画框 P1；P0 只调整 AI 给的框。
+- 不做 AI bbox/candidates；服务端不返回框/置信度。
+- `crop_box` 只表示用户裁剪（归一化 `[x,y,w,h]`），可选；前端裁剪后上传时可为空。
+- 多题共用同一 `image_path`；`index` 从 1 开始，前端显示 ① ② ③ …。
+- 当前阶段只提取文字/公式；`has_figure=true` 只提示，不提取附图。
+- 多选生成 P0 上限 3 道；超过时提示。
 
 ## 7. 地图文件说明
 
