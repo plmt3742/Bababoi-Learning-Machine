@@ -8,11 +8,7 @@ const route = useRoute()
 
 <template>
   <div class="page">
-    <PageHeader
-      eyebrow="PRACTICE-01"
-      title="练习"
-      description="逐题作答、查看解析并记录掌握情况。"
-    />
+    <PageHeader eyebrow="Practice" title="练习" description="逐题作答、查看解析并记录掌握情况。" />
     <PlaceholderPanel
       :hint="
         route.params.id

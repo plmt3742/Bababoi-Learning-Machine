@@ -8,7 +8,7 @@
 
 - 仓库：https://github.com/plmt3742/Bababoi-Learning-Machine
 - 产品定位：学生录入错题 → AI 分析知识点/错误原因 → 生成 3 道相似题 → 练习 → 统计薄弱点
-- 当前阶段：M0 产品设计 + 技术选型 + 仓库搭建（截止 11.7 24:00）
+- 当前阶段：M0 收尾；前端四核心屏已按 Calm Academic 跑通（PR #19/#21 待合并，截止 11.7 24:00）
 - 详细上下文：`docs/agent/00-context.md`
 
 ## 团队与分工

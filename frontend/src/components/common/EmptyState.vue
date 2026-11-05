@@ -18,59 +18,74 @@ const emit = defineEmits<{ action: [] }>()
 </script>
 
 <template>
-  <div class="empty-state" :class="{ 'empty-state--compact': compact }">
-    <a-empty class="empty-state__empty">
-      <template v-if="$slots.image" #image>
-        <slot name="image" />
-      </template>
-      <div class="empty-state__copy">
-        <p class="empty-state__title">{{ title }}</p>
-        <p v-if="description" class="empty-state__description">{{ description }}</p>
-      </div>
-    </a-empty>
-
-    <div v-if="actionLabel || $slots.default" class="empty-state__actions">
-      <a-button v-if="actionLabel" type="primary" @click="emit('action')">
-        {{ actionLabel }}
-      </a-button>
-      <slot />
+  <div class="state-card" :class="{ 'state-card--compact': compact }">
+    <div class="state-illustration" aria-hidden="true">
+      <slot name="image">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M5 3h9l5 5v13H5z" />
+          <path d="M14 3v5h5" />
+          <circle cx="10.5" cy="14" r="2.5" />
+          <path d="m12.5 16 2 2" />
+        </svg>
+      </slot>
     </div>
+    <h3>{{ title }}</h3>
+    <p v-if="description">{{ description }}</p>
+    <button
+      v-if="actionLabel"
+      class="btn btn--outline btn--sm"
+      type="button"
+      @click="emit('action')"
+    >
+      {{ actionLabel }}
+    </button>
+    <slot />
   </div>
 </template>
 
 <style scoped>
-.empty-state {
+.state-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
+  align-items: flex-start;
+  gap: 9px;
   min-height: var(--layout-empty-min-height);
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
 }
 
-.empty-state__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.state-card--compact {
+  min-height: 0;
+  padding: var(--space-4);
 }
 
-.empty-state__copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  align-items: center;
-  text-align: center;
+.state-illustration {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin: 2px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-3);
 }
 
-.empty-state__title {
-  color: var(--color-text-1);
+.state-illustration :deep(svg),
+.state-illustration > svg {
+  width: 22px;
+  height: 22px;
+}
+
+.state-card h3 {
   font-size: var(--text-base);
-  font-weight: 600;
-  line-height: var(--text-base-leading);
+  line-height: 24px;
+  font-weight: 650;
 }
 
-.empty-state__description {
+.state-card > p {
   max-width: 46ch;
   color: var(--color-text-2);
   font-size: var(--text-sm);
@@ -78,25 +93,7 @@ const emit = defineEmits<{ action: [] }>()
   text-wrap: pretty;
 }
 
-.empty-state__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-}
-
-.empty-state--compact {
-  min-height: 0;
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-fill);
-}
-
-.empty-state--compact :deep(.arco-empty-image) {
-  display: none;
-}
-
-.empty-state--compact :deep(.arco-empty-description) {
-  margin-top: 0;
+.state-card .btn {
+  margin-top: auto;
 }
 </style>

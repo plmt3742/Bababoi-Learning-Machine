@@ -1,74 +1,366 @@
 /**
- * Arco Design Vue theme bridge.
+ * Calm Academic → Arco bridge.
  *
  * Arco palette variables are space-separated RGB channels:
  *   --arcoblue-6: 22, 93, 255;  →  rgb(var(--arcoblue-6))
- * The full 1–10 ramp must be overridden together, otherwise hover / active
- * states keep the old hue. Values are anchored on src/styles/tokens.css.
+ * The full 1–10 ramp is overridden together, otherwise hover / active states
+ * keep the old hue. Values are anchored on src/styles/tokens.css.
  */
-:root {
-  /* Primary ramp — --color-primary (#165DFF) = arcoblue-6. */
-  --arcoblue-1: 232, 243, 255;
-  --arcoblue-2: 190, 218, 255;
-  --arcoblue-3: 148, 191, 255;
-  --arcoblue-4: 106, 161, 255;
-  --arcoblue-5: 64, 128, 255; /* --color-primary-hover */
-  --arcoblue-6: 22, 93, 255; /* --color-primary */
-  --arcoblue-7: 14, 66, 210; /* --color-primary-active */
-  --arcoblue-8: 7, 44, 166;
-  --arcoblue-9: 3, 26, 121;
-  --arcoblue-10: 0, 13, 77;
+:root:root,
+html body {
+  /* Primary — one Arco blue accent. */
+  --arcoblue-1: 237, 243, 255;
+  --arcoblue-2: 214, 228, 255;
+  --arcoblue-3: 186, 210, 255;
+  --arcoblue-4: 143, 184, 255;
+  --arcoblue-5: 14, 66, 210; /* hover / deep ink */
+  --arcoblue-6: 22, 93, 255; /* primary */
+  --arcoblue-7: 14, 66, 210; /* active */
+  --arcoblue-8: 10, 47, 158;
+  --arcoblue-9: 8, 34, 112;
+  --arcoblue-10: 5, 22, 78;
 
-  /* Success ramp — --color-success (#00B42A) = green-6. */
-  --green-1: 232, 255, 234;
-  --green-2: 175, 240, 181;
-  --green-3: 123, 225, 136;
-  --green-4: 76, 210, 99;
-  --green-5: 35, 195, 67;
-  --green-6: 0, 180, 42;
-  --green-7: 0, 154, 41;
-  --green-8: 0, 128, 38;
-  --green-9: 0, 102, 34;
-  --green-10: 0, 77, 28;
+  /* Success — low-saturation Calm green. */
+  --green-1: 238, 246, 240;
+  --green-2: 217, 235, 223;
+  --green-3: 207, 229, 215;
+  --green-4: 169, 208, 184;
+  --green-5: 95, 159, 122;
+  --green-6: 27, 110, 67;
+  --green-7: 21, 90, 55;
+  --green-8: 16, 70, 43;
+  --green-9: 11, 50, 31;
+  --green-10: 6, 31, 19;
 
-  /* Warning ramp — --color-warning (#FF7D00) = orange-6. */
-  --orange-1: 255, 247, 232;
-  --orange-2: 255, 228, 186;
-  --orange-3: 255, 207, 139;
-  --orange-4: 255, 182, 93;
-  --orange-5: 255, 154, 46;
-  --orange-6: 255, 125, 0;
-  --orange-7: 210, 95, 0;
-  --orange-8: 166, 69, 0;
-  --orange-9: 121, 46, 0;
-  --orange-10: 77, 27, 0;
+  /* Warning — dark amber ink. */
+  --orange-1: 251, 245, 230;
+  --orange-2: 244, 232, 200;
+  --orange-3: 234, 217, 180;
+  --orange-4: 220, 192, 138;
+  --orange-5: 184, 148, 74;
+  --orange-6: 138, 90, 0;
+  --orange-7: 113, 74, 0;
+  --orange-8: 89, 59, 0;
+  --orange-9: 64, 42, 0;
+  --orange-10: 40, 26, 0;
 
-  /* Danger ramp — --color-danger (#F53F3F) = red-6. */
-  --red-1: 255, 236, 232;
-  --red-2: 253, 205, 197;
-  --red-3: 251, 172, 163;
-  --red-4: 249, 137, 129;
-  --red-5: 247, 101, 96;
-  --red-6: 245, 63, 63;
-  --red-7: 203, 39, 45;
-  --red-8: 161, 21, 30;
-  --red-9: 119, 8, 19;
-  --red-10: 77, 0, 10;
+  /* Danger — deep brick ink. */
+  --red-1: 252, 242, 241;
+  --red-2: 247, 220, 216;
+  --red-3: 239, 209, 205;
+  --red-4: 224, 170, 164;
+  --red-5: 208, 111, 102;
+  --red-6: 180, 35, 24;
+  --red-7: 149, 29, 20;
+  --red-8: 119, 23, 16;
+  --red-9: 89, 17, 12;
+  --red-10: 59, 11, 8;
 
-  /* Neutral ramp — maps 1:1 to --color-bg / fill / border / text tokens. */
-  --gray-1: 247, 248, 250; /* --color-bg */
-  --gray-2: 242, 243, 245; /* --color-fill */
-  --gray-3: 229, 230, 235; /* --color-border */
-  --gray-4: 201, 205, 212;
+  /* Neutral ramp. */
+  --gray-1: 243, 244, 246;
+  --gray-2: 251, 251, 252;
+  --gray-3: 228, 230, 234;
+  --gray-4: 207, 211, 218;
   --gray-5: 169, 174, 184;
-  --gray-6: 107, 114, 128; /* --color-text-3 */
-  --gray-7: 107, 119, 133;
-  --gray-8: 78, 89, 105; /* --color-text-2 */
-  --gray-9: 39, 46, 59;
-  --gray-10: 29, 33, 41; /* --color-text-1 */
+  --gray-6: 95, 103, 117;
+  --gray-7: 78, 89, 105;
+  --gray-8: 65, 74, 87;
+  --gray-9: 45, 51, 61;
+  --gray-10: 27, 31, 36;
 
-  /* Arco surface tokens used by Card / Layout / Drawer. */
   --color-bg-1: var(--color-surface);
   --color-bg-2: var(--color-bg);
   --color-bg-white: var(--color-surface);
+
+  --border-radius-small: var(--radius-sm);
+  --border-radius-medium: var(--radius-md);
+  --border-radius-large: var(--radius-lg);
+}
+
+/* Base controls */
+:root:root .arco-btn {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+:root:root .arco-btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+:root:root .arco-btn-primary:hover {
+  background: var(--color-primary-active);
+  border-color: var(--color-primary-active);
+}
+
+:root:root .arco-btn-outline {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+}
+
+:root:root .arco-btn-outline:hover {
+  border-color: var(--color-text-3);
+  color: var(--color-text-1);
+}
+
+:root:root .arco-btn-text {
+  color: var(--color-text-2);
+}
+
+:root:root .arco-btn-text:hover {
+  background: var(--color-page-deep);
+  color: var(--color-text-1);
+}
+
+:root:root .arco-btn-size-small {
+  height: 34px;
+  padding: 0 11px;
+  font-size: var(--text-sm);
+}
+
+:root:root .arco-btn-size-mini {
+  height: 28px;
+  font-size: var(--text-sm);
+}
+
+:root:root .arco-btn-status-danger {
+  color: var(--color-danger-text);
+}
+
+:root:root .arco-btn-primary.arco-btn-status-danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
+:root:root .arco-btn-primary.arco-btn-status-danger:hover {
+  border-color: var(--color-danger-hover);
+  background: var(--color-danger-hover);
+}
+
+:root:root .arco-btn-group .arco-btn + .arco-btn {
+  margin-left: 0;
+}
+
+/* Inputs / selects / textareas */
+:root:root .arco-input-wrapper,
+:root:root .arco-textarea-wrapper,
+:root:root .arco-select-view,
+:root:root .arco-input-tag {
+  min-height: var(--control-height);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-1);
+  font-size: 15px;
+  line-height: 22px;
+  box-shadow: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+:root:root .arco-input-wrapper:hover,
+:root:root .arco-textarea-wrapper:hover,
+:root:root .arco-select-view:hover,
+:root:root .arco-input-tag:hover {
+  border-color: var(--color-text-3);
+}
+
+:root:root .arco-input-wrapper.arco-input-focus,
+:root:root .arco-textarea-wrapper.arco-textarea-focus,
+:root:root .arco-select-view.arco-select-view-focus,
+:root:root .arco-input-tag.arco-input-tag-focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+:root:root .arco-textarea {
+  padding: 9px 12px;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+:root:root .arco-input {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+:root:root .arco-input::placeholder,
+:root:root .arco-textarea::placeholder,
+:root:root .arco-select-view-input::placeholder,
+:root:root .arco-input-tag-input::placeholder {
+  color: var(--color-text-3);
+  opacity: 1;
+}
+
+:root:root .arco-input-prefix,
+:root:root .arco-select-view-suffix,
+:root:root .arco-input-suffix {
+  color: var(--color-text-3);
+}
+
+:root:root .arco-form-item {
+  margin-bottom: var(--space-4);
+}
+
+:root:root .arco-form-item-label-col > .arco-form-item-label {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--text-sm-leading);
+}
+
+:root:root .arco-form-item-message,
+:root:root .arco-form-item-extra {
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+:root:root .arco-input-word-limit,
+:root:root .arco-textarea-word-limit {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tags — keep 14px and Calm semantic inks. */
+:root:root .arco-tag,
+:root:root .arco-tag-size-small,
+:root:root .arco-tag-size-medium {
+  height: 26px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-green {
+  color: var(--color-success-text);
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-orange {
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-red {
+  color: var(--color-danger-text);
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger-border);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-arcoblue {
+  color: var(--color-primary-active);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-border);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-gray {
+  color: var(--color-text-2);
+  background: var(--color-bg);
+  border-color: var(--color-page-rule);
+}
+
+/* Input-tag tags use the same paper tags. */
+:root:root .arco-input-tag .arco-tag {
+  height: 26px;
+  background: var(--color-bg);
+  border-color: var(--color-page-rule);
+  color: var(--color-text-2);
+}
+
+/* Cards / modals / dropdowns */
+:root:root .arco-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+:root:root .arco-modal {
+  border-radius: var(--radius-frame);
+  box-shadow: var(--shadow-pop);
+}
+
+:root:root .arco-modal-header {
+  border-bottom: 1px solid var(--color-border);
+}
+
+:root:root .arco-modal-title {
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+
+:root:root .arco-dropdown {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+:root:root .arco-dropdown-option {
+  font-size: var(--text-sm);
+}
+
+/* Disclosure / empty / result */
+:root:root .arco-collapse {
+  border: 0;
+}
+
+:root:root .arco-collapse-item-header {
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-2);
+  font-size: 15px;
+}
+
+:root:root .arco-empty-description {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+
+:root:root .arco-result-title {
+  font-size: var(--text-lg);
+  font-weight: 650;
+}
+
+:root:root .arco-result-subtitle {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+
+/* Pagination (used on the list page) */
+:root:root .arco-pagination-item {
+  min-width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+
+:root:root .arco-pagination-item-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-weight: 650;
+}
+
+/* Message toast */
+:root:root .arco-message {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-sm);
 }

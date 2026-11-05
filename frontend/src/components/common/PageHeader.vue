@@ -7,57 +7,78 @@ defineProps<{
 </script>
 
 <template>
-  <header class="page-header">
-    <p v-if="eyebrow" class="page-header__eyebrow">{{ eyebrow }}</p>
-    <h1 class="page-header__title">{{ title }}</h1>
-    <p class="page-header__description">{{ description }}</p>
-    <div v-if="$slots.actions" class="page-header__actions">
+  <header class="page-head">
+    <div class="page-head__main">
+      <p v-if="eyebrow" class="kicker">{{ eyebrow }}</p>
+      <h1>{{ title }}</h1>
+      <p>{{ description }}</p>
+    </div>
+    <div v-if="$slots.actions" class="page-head__actions">
       <slot name="actions" />
     </div>
   </header>
 </template>
 
 <style scoped>
-.page-header {
+.page-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
 }
 
-.page-header__eyebrow {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.page-head__main {
+  min-width: 0;
 }
 
-.page-header__title {
+.page-head h1 {
+  margin-top: 6px;
   font-size: var(--text-2xl);
   line-height: var(--text-2xl-leading);
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: -0.012em;
 }
 
-.page-header__description {
-  max-width: 62ch;
+.page-head__main > p:last-child:not(.kicker) {
+  max-width: 680px;
+  margin-top: var(--space-1);
   color: var(--color-text-2);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
+  font-size: 15px;
+  line-height: 24px;
   text-wrap: pretty;
 }
 
-.page-header__actions {
+.page-head__actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-2);
 }
 
 @media (max-width: 767px) {
-  .page-header__title {
-    font-size: var(--text-xl);
-    line-height: var(--text-xl-leading);
+  .page-head {
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .page-head h1 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .page-head__main > p:last-child:not(.kicker) {
+    font-size: var(--text-sm);
+    line-height: 22px;
+  }
+
+  .page-head__actions {
+    width: 100%;
+  }
+
+  .page-head__actions :deep(.btn) {
+    width: 100%;
   }
 }
 </style>

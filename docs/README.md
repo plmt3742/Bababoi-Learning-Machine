@@ -99,3 +99,4 @@
 | 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归人机；新增 ADR-003、11-agent-handoff、.gitignore | 霹雳马桶 / agent |
 | 2026-11-05 | 同步产品设计状态：01/02/04/06/07/08 已定稿，03 部分完成，原型可用；补充 12-backend-alignment | 霹雳马桶 / agent |
 | 2026-11-05 | 同步 origin/main：补 13-backend-merge-audit；新增 ADR-004 图片文本提取 v2；后端通知 issue #13 | 霹雳马桶 / agent |
+| 2026-11-06 | 同步前端进度：FE-009/019（PR #19）与全量 Calm Academic 视觉覆写（PR #21，stacked）均 CI 绿待合并；旧 PR #20 关闭；更新 00/03/04/11 + 04 design system + 02/06/07 + frontend README | 霹雳马桶 / agent |

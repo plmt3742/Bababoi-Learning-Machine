@@ -3,12 +3,11 @@ import { computed } from 'vue'
 import type { Component } from 'vue'
 import {
   IconArrowRight,
-  IconCheckCircleFill,
+  IconCheck,
   IconClockCircle,
-  IconCloseCircleFill,
+  IconClose,
   IconLoading,
-  IconMinusCircle,
-  IconRecordStop,
+  IconMinus,
   IconRefresh,
 } from '@arco-design/web-vue/es/icon'
 import type { Task } from '../../api/types'
@@ -20,8 +19,7 @@ interface StepView {
   key: 'analysis' | 'quiz' | 'validation'
   title: string
   state: StepState
-  status: string
-  description: string
+  meta: string
 }
 
 const props = withDefaults(
@@ -56,6 +54,8 @@ const emit = defineEmits<{
   retry: [taskId: number]
   stop: []
   refresh: []
+  generate: []
+  practice: []
 }>()
 
 const analysisTask = computed(() => latestTask(props.tasks, 'analysis'))
@@ -116,6 +116,7 @@ const blockingFailedTasks = computed<Task[]>(() => {
 })
 
 const hasFailure = computed(() => blockingFailedTasks.value.length > 0)
+const primaryFailure = computed(() => blockingFailedTasks.value[0] ?? null)
 const hasActiveProgress = computed(
   () =>
     analysisState.value === 'queued' ||
@@ -123,84 +124,125 @@ const hasActiveProgress = computed(
     quizState.value === 'queued' ||
     quizState.value === 'running',
 )
-const hasRunningStep = computed(
-  () => analysisState.value === 'running' || quizState.value === 'running',
-)
 const syncPending = computed(
   () =>
     (analysisState.value === 'done' && !props.analysisReady) ||
     (quizState.value === 'done' && props.generatedCount === 0),
 )
+const generationActive = computed(
+  () => quizState.value === 'queued' || quizState.value === 'running' || props.generationRequested,
+)
+const generationPending = computed(() => generationActive.value || syncPending.value)
+const hasFinishedTask = computed(
+  () => analysisState.value === 'done' || quizState.value === 'done' || props.generatedCount > 0,
+)
+const showRefreshAction = computed(
+  () =>
+    !props.polling &&
+    (hasActiveTask.value || props.timedOut || props.stopped || Boolean(props.errorMessage)),
+)
 
-function stepStatusLabel(state: StepState, kind: StepView['key']): string {
-  switch (state) {
-    case 'queued':
-      return '排队中'
-    case 'running':
-      if (kind === 'analysis') return '分析中'
-      if (kind === 'quiz') return '生成中'
-      return '处理中'
-    case 'done':
-      return '已完成'
-    case 'failed':
-      return '失败'
-    case 'waiting':
-      return '待开始'
-    default:
-      return '待开始'
-  }
+function formatClock(value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
 }
 
-const analysisDescription = computed(() => {
+function formatDuration(
+  start: string | null | undefined,
+  finish: string | null | undefined,
+): string {
+  if (!start || !finish) return ''
+  const startTime = new Date(start).getTime()
+  const finishTime = new Date(finish).getTime()
+  if (!Number.isFinite(startTime) || !Number.isFinite(finishTime)) return ''
+
+  const seconds = Math.max(1, Math.round((finishTime - startTime) / 1000))
+  if (seconds < 60) return `${seconds} 秒`
+
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  return remainder > 0 ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`
+}
+
+function taskClock(task: Task | null): string {
+  if (!task) return ''
+  return formatClock(task.started_at ?? task.created_at)
+}
+
+function taskDuration(task: Task | null): string {
+  if (!task) return ''
+  return formatDuration(task.started_at ?? task.created_at, task.finished_at)
+}
+
+const analysisMeta = computed(() => {
+  const task = analysisTask.value
+  const time = taskClock(task)
+  const duration = taskDuration(task)
+
   switch (analysisState.value) {
     case 'queued':
-      return '分析任务已入队，等待开始。'
+      return '排队中，等待开始'
     case 'running':
-      return '正在提取知识点、错误原因与解题摘要。'
+      return time ? `${time} · 分析中` : '正在提取考点与错误原因'
     case 'done':
-      return props.analysisReady ? '分析结果已就绪。' : '分析完成，正在同步结果。'
+      if (time && duration) return `${time} · 用时 ${duration}`
+      if (time) return time
+      return props.analysisReady ? '分析结果已就绪' : '分析完成，正在同步结果'
     case 'failed':
-      return '分析没有成功完成，可以重试。'
+      return task?.error_code ? `失败 · ${task.error_code}` : '分析没有成功完成'
     case 'waiting':
-      return '录入后将自动开始分析。'
+      return '等待任务开始'
     default:
-      return '等待任务开始。'
+      return '等待任务开始'
   }
 })
 
-const quizDescription = computed(() => {
+const quizMeta = computed(() => {
+  const task = quizTask.value
+  const time = taskClock(task)
+
   switch (quizState.value) {
     case 'queued':
-      return quizTask.value ? '生成任务已入队，等待开始。' : '生成任务已提交，等待状态同步。'
+      return task ? '排队中，等待开始' : '生成任务已提交，等待状态同步'
     case 'running':
-      return '正在生成并校验 3 道相似题。'
+      return time ? `${time} · 正在生成 3 道题` : '正在生成并校验 3 道题'
     case 'done':
-      return props.generatedCount > 0
-        ? `已生成 ${props.generatedCount}/3 道相似题。`
-        : '生成完成，正在同步题目。'
+      if (props.generatedCount > 0) {
+        return time ? `${time} · ${props.generatedCount} 道` : `${props.generatedCount} 道相似题`
+      }
+      return '生成完成，正在同步结果'
     case 'failed':
-      return '相似题生成没有成功完成，可以重试。'
+      return task?.error_code ? `失败 · ${task.error_code}` : '生成没有成功完成'
     case 'waiting':
-      return props.analysisReady ? '可以点击「生成相似题」开始。' : '分析完成后可生成相似题。'
+      return props.analysisReady ? '等待生成' : '待分析完成'
     default:
-      return '等待生成任务。'
+      return '等待生成'
   }
 })
 
-const validationDescription = computed(() => {
+const validationMeta = computed(() => {
   switch (validationState.value) {
     case 'queued':
-      return '等待生成完成后校验结果。'
+      return '等待生成完成后校验'
     case 'running':
-      return '正在校验生成结果。'
+      return '正在校验生成结果'
     case 'done':
-      return props.generatedCount > 0
-        ? '已完成校验，结果已同步到本页。'
-        : '生成完成，等待结果同步。'
+      return props.generatedCount > 0 ? `${props.generatedCount} / 3 通过结构校验` : '等待结果同步'
+    case 'failed':
+      return '校验未通过'
     case 'waiting':
-      return '等待生成任务开始。'
+      if (hasFailure.value) return '等待失败任务重试'
+      return props.analysisReady ? '等待生成任务开始' : '等待分析完成'
     default:
-      return '等待生成结果。'
+      return '等待生成结果'
   }
 })
 
@@ -209,85 +251,71 @@ const steps = computed<StepView[]>(() => [
     key: 'analysis',
     title: 'AI 分析',
     state: analysisState.value,
-    status: stepStatusLabel(analysisState.value, 'analysis'),
-    description: analysisDescription.value,
+    meta: analysisMeta.value,
   },
   {
     key: 'quiz',
     title: '生成相似题',
     state: quizState.value,
-    status: stepStatusLabel(quizState.value, 'quiz'),
-    description: quizDescription.value,
+    meta: quizMeta.value,
   },
   {
     key: 'validation',
     title: '校验 / 完成',
     state: validationState.value,
-    status: stepStatusLabel(validationState.value, 'validation'),
-    description: validationDescription.value,
+    meta: validationMeta.value,
   },
 ])
 
-const headline = computed(() => {
-  if (quizState.value === 'running') return '正在生成相似题'
-  if (quizState.value === 'queued') return '相似题任务已入队'
-  if (analysisState.value === 'running') return '正在分析这道题'
-  if (analysisState.value === 'queued') return '分析任务已入队'
-  if (syncPending.value) return '任务完成，正在同步结果'
-  if (hasFailure.value) return '任务遇到问题，可重试'
-  if (quizState.value === 'done' && props.generatedCount > 0) return '相似题已生成完成'
-  if (quizState.value === 'done') return '生成完成，正在同步结果'
-  if (props.polling) return '正在等待任务更新'
-  if (props.timedOut || props.stopped) return '已暂停等待'
-  return '任务处理中'
-})
+const overallTag = computed<{ label: string; className: string; tone: 'done' | 'run' | 'fail' }>(
+  () => {
+    if (props.timedOut || props.stopped) {
+      return { label: '已暂停', className: 'tag--draft', tone: 'run' }
+    }
+    if (hasActiveProgress.value || props.polling) {
+      return { label: '进行中', className: 'tag--run', tone: 'run' }
+    }
+    if (hasFailure.value) {
+      return { label: '需要处理', className: 'tag--fail', tone: 'fail' }
+    }
+    if (syncPending.value) {
+      return { label: '进行中', className: 'tag--run', tone: 'run' }
+    }
+    if (quizState.value === 'done' && props.generatedCount > 0) {
+      return { label: '已完成', className: 'tag--ok', tone: 'done' }
+    }
+    return { label: '等待中', className: '', tone: 'run' }
+  },
+)
 
-const progressPercent = computed(() => {
-  if (quizState.value === 'failed') return 66
-  if (quizState.value === 'done') return props.generatedCount > 0 ? 100 : 94
-  if (quizState.value === 'running') return 74
-  if (quizState.value === 'queued') return 48
-  if (analysisState.value === 'failed') return 18
-  if (analysisState.value === 'done') return 34
-  if (analysisState.value === 'running') return 20
-  if (analysisState.value === 'queued') return 8
-  return 4
-})
-
-const progressTone = computed<'normal' | 'success' | 'danger'>(() => {
-  if (progressPercent.value === 100) return 'success'
-  if (hasFailure.value && !hasActiveProgress.value) return 'danger'
-  return 'normal'
-})
-
-const progressBarStyle = computed(() => ({
-  transform: `scaleX(${progressPercent.value / 100})`,
-}))
-
-const overallTag = computed<{ color: string; label: string }>(() => {
-  if (progressPercent.value === 100) return { color: 'green', label: '已完成' }
-  if (hasActiveProgress.value) {
-    return { color: 'arcoblue', label: hasRunningStep.value ? '进行中' : '排队中' }
+const progressNote = computed(() => {
+  if (props.timedOut) {
+    return '等待超过 2 分钟，已暂停自动刷新；服务器任务可能仍在继续，可点击「刷新一次」查看最新状态。'
   }
-  if (syncPending.value) return { color: 'arcoblue', label: '同步中' }
-  if (hasFailure.value) return { color: 'red', label: '需要处理' }
-  if (props.polling) return { color: 'arcoblue', label: '进行中' }
-  if (props.timedOut || props.stopped) return { color: 'orange', label: '已暂停' }
-  return { color: 'gray', label: '等待中' }
+  if (props.stopped) {
+    return '已暂停自动刷新；服务器任务仍在继续，可点击「刷新一次」查看最新状态。'
+  }
+  if (props.polling || hasActiveProgress.value || props.generationRequested) {
+    return '任务进行中时本页每 1.5 秒自动刷新；失败会显示错误码与重试。'
+  }
+  if (hasFailure.value || hasFinishedTask.value) {
+    return '当前任务已结束，刷新已停止。失败会显示错误码与重试。'
+  }
+  return '生成相似题后，任务状态会在这里更新；失败会显示错误码与重试。'
 })
 
 function stepIcon(state: StepState): Component {
   switch (state) {
     case 'done':
-      return IconCheckCircleFill
+      return IconCheck
     case 'failed':
-      return IconCloseCircleFill
+      return IconClose
     case 'queued':
       return IconClockCircle
     case 'running':
       return IconLoading
     case 'waiting':
-      return IconMinusCircle
+      return IconMinus
   }
 }
 
@@ -297,406 +325,359 @@ function handleRetry(taskId: number): void {
 </script>
 
 <template>
-  <a-card class="generation-progress" :bordered="false">
-    <header class="generation-progress__header">
-      <div class="generation-progress__heading">
-        <p class="generation-progress__eyebrow">AI GENERATION</p>
-        <h2 class="generation-progress__title">AI 生成进度</h2>
-        <p class="generation-progress__headline">{{ headline }}</p>
-      </div>
-      <a-tag :color="overallTag.color">{{ overallTag.label }}</a-tag>
-    </header>
-
-    <div
-      class="generation-progress__track"
-      role="progressbar"
-      aria-label="AI 生成进度"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      :aria-valuenow="progressPercent"
-    >
-      <div
-        class="generation-progress__bar"
-        :class="`generation-progress__bar--${progressTone}`"
-        :style="progressBarStyle"
-      />
+  <section class="progress-card" aria-labelledby="progress-title">
+    <div class="progress-card__head">
+      <h2 id="progress-title">处理进度</h2>
+      <span class="tag" :class="overallTag.className">
+        <svg
+          v-if="overallTag.tone === 'done'"
+          class="icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m5 12 4 4L19 6" />
+        </svg>
+        <svg
+          v-else-if="overallTag.tone === 'fail'"
+          class="icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
+        <span v-else-if="overallTag.className === 'tag--run'" class="dot" aria-hidden="true" />
+        {{ overallTag.label }}
+      </span>
     </div>
 
-    <ol class="generation-progress__steps">
+    <ol class="flow">
       <li
         v-for="step in steps"
         :key="step.key"
-        class="generation-progress__step"
-        :class="`generation-progress__step--${step.state}`"
+        class="flow__item"
+        :class="`flow__item--${step.state}`"
       >
-        <span class="generation-progress__icon" aria-hidden="true">
+        <span class="flow__mark" :class="`flow__mark--${step.state}`" aria-hidden="true">
           <component
             :is="stepIcon(step.state)"
-            :class="{ 'generation-progress__icon--spin': step.state === 'running' }"
+            class="icon"
+            :class="{ 'flow__icon--spin': step.state === 'running' }"
           />
         </span>
-        <div class="generation-progress__step-body">
-          <div class="generation-progress__step-heading">
-            <h3 class="generation-progress__step-title">{{ step.title }}</h3>
-            <span class="generation-progress__step-status">{{ step.status }}</span>
-          </div>
-          <p class="generation-progress__step-description">{{ step.description }}</p>
+        <div class="flow__body">
+          <span class="flow__title">{{ step.title }}</span>
+          <span class="flow__meta">{{ step.meta }}</span>
         </div>
       </li>
     </ol>
 
-    <a-alert v-if="errorMessage" type="error" :show-icon="true" class="generation-progress__alert">
-      <div class="generation-progress__alert-body">
-        <span>
-          进度刷新失败：{{ errorMessage }}
-          <span v-if="errorCode" class="generation-progress__error-code">（{{ errorCode }}）</span>
-        </span>
-        <a-button size="mini" type="text" @click="emit('refresh')">重试</a-button>
-      </div>
-    </a-alert>
-
-    <a-alert v-if="timedOut" type="warning" :show-icon="true" class="generation-progress__alert">
-      等待超过 2 分钟，已暂停自动刷新。服务器任务可能仍在继续，可点击「刷新一次」查看最新状态。
-    </a-alert>
-    <a-alert v-else-if="stopped" type="info" :show-icon="true" class="generation-progress__alert">
-      已暂停自动刷新。服务器任务仍在继续，可点击「刷新一次」查看最新状态，或前往任务中心。
-    </a-alert>
-
-    <div v-for="task in blockingFailedTasks" :key="task.id" class="generation-progress__failure">
-      <a-alert type="error" :show-icon="true">
-        <div class="generation-progress__failure-body">
-          <div class="generation-progress__failure-copy">
-            <p class="generation-progress__failure-title">
-              {{ taskStageLabel(task.stage) }}任务 #{{ task.id }} 失败
-              <span v-if="task.error_code" class="generation-progress__error-code">
-                {{ task.error_code }}
-              </span>
-            </p>
-            <p class="generation-progress__failure-message">
-              {{ taskErrorMessage(task.error_code) }}
-            </p>
-          </div>
-          <a-button
-            size="small"
-            status="danger"
-            type="outline"
-            :loading="retryingTaskId === task.id"
-            :disabled="retryingTaskId !== null && retryingTaskId !== task.id"
-            @click="handleRetry(task.id)"
-          >
-            重试任务
-          </a-button>
-        </div>
-      </a-alert>
+    <div v-for="task in blockingFailedTasks" :key="task.id" class="progress-error" role="alert">
+      <p class="progress-error__title">
+        {{ taskStageLabel(task.stage) }}任务 #{{ task.id }} 失败
+        <span v-if="task.error_code" class="progress-error__code">{{ task.error_code }}</span>
+      </p>
+      <p class="progress-error__text">{{ taskErrorMessage(task.error_code) }}</p>
+      <button
+        class="btn btn--quiet btn--sm"
+        type="button"
+        :disabled="retryingTaskId !== null"
+        @click="handleRetry(task.id)"
+      >
+        {{ retryingTaskId === task.id ? '重试中…' : '重试' }}
+      </button>
     </div>
 
-    <footer class="generation-progress__footer">
-      <div class="generation-progress__actions">
-        <a-button v-if="polling" size="small" type="outline" @click="emit('stop')">
-          <template #icon>
-            <IconRecordStop />
-          </template>
-          暂停自动刷新
-        </a-button>
-        <a-button
-          v-else
-          size="small"
-          :loading="loading"
-          :disabled="loading"
-          @click="emit('refresh')"
-        >
-          <template #icon>
-            <IconRefresh />
-          </template>
-          刷新一次
-        </a-button>
-
-        <RouterLink class="generation-progress__tasks-link" to="/tasks">
-          任务中心
-          <IconArrowRight />
-        </RouterLink>
-      </div>
-
-      <p class="generation-progress__hint">
-        {{
-          polling
-            ? '「暂停自动刷新」只会暂停本页刷新，服务器任务仍会继续。'
-            : hasActiveTask
-              ? '本页已暂停自动刷新，服务器任务仍会继续。'
-              : '任务已结束，可前往任务中心查看全部记录。'
-        }}
+    <div v-if="errorMessage" class="progress-error" role="alert">
+      <p class="progress-error__title">
+        进度刷新失败
+        <span v-if="errorCode" class="progress-error__code">{{ errorCode }}</span>
       </p>
-    </footer>
-  </a-card>
+      <p class="progress-error__text">{{ errorMessage }}</p>
+      <button class="btn btn--quiet btn--sm" type="button" @click="emit('refresh')">
+        重试刷新
+      </button>
+    </div>
+
+    <p class="progress-note">{{ progressNote }}</p>
+
+    <p class="progress-count">
+      已生成 <strong>{{ generatedCount }}</strong> / 3 道相似题
+    </p>
+
+    <div class="progress-cta">
+      <button
+        v-if="generatedCount > 0"
+        class="btn btn--primary btn--block"
+        type="button"
+        @click="emit('practice')"
+      >
+        去练习 · {{ generatedCount }} 道相似题
+        <IconArrowRight class="icon" />
+      </button>
+      <button
+        v-else-if="generationPending"
+        class="btn btn--primary btn--block"
+        type="button"
+        disabled
+      >
+        {{ quizState === 'running' ? '生成中…' : '等待生成…' }}
+      </button>
+      <button
+        v-else-if="primaryFailure"
+        class="btn btn--danger btn--block"
+        type="button"
+        :disabled="retryingTaskId !== null"
+        @click="handleRetry(primaryFailure.id)"
+      >
+        {{ retryingTaskId === primaryFailure.id ? '重试中…' : '重试' }}
+      </button>
+      <button
+        v-else
+        class="btn btn--primary btn--block"
+        type="button"
+        :disabled="!analysisReady"
+        :title="analysisReady ? undefined : 'AI 分析完成后即可生成相似题'"
+        @click="emit('generate')"
+      >
+        生成相似题
+      </button>
+    </div>
+
+    <div v-if="polling || showRefreshAction" class="progress-subactions">
+      <button v-if="polling" class="btn btn--quiet btn--sm" type="button" @click="emit('stop')">
+        暂停自动刷新
+      </button>
+      <button
+        v-else
+        class="btn btn--quiet btn--sm"
+        type="button"
+        :disabled="loading"
+        @click="emit('refresh')"
+      >
+        <IconRefresh class="icon" />
+        刷新一次
+      </button>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.generation-progress {
+.progress-card {
+  padding: 17px var(--space-5) var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
-.generation-progress :deep(.arco-card-body) {
+.progress-card__head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
-}
-
-.generation-progress__header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.generation-progress__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.generation-progress__eyebrow {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  letter-spacing: 0.08em;
-}
-
-.generation-progress__title {
-  font-size: var(--text-lg);
-  line-height: var(--text-lg-leading);
-}
-
-.generation-progress__headline {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
-  text-wrap: pretty;
-}
-
-.generation-progress__track {
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--color-fill);
-}
-
-.generation-progress__bar {
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--color-primary);
-  transform-origin: left center;
-  transition: transform 240ms ease;
-}
-
-.generation-progress__bar--success {
-  background: var(--color-success);
-}
-
-.generation-progress__bar--danger {
-  background: var(--color-danger);
-}
-
-.generation-progress__steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.generation-progress__step {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.generation-progress__icon {
-  display: inline-flex;
-  flex: none;
-  margin-top: 2px;
-  color: var(--color-text-3);
-  font-size: var(--icon-sm);
-  line-height: 1;
-}
-
-.generation-progress__step--queued .generation-progress__icon,
-.generation-progress__step--running .generation-progress__icon {
-  color: var(--color-primary);
-}
-
-.generation-progress__step--done .generation-progress__icon {
-  color: var(--color-success);
-}
-
-.generation-progress__step--failed .generation-progress__icon {
-  color: var(--color-danger);
-}
-
-.generation-progress__icon--spin {
-  animation: generation-progress-spin 1s linear infinite;
-}
-
-.generation-progress__step-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.generation-progress__step-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.generation-progress__step-title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  line-height: var(--text-sm-leading);
-}
-
-.generation-progress__step-status {
-  flex: none;
-  color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-}
-
-.generation-progress__step--queued .generation-progress__step-status,
-.generation-progress__step--running .generation-progress__step-status {
-  color: var(--color-primary);
-}
-
-.generation-progress__step--done .generation-progress__step-status {
-  color: var(--color-success);
-}
-
-.generation-progress__step--failed .generation-progress__step-status {
-  color: var(--color-danger);
-}
-
-.generation-progress__step-description {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
-  text-wrap: pretty;
-}
-
-.generation-progress__alert {
-  align-items: flex-start;
-}
-
-.generation-progress__alert-body {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.generation-progress__error-code {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+.progress-card__head h2 {
+  font-size: var(--text-base);
+  line-height: 24px;
+  font-weight: 650;
 }
 
-.generation-progress__failure-body {
+.progress-card__head .tag {
+  flex: none;
+}
+
+.flow {
+  margin-top: var(--space-5);
+}
+
+.flow__item {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: 10px;
+  padding-bottom: 18px;
 }
 
-.generation-progress__failure-copy {
+.flow__item:last-child {
+  padding-bottom: 0;
+}
+
+.flow__item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  bottom: 2px;
+  left: 10.5px;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.flow__mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-3);
+}
+
+.flow__mark .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.flow__mark--done {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.flow__mark--queued,
+.flow__mark--running {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+}
+
+.flow__mark--failed {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.flow__icon--spin {
+  animation: flow-spin 1s linear infinite;
+}
+
+.flow__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
   min-width: 0;
 }
 
-.generation-progress__failure-title {
+.flow__title {
+  display: block;
   color: var(--color-text-1);
-  font-size: var(--text-sm);
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
+}
+
+.flow__meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
+  text-wrap: pretty;
   overflow-wrap: anywhere;
 }
 
-.generation-progress__failure-message {
+.progress-error {
+  margin-top: var(--space-4);
+  padding: 10px var(--space-3);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.progress-error__title {
+  color: var(--color-text-1);
+  font-weight: 600;
+}
+
+.progress-error__code {
+  margin-left: 2px;
+  color: var(--color-danger-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.progress-error__text {
+  margin-top: 2px;
+  text-wrap: pretty;
+}
+
+.progress-error .btn {
+  margin-top: var(--space-1);
+  margin-left: calc(var(--space-2) * -1);
+}
+
+.progress-note {
+  margin-top: var(--space-4);
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
   text-wrap: pretty;
 }
 
-.generation-progress__footer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-border);
-}
-
-.generation-progress__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.generation-progress__tasks-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+.progress-count {
+  margin-top: var(--space-4);
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
 }
 
-.generation-progress__tasks-link:hover {
-  color: var(--color-primary);
+.progress-count strong {
+  color: var(--color-text-1);
+  font-weight: 650;
 }
 
-.generation-progress__hint {
-  color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-  text-wrap: pretty;
+.progress-cta {
+  margin-top: 10px;
 }
 
-@keyframes generation-progress-spin {
+.progress-cta .btn {
+  min-height: 44px;
+}
+
+.progress-subactions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+.progress-subactions .btn {
+  min-height: 32px;
+}
+
+@keyframes flow-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .generation-progress__bar {
-    transition: none;
-  }
-
-  .generation-progress__icon--spin {
+  .flow__icon--spin {
     animation: none;
   }
 }
 
 @media (max-width: 767px) {
-  .generation-progress :deep(.arco-card-body) {
-    padding: var(--space-4);
+  .progress-card {
+    padding: 15px var(--space-4) var(--space-4);
   }
 }
 </style>

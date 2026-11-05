@@ -5,10 +5,10 @@ import PageHeader from '../components/common/PageHeader.vue'
 
 <template>
   <div class="page">
-    <PageHeader eyebrow="STATS-01 · P1" title="统计" description="查看薄弱知识点与练习趋势。" />
+    <PageHeader eyebrow="Stats" title="统计" description="查看薄弱知识点与练习趋势。" />
     <PlaceholderPanel
-      hint="后续在这里展示掌握度趋势、薄弱知识点排行与练习量统计。"
-      task="P1 · FE-014 统计"
+      hint="后续在这里展示掌握度趋势、薄弱知识点排行与练习量统计；统计将在后续提供。"
+      task="FE-014 · 统计"
     />
   </div>
 </template>

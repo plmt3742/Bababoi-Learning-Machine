@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { IconArrowLeft, IconDelete, IconRefresh } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
-import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
@@ -18,12 +17,7 @@ import { normalizeApiError } from '../api/errors'
 import type { QuestionDetail, Task } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
 import { hasActiveTasks, latestTask } from '../utils/task'
-import {
-  formatDateTime,
-  masteryStatusColor,
-  masteryStatusLabel,
-  questionTypeLabel,
-} from '../utils/question'
+import { formatDateTime, masteryStatusLabel, questionTypeLabel } from '../utils/question'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,19 +68,33 @@ const {
   timeoutMs: 120_000,
 })
 
-const pageDescription = computed(() => {
-  if (!question.value) return '查看原题、AI 分析与 3 道相似题。'
+const createdAt = computed(() => (question.value ? formatDateTime(question.value.created_at) : ''))
+const detailSubtitle = computed(() => {
+  const current = question.value
+  if (!current) return ''
 
-  const parts = [question.value.subject]
-  if (question.value.chapter) parts.push(question.value.chapter)
+  const parts = [current.subject]
+  if (current.chapter) parts.push(current.chapter)
+  if (createdAt.value) parts.push(`录入于 ${createdAt.value}`)
   return parts.join(' · ')
 })
+const masteryTagClass = computed(() => {
+  const status = question.value?.mastery_status
+  if (status === 'mastered') return 'tag--mastered'
+  if (status === 'unmastered') return 'tag--unmastered'
+  return 'tag--reviewing'
+})
 
-const createdAt = computed(() => (question.value ? formatDateTime(question.value.created_at) : ''))
 const hasAnswer = computed(() => Boolean(question.value?.answer_md?.trim()))
 const hasExplanation = computed(() => Boolean(question.value?.explanation_md?.trim()))
 const blanks = computed(() => question.value?.blanks ?? [])
+const hasAnswerContent = computed(() => hasAnswer.value || blanks.value.length > 0)
+const hasAnyQa = computed(() => hasAnswerContent.value || hasExplanation.value)
 const generatedCount = computed(() => question.value?.generated_questions.length ?? 0)
+const allGeneratedValid = computed(() => {
+  const items = question.value?.generated_questions ?? []
+  return items.length > 0 && items.every((item) => item.validation_status === 'valid')
+})
 const analysisReady = computed(() => Boolean(question.value?.analysis))
 
 const analysisTask = computed(() => latestTask(liveTasks.value, 'analysis'))
@@ -100,48 +108,33 @@ const analysisPending = computed(
 const analysisFailed = computed(
   () => !analysisReady.value && analysisTask.value?.status === 'failed',
 )
-
 const quizActive = computed(
   () => quizTask.value?.status === 'queued' || quizTask.value?.status === 'running',
 )
 const generationBusy = computed(() => quizActive.value || generationRequested.value)
-const generationButtonLabel = computed(() => {
-  if (quizTask.value?.status === 'running') return '生成中…'
-  if (generationBusy.value) return '等待生成…'
-  return '生成相似题'
+
+const analysisTaskLabel = computed(() => {
+  const task = analysisTask.value
+  if (!task) return ''
+
+  const date = new Date(task.started_at ?? task.created_at)
+  if (Number.isNaN(date.getTime())) return `任务 #${task.id}`
+
+  const time = new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
+  return `任务 #${task.id} · ${time}`
 })
 
-const hasActiveTask = computed(() => hasActiveTasks(liveTasks.value))
-
-const hasRelevantFailure = computed(
-  () =>
-    (analysisTask.value?.status === 'failed' && !analysisReady.value) ||
-    quizTask.value?.status === 'failed',
-)
-
-const syncPending = computed(
-  () =>
-    (analysisTask.value?.status === 'done' && !analysisReady.value) ||
-    (quizTask.value?.status === 'done' && generatedCount.value === 0),
-)
-
-const showGenerationProgress = computed(
-  () =>
-    isPolling.value ||
-    pollingTimedOut.value ||
-    pollingStopped.value ||
-    Boolean(pollingError.value) ||
-    hasActiveTask.value ||
-    generationBusy.value ||
-    hasRelevantFailure.value ||
-    syncPending.value,
-)
-
-const generatedStatus = computed<'ready' | 'analysis-pending' | 'generating' | 'empty'>(() => {
-  if (generatedCount.value > 0) return 'ready'
-  if (analysisPending.value) return 'analysis-pending'
-  if (generationBusy.value || syncPending.value) return 'generating'
-  return 'empty'
+const generatedEmptyHint = computed(() => {
+  if (generationBusy.value) return '相似题正在生成，完成后会自动出现在这里。'
+  if (analysisPending.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
+  if (analysisFailed.value) return '分析任务未成功完成，处理后可生成相似题。'
+  if (!analysisReady.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
+  return '点击右侧「生成相似题」，完成后会在本页展示 3 道题。'
 })
 
 function rememberLatestQuizTask(tasks: Task[]): void {
@@ -341,23 +334,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page">
-    <PageHeader eyebrow="QDETAIL-01" title="错题详情" :description="pageDescription">
-      <template #actions>
-        <a-button @click="router.push('/questions')">
-          <template #icon>
-            <IconArrowLeft />
-          </template>
-          返回错题本
-        </a-button>
-        <a-button v-if="question" status="danger" type="outline" @click="openDeleteDialog">
-          <template #icon>
-            <IconDelete />
-          </template>
-          删除
-        </a-button>
-      </template>
-    </PageHeader>
-
     <LoadingSkeleton v-if="loading" variant="detail" label="正在加载错题详情" />
 
     <EmptyState
@@ -377,158 +353,190 @@ onBeforeUnmount(() => {
     />
 
     <template v-else-if="question">
-      <div class="detail-stack">
-        <section class="detail-section" aria-labelledby="question-original-heading">
-          <div class="section-heading">
-            <h2 id="question-original-heading" class="section-heading__title">原题</h2>
-            <span class="section-heading__meta">
-              {{ questionTypeLabel(question.question_type) }}
-            </span>
-          </div>
+      <header class="page-head">
+        <div class="page-head__copy">
+          <a class="backlink" href="/questions" @click.prevent="router.push('/questions')">
+            <IconArrowLeft class="icon" />
+            返回错题本
+          </a>
+          <h1>
+            错题详情
+            <span class="head-id">#{{ question.id }}</span>
+          </h1>
+          <p>{{ detailSubtitle }}</p>
+        </div>
+        <div class="page-head__actions">
+          <span class="tag" :class="masteryTagClass">
+            <span class="dot" aria-hidden="true" />
+            {{ masteryStatusLabel(question.mastery_status) }}
+          </span>
+          <button class="btn btn--danger" type="button" @click="openDeleteDialog">
+            <IconDelete class="icon" />
+            删除
+          </button>
+        </div>
+      </header>
 
-          <a-card class="question-card" :bordered="false">
-            <div class="question-card__meta">
-              <a-tag size="small" :color="masteryStatusColor(question.mastery_status)">
-                {{ masteryStatusLabel(question.mastery_status) }}
-              </a-tag>
-              <span>录入于 {{ createdAt }}</span>
+      <div class="detail-layout">
+        <div class="detail-main">
+          <article class="paper" aria-labelledby="original-title">
+            <div class="paper__head">
+              <h2 id="original-title">原题</h2>
+              <span class="paper__meta">
+                {{ questionTypeLabel(question.question_type) }} · 文字录入
+              </span>
+            </div>
+            <div class="paper__body">
+              <div class="question-stem">
+                <MarkdownRenderer :content="question.content_md" />
+              </div>
+
+              <ol v-if="question.options?.length" class="question-options">
+                <li
+                  v-for="option in question.options"
+                  :key="option.label"
+                  class="question-options__item"
+                >
+                  <span class="question-options__label">{{ option.label }}</span>
+                  <MarkdownRenderer :content="option.content_md" compact />
+                </li>
+              </ol>
             </div>
 
-            <MarkdownRenderer :content="question.content_md" />
+            <div v-if="hasAnyQa" class="answer-stack">
+              <details v-if="hasAnswerContent" class="collapse">
+                <summary>
+                  <svg
+                    class="chev"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                  答案
+                  <span class="collapse__state" aria-hidden="true" />
+                </summary>
+                <div class="collapse__body">
+                  <MarkdownRenderer v-if="hasAnswer" :content="question.answer_md ?? ''" />
+                  <ul v-if="blanks.length" class="question-blanks">
+                    <li v-for="blank in blanks" :key="blank.index" class="question-blanks__item">
+                      <span class="question-blanks__label">第 {{ blank.index }} 空</span>
+                      <MarkdownRenderer :content="blank.answer_md" compact />
+                    </li>
+                  </ul>
+                </div>
+              </details>
 
-            <ol v-if="question.options?.length" class="question-options">
-              <li
-                v-for="option in question.options"
-                :key="option.label"
-                class="question-options__item"
-              >
-                <span class="question-options__label">{{ option.label }}</span>
-                <MarkdownRenderer :content="option.content_md" compact />
-              </li>
-            </ol>
+              <details v-if="hasExplanation" class="collapse">
+                <summary>
+                  <svg
+                    class="chev"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                  解析
+                  <span class="collapse__state" aria-hidden="true" />
+                </summary>
+                <div class="collapse__body">
+                  <MarkdownRenderer :content="question.explanation_md ?? ''" />
+                </div>
+              </details>
+            </div>
 
-            <a-collapse
-              v-if="hasAnswer || hasExplanation || blanks.length"
-              class="answer-collapse"
-              :bordered="false"
-            >
-              <a-collapse-item v-if="hasAnswer || blanks.length" key="answer" header="答案">
-                <MarkdownRenderer v-if="hasAnswer" :content="question.answer_md ?? ''" compact />
-                <ul v-if="blanks.length" class="question-blanks">
-                  <li v-for="blank in blanks" :key="blank.index" class="question-blanks__item">
-                    <span class="question-blanks__label">第 {{ blank.index }} 空</span>
-                    <MarkdownRenderer :content="blank.answer_md" compact />
-                  </li>
-                </ul>
-              </a-collapse-item>
-              <a-collapse-item v-if="hasExplanation" key="explanation" header="解析">
-                <MarkdownRenderer :content="question.explanation_md ?? ''" compact />
-              </a-collapse-item>
-            </a-collapse>
+            <div v-else class="answer-empty">
+              <p class="hint">暂无答案与解析，AI 分析任务完成后会自动补全。</p>
+            </div>
+          </article>
 
-            <a-alert v-else type="info" :show-icon="true">
-              暂无答案与解析，AI 分析任务完成后会自动补全。
-            </a-alert>
-          </a-card>
-        </section>
+          <AnalysisCard
+            :analysis="question.analysis"
+            :pending="analysisPending"
+            :failed="analysisFailed"
+            :task-label="analysisTaskLabel"
+          />
 
-        <AnalysisCard
-          :analysis="question.analysis"
-          :pending="analysisPending"
-          :failed="analysisFailed"
-        />
+          <section class="generated" aria-labelledby="generated-title">
+            <div class="subhead">
+              <h2 id="generated-title">相似题</h2>
+              <span class="count">{{ generatedCount }} / 3</span>
+              <div class="subhead__tools">
+                <span v-if="allGeneratedValid" class="subhead__right">
+                  <svg
+                    class="icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m5 12 4 4L19 6" />
+                  </svg>
+                  均通过结构校验
+                </span>
+                <button
+                  class="btn btn--quiet btn--sm subhead__refresh"
+                  type="button"
+                  :disabled="refreshing"
+                  @click="handleRefreshQuestion"
+                >
+                  <IconRefresh class="icon" />
+                  {{ refreshing ? '刷新中…' : '刷新' }}
+                </button>
+              </div>
+            </div>
 
-        <GenerationProgress
-          v-if="showGenerationProgress"
-          :tasks="liveTasks"
-          :polling="isPolling"
-          :loading="tasksLoading"
-          :timed-out="pollingTimedOut"
-          :stopped="pollingStopped"
-          :error-message="pollingError?.message ?? ''"
-          :error-code="pollingError?.code ?? ''"
-          :generated-count="generatedCount"
-          :analysis-ready="analysisReady"
-          :generation-requested="generationRequested"
-          :retrying-task-id="retryingTaskId"
-          @retry="handleRetryTask"
-          @stop="stopTaskPolling"
-          @refresh="handleRefreshTasks"
-        />
+            <div v-if="generatedCount > 0" class="gen-list">
+              <GeneratedQuestionCard
+                v-for="(item, index) in question.generated_questions"
+                :key="item.id"
+                :question="item"
+                :index="index + 1"
+              />
+            </div>
 
-        <section
-          v-if="generatedStatus !== 'generating'"
-          class="detail-section"
-          aria-labelledby="question-generated-heading"
-        >
-          <div class="section-heading">
-            <h2 id="question-generated-heading" class="section-heading__title">
-              生成题
-              <span v-if="generatedCount > 0" class="section-heading__count">
-                {{ generatedCount }}/3
-              </span>
-            </h2>
-            <a-button size="small" type="text" :loading="refreshing" @click="handleRefreshQuestion">
-              <template #icon>
-                <IconRefresh />
-              </template>
-              刷新
-            </a-button>
-          </div>
+            <div v-else class="paper empty-note">
+              <p class="empty-note__title">还没有生成题</p>
+              <p class="empty-note__text">{{ generatedEmptyHint }}</p>
+            </div>
+          </section>
+        </div>
 
-          <a-alert v-if="generatedStatus === 'analysis-pending'" type="info" :show-icon="true">
-            AI 分析任务还在进行，完成后即可基于分析结果生成 3 道相似题。
-          </a-alert>
+        <aside class="detail-aside" aria-label="处理进度">
+          <GenerationProgress
+            :tasks="liveTasks"
+            :polling="isPolling"
+            :loading="tasksLoading"
+            :timed-out="pollingTimedOut"
+            :stopped="pollingStopped"
+            :error-message="pollingError?.message ?? ''"
+            :error-code="pollingError?.code ?? ''"
+            :generated-count="generatedCount"
+            :analysis-ready="analysisReady"
+            :generation-requested="generationRequested"
+            :retrying-task-id="retryingTaskId"
+            @retry="handleRetryTask"
+            @stop="stopTaskPolling"
+            @refresh="handleRefreshTasks"
+            @generate="handleGenerate"
+            @practice="goPractice"
+          />
 
-          <div v-if="generatedCount > 0" class="generated-list">
-            <GeneratedQuestionCard
-              v-for="(item, index) in question.generated_questions"
-              :key="item.id"
-              :question="item"
-              :index="index + 1"
-            />
-          </div>
-
-          <div v-else-if="generatedStatus === 'empty'" class="generated-empty">
-            <EmptyState
-              title="还没有生成题"
-              description="生成后会在这里按 1–3 展示相似题，答案与解析默认折叠。"
-              action-label="生成相似题"
-              @action="handleGenerate"
-            />
-          </div>
-        </section>
-
-        <section class="detail-actions" aria-labelledby="question-actions-heading">
-          <div class="detail-actions__copy">
-            <h2 id="question-actions-heading" class="section-heading__title">下一步</h2>
-            <p class="detail-actions__hint">
-              去练习用相似题自测；生成任务会在本页自动刷新，无需手动操作。
-            </p>
-          </div>
-
-          <a-alert v-if="actionError" type="error" show-icon closable @close="actionError = ''">
-            {{ actionError }}
-          </a-alert>
-
-          <div class="detail-actions__buttons">
-            <a-button
-              type="primary"
-              :loading="submittingGeneration"
-              :disabled="submittingGeneration || generationBusy"
-              @click="handleGenerate"
-            >
-              {{ generationButtonLabel }}
-            </a-button>
-            <a-button
-              :disabled="generatedCount === 0"
-              :title="generatedCount === 0 ? '生成相似题后即可练习' : undefined"
-              @click="goPractice"
-            >
-              去练习
-            </a-button>
-          </div>
-        </section>
+          <p v-if="actionError" class="aside-error" role="alert">{{ actionError }}</p>
+        </aside>
       </div>
     </template>
 
@@ -559,74 +567,134 @@ onBeforeUnmount(() => {
   gap: var(--space-5);
 }
 
-.detail-stack {
+.page-head {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.page-head__copy {
+  min-width: 0;
+}
+
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.backlink:hover {
+  color: var(--color-primary-active);
+}
+
+.backlink .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.page-head h1 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl-leading);
+  font-weight: 650;
+  letter-spacing: -0.012em;
+}
+
+.head-id {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.page-head p {
+  max-width: 680px;
+  margin-top: 4px;
+  color: var(--color-text-2);
+  font-size: 15px;
+  line-height: 24px;
+  text-wrap: pretty;
+}
+
+.page-head__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-areas: 'main aside';
+  align-items: start;
   gap: var(--space-5);
 }
 
-.detail-section {
+.detail-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.detail-aside {
+  grid-area: aside;
+  position: sticky;
+  top: 20px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.section-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.section-heading__title {
-  font-size: var(--text-lg);
-  line-height: var(--text-lg-leading);
-}
-
-.section-heading__count {
-  margin-left: var(--space-1);
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
+.aside-error {
+  padding: 10px var(--space-3);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
   font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-wrap: pretty;
+}
+
+.question-stem {
+  max-width: 46em;
+  font-size: var(--text-base);
+  line-height: var(--text-base-leading);
+  font-weight: 500;
+  color: var(--color-text-1);
+  text-wrap: pretty;
+}
+
+.question-stem :deep(.markdown-renderer) {
   font-weight: 500;
 }
 
-.section-heading__meta {
-  color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+.question-stem :deep(.markdown-renderer p) {
+  margin-bottom: var(--space-2);
 }
 
-.question-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-}
-
-.question-card :deep(.arco-card-body) {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-5);
-}
-
-.question-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+.question-stem :deep(.markdown-renderer > :last-child) {
+  margin-bottom: 0;
 }
 
 .question-options {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin: 0;
+  margin: var(--space-4) 0 0;
   padding: 0;
   list-style: none;
 }
@@ -635,18 +703,33 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  background: var(--color-surface);
 }
 
 .question-options__label {
+  flex: none;
   min-width: 1.5em;
   color: var(--color-text-2);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: 600;
   line-height: var(--text-sm-leading);
+}
+
+.answer-stack {
+  border-top: 1px solid var(--color-border);
+}
+
+.answer-stack .collapse {
+  padding: 0 var(--space-6);
+}
+
+.answer-stack .collapse + .collapse {
+  border-top: 1px solid var(--color-border);
 }
 
 .question-blanks {
@@ -662,78 +745,97 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .question-blanks__label {
   flex: none;
   color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-sm-leading);
+  font-size: var(--text-sm);
+  line-height: var(--text-base-leading);
 }
 
-.answer-collapse {
+.answer-empty {
+  padding: 12px var(--space-6) var(--space-6);
   border-top: 1px solid var(--color-border);
 }
 
-.answer-collapse :deep(.arco-collapse-item) {
-  border-bottom: 0;
+.answer-empty .hint {
+  margin: 0;
 }
 
-.answer-collapse :deep(.arco-collapse-item-header) {
-  padding-right: 0;
-  padding-left: 0;
-  border-bottom: 0;
-  background: transparent;
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-.answer-collapse :deep(.arco-collapse-item-content) {
-  background: transparent;
-}
-
-.answer-collapse :deep(.arco-collapse-item-content-box) {
-  padding: var(--space-2) 0 0;
-}
-
-.generated-list {
+.subhead {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 10px;
 }
 
-.generated-empty,
-.detail-actions {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+.subhead h2 {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg-leading);
+  font-weight: 650;
 }
 
-.detail-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-}
-
-.detail-actions__copy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.detail-actions__hint {
-  color: var(--color-text-2);
+.subhead .count {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
 }
 
-.detail-actions__buttons {
+.subhead__tools {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 10px;
+  margin-left: auto;
+}
+
+.subhead__right {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-success);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.subhead__right .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.subhead__refresh {
+  min-height: 30px;
+  margin-left: auto;
+  padding: 0 var(--space-2);
+}
+
+.gen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-note {
+  padding: var(--space-5) var(--space-6);
+}
+
+.empty-note__title {
+  color: var(--color-text-1);
+  font-size: var(--text-base);
+  line-height: 24px;
+  font-weight: 650;
+}
+
+.empty-note__text {
+  margin-top: var(--space-1);
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-wrap: pretty;
 }
 
 .delete-dialog__text {
@@ -743,17 +845,65 @@ onBeforeUnmount(() => {
   line-height: var(--text-sm-leading);
 }
 
+@media (max-width: 1024px) {
+  .detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'aside' 'main';
+  }
+
+  .detail-aside {
+    position: static;
+  }
+}
+
 @media (max-width: 767px) {
-  .question-card :deep(.arco-card-body) {
+  .page {
+    gap: var(--space-4);
+  }
+
+  .page-head {
+    gap: var(--space-3);
+  }
+
+  .page-head h1 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .page-head p {
+    font-size: var(--text-sm);
+    line-height: var(--text-sm-leading);
+  }
+
+  .page-head__actions {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .paper__head {
+    padding: 12px var(--space-4);
+  }
+
+  .paper__body {
     padding: var(--space-4);
   }
 
-  .detail-actions {
-    padding: var(--space-4);
+  .answer-stack .collapse {
+    padding: 0 var(--space-4);
   }
 
-  .detail-actions__buttons :deep(.arco-btn) {
-    flex: 1 1 auto;
+  .answer-empty {
+    padding: 12px var(--space-4) var(--space-4);
+  }
+
+  .subhead__tools {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .empty-note {
+    padding: var(--space-4);
   }
 }
 </style>

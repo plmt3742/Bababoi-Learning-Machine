@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 status: active
 read_when: 新建文件/目录前；review 目录结构时；agent 不确定文件该放哪时
 ---
@@ -9,6 +9,8 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
+> 2026-11-06 更新：`frontend/` 已从骨架推进到 Calm Academic 前端（FE-001~012/015 已合；FE-009/019 在 PR #19；全量视觉在 PR #21）。`components/layout/` 现为 `AppShell/AppTopBar/BrandMark/navigation`，`AppSidebar/AppNavigation` 已删除。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
+>
 > 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
 
 ```text
@@ -132,7 +134,7 @@ BababoiLearningMachine/
 │   │   ├── api/                   # HTTP 客户端、端点、类型
 │   │   ├── assets/                # 图片/字体等静态资源
 │   │   ├── components/
-│   │   │   ├── layout/            # AppShell/Sidebar/TopBar
+│   │   │   ├── layout/            # AppShell/AppTopBar/BrandMark/navigation（Calm 顶部 appbar，无 sidebar）
 │   │   │   ├── question/          # QuestionCard/TagList
 │   │   │   ├── ai/                # AIGenerationPanel/StreamStatus
 │   │   │   ├── upload/            # ImageInput/图片预览/拍照相册入口

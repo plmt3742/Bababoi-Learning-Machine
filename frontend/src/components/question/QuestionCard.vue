@@ -1,51 +1,69 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import type { QuestionListItem } from '../../api/types'
+import type { MasteryStatus, QuestionListItem } from '../../api/types'
 import MarkdownRenderer from '../common/MarkdownRenderer.vue'
-import {
-  formatDate,
-  masteryStatusColor,
-  masteryStatusLabel,
-  questionTypeLabel,
-} from '../../utils/question'
+import { masteryStatusLabel, questionTypeLabel } from '../../utils/question'
 
 const props = defineProps<{ question: QuestionListItem }>()
 
+const MASTERY_TAG_CLASSES: Record<MasteryStatus, string> = {
+  unmastered: 'tag--unmastered',
+  reviewing: 'tag--reviewing',
+  mastered: 'tag--mastered',
+}
+
 const detailPath = computed(() => `/questions/${props.question.id}`)
-const createdAt = computed(() => formatDate(props.question.created_at))
+const createdAt = computed(() => formatCardDate(props.question.created_at))
 const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.question.excerpt}`)
+const masteryTagClass = computed(() => MASTERY_TAG_CLASSES[props.question.mastery_status])
+
+function formatCardDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 </script>
 
 <template>
   <RouterLink :to="detailPath" class="question-card" :aria-label="ariaLabel">
-    <a-card class="question-card__surface" :bordered="false">
-      <div class="question-card__top">
-        <p class="question-card__subject">
-          {{ question.subject }}
-          <span v-if="question.chapter" class="question-card__chapter">
-            · {{ question.chapter }}
-          </span>
+    <article class="qcard">
+      <div class="qcard__head">
+        <span class="qcard__id">#{{ question.id }}</span>
+        <p class="qcard__subject">
+          {{ question.subject
+          }}<span v-if="question.chapter" class="qcard__chapter">
+            <span class="sep">·</span>{{ question.chapter }}</span
+          >
         </p>
-        <div class="question-card__badges">
-          <a-tag size="small" color="gray">{{ questionTypeLabel(question.question_type) }}</a-tag>
-          <a-tag size="small" :color="masteryStatusColor(question.mastery_status)">
+        <div class="qcard__badges">
+          <span class="tag qcard__type">{{ questionTypeLabel(question.question_type) }}</span>
+          <span class="tag" :class="masteryTagClass">
+            <span class="dot" aria-hidden="true"></span>
             {{ masteryStatusLabel(question.mastery_status) }}
-          </a-tag>
+          </span>
         </div>
       </div>
 
-      <MarkdownRenderer class="question-card__excerpt" :content="question.excerpt" />
+      <div class="qcard__stem">
+        <MarkdownRenderer :content="question.excerpt" />
+      </div>
 
-      <div class="question-card__footer">
-        <ul v-if="question.tags.length" class="question-card__tags">
+      <div class="qcard__foot">
+        <ul v-if="question.tags.length" class="qcard__tags" aria-label="知识点">
           <li v-for="tag in question.tags" :key="tag.id">
-            <a-tag size="small">{{ tag.name }}</a-tag>
+            <span class="tag tag--point">{{ tag.name }}</span>
           </li>
         </ul>
-        <time class="question-card__date" :datetime="question.created_at">{{ createdAt }}</time>
+        <p class="qcard__facts">
+          <span>{{ questionTypeLabel(question.question_type) }}</span>
+          <span class="fact-dot" aria-hidden="true"></span>
+          <time :datetime="question.created_at">{{ createdAt }}</time>
+        </p>
       </div>
-    </a-card>
+    </article>
   </RouterLink>
 </template>
 
@@ -60,68 +78,78 @@ const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.qu
   color: inherit;
 }
 
-.question-card__surface {
+.question-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.qcard {
+  padding: 17px var(--space-5) 15px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
   transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.question-card:hover .question-card__surface {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-pop);
-  transform: translateY(-1px);
+.question-card:hover .qcard {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
 }
 
-.question-card:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-.question-card__surface :deep(.arco-card-body) {
+.qcard__head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-}
-
-.question-card__top {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.question-card__subject {
+.qcard__id {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  letter-spacing: 0.02em;
+}
+
+.qcard__subject {
   color: var(--color-text-2);
   font-size: var(--text-sm);
-  font-weight: 500;
   line-height: var(--text-sm-leading);
+  font-weight: 500;
 }
 
-.question-card__chapter {
-  color: var(--color-text-3);
-  font-weight: 400;
+.qcard__subject .sep {
+  margin: 0 4px;
+  color: var(--color-border-strong);
 }
 
-.question-card__badges {
+.qcard__badges {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: 6px;
+  margin-left: auto;
 }
 
-.question-card__excerpt {
+.qcard__stem {
+  max-width: 54em;
+  margin-top: 8px;
   color: var(--color-text-1);
   font-size: var(--text-base);
   line-height: var(--text-base-leading);
+  font-weight: 500;
+  text-wrap: pretty;
 }
 
-.question-card__excerpt :deep(p) {
+.qcard__stem :deep(.markdown-renderer) {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.qcard__stem :deep(p) {
   display: -webkit-box;
   overflow: hidden;
   text-wrap: pretty;
@@ -129,42 +157,80 @@ const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.qu
   -webkit-line-clamp: 3;
 }
 
-.question-card__excerpt :deep(a) {
+.qcard__stem :deep(a) {
+  color: inherit;
+  text-decoration: none;
   pointer-events: none;
 }
 
-.question-card__footer {
+.qcard__foot {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: 8px var(--space-3);
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--color-border);
 }
 
-.question-card__tags {
+.qcard__tags {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.question-card__date {
+.qcard__facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-left: auto;
   color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.fact-dot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+
+.qcard__facts time {
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 767px) {
-  .question-card__surface :deep(.arco-card-body) {
-    padding: var(--space-4);
+  .qcard {
+    padding: 14px var(--space-4) 12px;
   }
 
-  .question-card__footer {
+  .qcard__stem {
+    margin-top: 6px;
+  }
+
+  .qcard__foot {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .qcard__facts {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .qcard__type {
+    display: none;
   }
 }
 </style>

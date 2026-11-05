@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 status: active
 read_when: 切换会话、换 agent、让新 agent 接手任务时
 ---
@@ -9,19 +9,25 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 > 目标：让一个新 agent 在 **3 分钟内**知道“项目是什么、现在到哪、我要做什么、不能做什么”，而不是把 `docs/` 全读一遍。
 
-## 0. 当前交接状态（2026-11-05，origin/main @ 2335773）
+## 0. 当前交接状态（2026-11-06，origin/main @ afa881d）
 
-- **`main`**：`2335773`（docs 同步 #12；CI #10 已合）
-- **已合后端**：BE-001/002/003（PR #2/#3/#4）；代码可运行，`pytest 42 passed`
-- **后端 open PR**：#5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
+- **`main`**：`afa881d`（BE-001/002/003 + CI #10 + 前端 FE-001~012/015 已合）
+- **已合后端**：BE-001/002/003（PR #2/#3/#4）；代码可运行
+- **后端 open PR**：#5（BE-006/007）、#6（BE-005）、#7（BE-004）、#9（BE-012）；#8 docs 暂缓
 - **后端 follow-up**：issue #11（`/health`、MySQL 驱动、文档、限流等）
-- **前端进行中**：`feat/frontend-m0-foundation`（07/08/页面原型/交互地图，未合入 main；FE-001 未开始）
+- **前端已合**：FE-001/002/003（PR #16）、FE-004/005/006/011（PR #17）、FE-007/008/010/012/015（PR #18）
+- **前端 open PR**：
+  - PR #19 `feat/frontend-fe-009-019`：AI 进度轮询 + 任务中心；CI 绿，待合并
+  - PR #21 `feat/frontend-calm-redesign`：全量 Calm Academic 视觉覆写（stacked 在 PR #19）；CI 绿，待合并
+  - 旧 PR #20（Calm+Studio token 级换肤）已关闭
+- **当前视觉**：AppShell 为顶部 appbar + 1140px 纸面 frame（无侧边栏）；移动端 appbar + 底部 4 项导航；四核心屏（列表/录入/详情/任务中心）+ 登录/占位/404 已按 `calm-academic/index.html` 覆写
+- **已验证**：`pnpm lint/typecheck/build/format:check`；Playwright 1366/375；搜索/筛选、创建→分析→生成→任务中心、失败重试、空表单校验
 - **PRD**：`docs/prd` 已删除；v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
 - **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不再做 bbox/框题；见 ADR-004 / issue #13
-- **下一步顺序**：后端 `#7 → #6 → #5 → rebase #9 → #8`；开 `main` 分支保护；前端 FE-001 + 图片 v2；PRD v0.9
+- **下一步顺序**：前端 review PR #19 → 合并 #19 → 把 PR #21 base 改为 `main` → review/合并 #21；同时后端按 issue #11 和 open PR 推进；PRD v0.9
 - **审查报告**：`docs/agent/13-backend-merge-audit.md`
-- **不要做**：不要 revert BE-001/002/003；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题方案
-- **分支规则**：所有开发（含前端/文档）从 `main` 开短分支 + PR；不要直接合入 `main`，合并前等用户确认。
+- **不要做**：不要 revert BE-001/002/003；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题方案；不要直接合 main
+- **分支规则**：所有开发（含前端/文档）从 `main` 开短分支 + PR；合并前等用户确认。
 
 ## 1. 最小启动提示词（复制即用）
 
@@ -58,8 +64,8 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
 不要直接 push/merge `main`；完成后开 PR，等用户确认后再合并。
-开发页面时参照 `docs/product/drafts/prototype.html` 的结构和 `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
-视觉语言以 `04-design-system.md` 的第一/第二原则为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
+页面结构/交互参照 `07-page-drafts.md` / `08-interaction-map.md`；**视觉唯一基准是 `calm-academic/index.html`**（顶部 appbar + 1140px 纸面 frame，无侧边栏）。图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
+视觉语言以 `04-design-system.md` 的第一/第二原则 + §1.2 Calm 定稿为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
 图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题。
 必须覆盖 cropping/uploading/extracting/confirming_items/editing/saving/error 等状态；AI 页面加 partial/retry。

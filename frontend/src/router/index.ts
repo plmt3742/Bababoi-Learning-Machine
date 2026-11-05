@@ -33,7 +33,7 @@ const router = createRouter({
           path: 'questions/new',
           name: 'question-new',
           component: () => import('../views/QuestionCreateView.vue'),
-          meta: { title: '录入错题', navKey: 'questions', requiresAuth: true },
+          meta: { title: '录入错题', navKey: 'create', requiresAuth: true },
         },
         {
           path: 'tasks',
