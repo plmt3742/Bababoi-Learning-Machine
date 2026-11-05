@@ -4,19 +4,19 @@
 
 ## 什么放这里
 
-| 组件 | 用途 | 关键状态 |
-|---|---|---|
-| `PageHeader` | 页面标题 + 描述 + 主操作 | 默认 |
-| `EmptyState` | 无数据 + 主操作 | 空 |
-| `ErrorState` | 错误 + 重试 | error |
-| `LoadingSkeleton` | 列表/详情/题卡骨架 | loading |
-| `ConfirmDialog` | 删除/重新生成确认 | 默认 |
-| `TagList` | 标签展示/溢出 +N | 默认/溢出 |
-| `StatCard` | 数字 + 标签 + 趋势 | 默认/空/loading |
-| `SearchInput` | 搜索 + 防抖 | 默认/loading |
-| `Pagination` | 分页 | 默认/禁用 |
-| `MarkdownRenderer` | Markdown + KaTeX + DOMPurify | 默认/超长 |
-| `ResultFeedback` | 对/错 + 解析 | 正确/错误 |
+| 组件               | 用途                         | 关键状态        |
+| ------------------ | ---------------------------- | --------------- |
+| `PageHeader`       | 页面标题 + 描述 + 主操作     | 默认            |
+| `EmptyState`       | 无数据 + 主操作              | 空              |
+| `ErrorState`       | 错误 + 重试                  | error           |
+| `LoadingSkeleton`  | 列表/详情/题卡骨架           | loading         |
+| `ConfirmDialog`    | 删除/重新生成确认            | 默认            |
+| `TagList`          | 标签展示/溢出 +N             | 默认/溢出       |
+| `StatCard`         | 数字 + 标签 + 趋势           | 默认/空/loading |
+| `SearchInput`      | 搜索 + 防抖                  | 默认/loading    |
+| `Pagination`       | 分页                         | 默认/禁用       |
+| `MarkdownRenderer` | Markdown + KaTeX + DOMPurify | 默认/超长       |
+| `ResultFeedback`   | 对/错 + 解析                 | 正确/错误       |
 
 ## 什么不放这里
 
@@ -37,21 +37,22 @@
 
 ## 领域组件
 
-| 目录 | 组件 |
-|---|---|
-| `components/layout/` | `AppShell`、`Sidebar`、`TopBar` |
-| `components/question/` | `QuestionCard`、`QuestionForm`、`QuestionDetail` |
-| `components/ai/` | `AIGenerationPanel`、`StageProgress`、`GeneratedQuestionCard` |
-| `components/upload/` | `ImageInput`、`ImagePreview`、`MobileImagePicker` |
+| 目录                   | 组件                                                          |
+| ---------------------- | ------------------------------------------------------------- |
+| `components/layout/`   | `AppShell`、`Sidebar`、`TopBar`                               |
+| `components/question/` | `QuestionCard`、`QuestionForm`、`QuestionDetail`              |
+| `components/ai/`       | `AIGenerationPanel`、`StageProgress`、`GeneratedQuestionCard` |
+| `components/upload/`   | `ImageInput`、`ImagePreview`、`MobileImagePicker`             |
 
 ## 共享逻辑
 
-| composable | 用途 |
-|---|---|
-| `useAuth` | 登录态、token、401 跳转 |
-| `useSSE` | 阶段级 SSE、AbortController、重试 |
-| `useImagePicker` | 电脑上传 / 手机拍照 / 相册 |
-| `usePagination` | 列表分页/筛选 |
-| `useAsyncState` | loading/error/data 三态 |
+| composable       | 用途                              |
+| ---------------- | --------------------------------- |
+| `useAuth`        | 登录态、token、401 跳转           |
+| `useSSE`         | 阶段级 SSE、AbortController、重试 |
+| `useImagePicker` | 电脑上传 / 手机拍照 / 相册        |
+| `usePagination`  | 列表分页/筛选                     |
+| `useAsyncState`  | loading/error/data 三态           |
 
-> 当前是目录骨架，组件在 FE-001 / FE-012 里开始实现。
+> `PageHeader`、`MarkdownRenderer`、`EmptyState`、`ErrorState`、`LoadingSkeleton`
+> 已在 FE-010 / FE-012 实现；其余组件按任务陆续补齐。

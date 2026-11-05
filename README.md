@@ -20,7 +20,7 @@
 
 ```text
 frontend/                 # Vue 3 前端（目录骨架，脚手架待 FE-001）
-backend/                  # FastAPI 后端（BE-001 已就位：/health + CORS + 日志 + 错误信封）
+backend/                  # FastAPI 后端（BE-001/002/003 已就位：/health + 表 + 认证）
 contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
 scripts/                  # 跨前后端的开发脚本
@@ -42,15 +42,24 @@ Resource/                 # 本地只读参考资料（不上传仓库）
 - 设计手册：`docs/agent/08-design-playbook.md`
 - 风险：`docs/agent/09-risks.md`
 
+## 当前进度（2026-11-05）
+
+- `origin/main @ 2335773`：BE-001/002/003 已合并（PR #2/#3/#4）；CI 已加固（PR #10）
+- 后端待合并：PR #5（BE-006/007）、#6（BE-005）、#7（BE-004）、#8（docs）、#9（BE-012）
+- 后端 follow-up：issue #11（health、MySQL 驱动、文档、限流等）
+- 前端：FE-001 尚未开始；页面草稿/原型/交互地图在 `feat/frontend-m0-foundation`
+- 图片录入 v2（正式决策）：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题
+- PRD v0.8 已归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
+
 ## 本地启动
 
-> 后端脚手架已可运行（BE-001）；前端脚手架待 FE-001。数据库与迁移在 BE-002 接入。
+> 后端已可运行（BE-001/002/003）；前端脚手架待 FE-001。
 
 ```bash
 # 前端（脚手架完成后）
 cd frontend && pnpm install && pnpm dev
 
-# 后端（已可用；需要 uv）
+# 后端（已可用；需要 uv 和 JWT_SECRET）
 cd backend && uv sync && uv run uvicorn app.main:app --reload   # http://127.0.0.1:8000/api/v1/health
 cd backend && uv run ruff check app tests && uv run pytest      # 检查与测试
 ```

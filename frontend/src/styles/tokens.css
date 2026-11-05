@@ -1,0 +1,93 @@
+/**
+ * Design tokens — single source of truth for visual decisions.
+ * Values mirror docs/product/04-design-system.md.
+ * Components must consume var(--token); raw colours belong only in this file.
+ */
+:root {
+  color-scheme: light;
+
+  /* Colour */
+  --color-primary: #165dff;
+  --color-primary-hover: #4080ff;
+  --color-primary-active: #0e42d2;
+  --color-success: #00b42a;
+  --color-warning: #ff7d00;
+  --color-danger: #f53f3f;
+  --color-bg: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-text-1: #1d2129;
+  --color-text-2: #4e5969;
+  --color-text-3: #6b7280;
+  --color-border: #e5e6eb;
+  --color-fill: #f2f3f5;
+
+  /* Derived washes — primary at alpha, no additional hues. */
+  --color-primary-soft: rgba(22, 93, 255, 0.08);
+  --color-primary-softer: rgba(22, 93, 255, 0.04);
+  --color-overlay: rgba(29, 33, 41, 0.45);
+
+  /* Typography */
+  --font-sans: Inter, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
+
+  /* The doc pairs size / line-height; kept as separate tokens for CSS use. */
+  --text-xs: 12px;
+  --text-xs-leading: 20px;
+  --text-sm: 14px;
+  --text-sm-leading: 22px;
+  --text-base: 16px;
+  --text-base-leading: 26px;
+  --text-lg: 18px;
+  --text-lg-leading: 28px;
+  --text-xl: 20px;
+  --text-xl-leading: 30px;
+  --text-2xl: 24px;
+  --text-2xl-leading: 32px;
+  --text-3xl: 30px;
+  --text-3xl-leading: 38px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Breakpoints — documented for reference; media queries need literal values. */
+  --bp-sm: 375px;
+  --bp-md: 768px;
+  --bp-lg: 1200px;
+  --bp-xl: 1440px;
+
+  /* Layout */
+  --layout-sidebar-width: 232px;
+  --layout-topbar-height: 60px;
+  --layout-mobile-header-height: 56px;
+  --layout-bottom-nav-height: 60px;
+  --layout-content-max: 1200px;
+  --layout-auth-card-max: 440px;
+  --layout-empty-min-height: 300px;
+  --layout-empty-glyph: 64px;
+  --layout-brand-mark: 36px;
+  --control-height: 44px;
+  --icon-sm: 18px;
+  --icon-md: 20px;
+  --icon-lg: 22px;
+  --layout-gutter: var(--space-6);
+  --layout-gutter-mobile: var(--space-4);
+  --z-sidebar: 20;
+  --z-topbar: 30;
+  --z-drawer: 100;
+}

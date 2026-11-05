@@ -1,0 +1,74 @@
+/**
+ * Arco Design Vue theme bridge.
+ *
+ * Arco palette variables are space-separated RGB channels:
+ *   --arcoblue-6: 22, 93, 255;  →  rgb(var(--arcoblue-6))
+ * The full 1–10 ramp must be overridden together, otherwise hover / active
+ * states keep the old hue. Values are anchored on src/styles/tokens.css.
+ */
+:root {
+  /* Primary ramp — --color-primary (#165DFF) = arcoblue-6. */
+  --arcoblue-1: 232, 243, 255;
+  --arcoblue-2: 190, 218, 255;
+  --arcoblue-3: 148, 191, 255;
+  --arcoblue-4: 106, 161, 255;
+  --arcoblue-5: 64, 128, 255; /* --color-primary-hover */
+  --arcoblue-6: 22, 93, 255; /* --color-primary */
+  --arcoblue-7: 14, 66, 210; /* --color-primary-active */
+  --arcoblue-8: 7, 44, 166;
+  --arcoblue-9: 3, 26, 121;
+  --arcoblue-10: 0, 13, 77;
+
+  /* Success ramp — --color-success (#00B42A) = green-6. */
+  --green-1: 232, 255, 234;
+  --green-2: 175, 240, 181;
+  --green-3: 123, 225, 136;
+  --green-4: 76, 210, 99;
+  --green-5: 35, 195, 67;
+  --green-6: 0, 180, 42;
+  --green-7: 0, 154, 41;
+  --green-8: 0, 128, 38;
+  --green-9: 0, 102, 34;
+  --green-10: 0, 77, 28;
+
+  /* Warning ramp — --color-warning (#FF7D00) = orange-6. */
+  --orange-1: 255, 247, 232;
+  --orange-2: 255, 228, 186;
+  --orange-3: 255, 207, 139;
+  --orange-4: 255, 182, 93;
+  --orange-5: 255, 154, 46;
+  --orange-6: 255, 125, 0;
+  --orange-7: 210, 95, 0;
+  --orange-8: 166, 69, 0;
+  --orange-9: 121, 46, 0;
+  --orange-10: 77, 27, 0;
+
+  /* Danger ramp — --color-danger (#F53F3F) = red-6. */
+  --red-1: 255, 236, 232;
+  --red-2: 253, 205, 197;
+  --red-3: 251, 172, 163;
+  --red-4: 249, 137, 129;
+  --red-5: 247, 101, 96;
+  --red-6: 245, 63, 63;
+  --red-7: 203, 39, 45;
+  --red-8: 161, 21, 30;
+  --red-9: 119, 8, 19;
+  --red-10: 77, 0, 10;
+
+  /* Neutral ramp — maps 1:1 to --color-bg / fill / border / text tokens. */
+  --gray-1: 247, 248, 250; /* --color-bg */
+  --gray-2: 242, 243, 245; /* --color-fill */
+  --gray-3: 229, 230, 235; /* --color-border */
+  --gray-4: 201, 205, 212;
+  --gray-5: 169, 174, 184;
+  --gray-6: 107, 114, 128; /* --color-text-3 */
+  --gray-7: 107, 119, 133;
+  --gray-8: 78, 89, 105; /* --color-text-2 */
+  --gray-9: 39, 46, 59;
+  --gray-10: 29, 33, 41; /* --color-text-1 */
+
+  /* Arco surface tokens used by Card / Layout / Drawer. */
+  --color-bg-1: var(--color-surface);
+  --color-bg-2: var(--color-bg);
+  --color-bg-white: var(--color-surface);
+}

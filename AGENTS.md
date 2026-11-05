@@ -38,6 +38,7 @@
 | 第一次进入项目 | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [03-roadmap](docs/agent/03-roadmap.md) → [04-todos](docs/agent/04-todos.md) |
 | 写前端 | [00-context](docs/agent/00-context.md) → [05-architecture](docs/agent/05-architecture.md) → [06-file-tree](docs/agent/06-file-tree.md) → [07-workflow](docs/agent/07-workflow.md) |
 | 写后端 | [00-context](docs/agent/00-context.md) → [05-architecture](docs/agent/05-architecture.md) → [06-file-tree](docs/agent/06-file-tree.md) → [07-workflow](docs/agent/07-workflow.md) |
+| 后端对接 / M0 契约确认 | [00-context](docs/agent/00-context.md) → [12-backend-alignment](docs/agent/12-backend-alignment.md) → [05-architecture](docs/agent/05-architecture.md) |
 | 做产品/原型设计 | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [08-design-playbook](docs/agent/08-design-playbook.md) → [docs/product](docs/product/README.md) |
 | 修 bug / 排查风险 | [00-context](docs/agent/00-context.md) → [09-risks](docs/agent/09-risks.md) → [05-architecture](docs/agent/05-architecture.md) |
 | 准备答辩/PPT | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [09-risks](docs/agent/09-risks.md) → [08-design-playbook](docs/agent/08-design-playbook.md) |

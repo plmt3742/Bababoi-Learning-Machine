@@ -6,6 +6,8 @@
 - 相关任务：BE-005、BE-014、BE-017、FE-016
 - 相关文档：`docs/agent/05-architecture.md`、`docs/agent/09-risks.md` R-006、`docs/adr/ADR-001-tech-stack.md`
 
+> 2026-11-05 更新：图片交互已由 [ADR-004](ADR-004-image-text-extraction.md) 改为「用户裁剪 + 多题文本提取」。本 ADR 的「不做独立 OCR、DeepSeek 多模态直读」仍有效；bbox/框题部分不再适用。
+
 ## 1. 背景
 
 - docx 把“图像识别录入”作为核心特性。
