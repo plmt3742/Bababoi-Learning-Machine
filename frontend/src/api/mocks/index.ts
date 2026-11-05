@@ -20,6 +20,9 @@ import type {
   QuestionTag,
   QuestionType,
   RegisterPayload,
+  StatsOverview,
+  StatsTrendPoint,
+  StatsWeakKnowledgePoint,
   Task,
   TaskStatus,
   User,
@@ -30,6 +33,8 @@ import type { MockState, MockUser } from './data'
 const LATENCY_MS = 320
 const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
 const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
+const TREND_DAY_COUNT = 7
+const WEAK_POINT_LIMIT = 5
 
 const genericAnalysis: Analysis = {
   topic_type: '待整理',
@@ -304,6 +309,132 @@ function buildDetail(
     generated_questions: includeGenerated
       ? state.generatedQuestions.filter((item) => item.parent_question_id === question.id)
       : [],
+  }
+}
+
+function utcDayKey(value: string): string | null {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
+}
+
+function buildWeakKnowledgePoints(state: MockState): StatsWeakKnowledgePoint[] {
+  const generatedById = new Map(state.generatedQuestions.map((item) => [item.id, item]))
+  const questionById = new Map(state.questions.map((item) => [item.id, item]))
+  const aggregate = new Map<
+    string,
+    { wrongCount: number; totalCount: number; correctCount: number }
+  >()
+
+  for (const record of state.practiceRecords) {
+    const generated = generatedById.get(record.generated_question_id)
+    const parent = generated ? questionById.get(generated.parent_question_id) : undefined
+    if (!parent) continue
+
+    for (const tag of parent.tags) {
+      const bucket = aggregate.get(tag.name) ?? {
+        wrongCount: 0,
+        totalCount: 0,
+        correctCount: 0,
+      }
+      bucket.totalCount += 1
+      if (record.is_correct) bucket.correctCount += 1
+      else bucket.wrongCount += 1
+      aggregate.set(tag.name, bucket)
+    }
+  }
+
+  return [...aggregate.entries()]
+    .map(([name, bucket]) => ({
+      name,
+      wrong_count: bucket.wrongCount,
+      total_count: bucket.totalCount,
+      accuracy:
+        bucket.totalCount > 0
+          ? Math.round((bucket.correctCount / bucket.totalCount) * 1000) / 1000
+          : 0,
+    }))
+    .filter((point) => point.total_count > 0)
+    .sort(
+      (left, right) =>
+        right.wrong_count - left.wrong_count ||
+        left.accuracy - right.accuracy ||
+        right.total_count - left.total_count ||
+        left.name.localeCompare(right.name),
+    )
+    .slice(0, WEAK_POINT_LIMIT)
+}
+
+function buildRecentTrend(records: PracticeRecord[]): StatsTrendPoint[] {
+  const buckets = new Map<string, { practiceCount: number; correctCount: number }>()
+
+  for (const record of records) {
+    const dayKey = utcDayKey(record.created_at)
+    if (!dayKey) continue
+
+    const bucket = buckets.get(dayKey) ?? { practiceCount: 0, correctCount: 0 }
+    bucket.practiceCount += 1
+    if (record.is_correct) bucket.correctCount += 1
+    buckets.set(dayKey, bucket)
+  }
+
+  const today = new Date()
+  const days: StatsTrendPoint[] = []
+
+  for (let offset = TREND_DAY_COUNT - 1; offset >= 0; offset -= 1) {
+    const day = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - offset),
+    )
+    const date = day.toISOString().slice(0, 10)
+    const bucket = buckets.get(date)
+
+    days.push({
+      date,
+      practice_count: bucket?.practiceCount ?? 0,
+      correct_count: bucket?.correctCount ?? 0,
+    })
+  }
+
+  return days
+}
+
+function latestStateTimestamp(state: MockState): string {
+  let latest = ''
+
+  const consider = (value: string | null): void => {
+    if (value && value > latest) latest = value
+  }
+
+  for (const question of state.questions) consider(question.updated_at)
+  for (const generated of state.generatedQuestions) consider(generated.created_at)
+  for (const record of state.practiceRecords) consider(record.created_at)
+  for (const task of state.tasks) {
+    consider(task.finished_at)
+    consider(task.created_at)
+  }
+
+  return latest || nowIso()
+}
+
+function buildStatsOverview(state: MockState): StatsOverview {
+  const totalPracticeRecords = state.practiceRecords.length
+  const correctPracticeRecords = state.practiceRecords.filter((record) => record.is_correct).length
+  const countByMastery = (status: MasteryStatus): number =>
+    state.questions.filter((question) => question.mastery_status === status).length
+
+  return {
+    total_questions: state.questions.length,
+    total_generated_questions: state.generatedQuestions.length,
+    total_practice_records: totalPracticeRecords,
+    accuracy:
+      totalPracticeRecords > 0
+        ? Math.round((correctPracticeRecords / totalPracticeRecords) * 1000) / 1000
+        : 0,
+    mastered_count: countByMastery('mastered'),
+    reviewing_count: countByMastery('reviewing'),
+    unmastered_count: countByMastery('unmastered'),
+    weak_knowledge_points: buildWeakKnowledgePoints(state),
+    recent_trend: buildRecentTrend(state.practiceRecords),
+    updated_at: latestStateTimestamp(state),
   }
 }
 
@@ -832,6 +963,12 @@ export function setupMocks(): void {
     state.practiceRecords.push(record)
 
     return [201, record]
+  })
+
+  adapter.onGet('/stats/overview').reply((config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    return [200, buildStatsOverview(state)]
   })
 
   adapter.onGet('/practice-records').reply((config) => {

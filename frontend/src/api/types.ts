@@ -224,6 +224,35 @@ export interface PracticeRecordListQuery {
   generated_question_id?: number
 }
 
+export interface StatsWeakKnowledgePoint {
+  name: string
+  wrong_count: number
+  total_count: number
+  /** Correct practice ratio for this knowledge point, in the 0–1 range. */
+  accuracy: number
+}
+
+export interface StatsTrendPoint {
+  /** UTC calendar day in `YYYY-MM-DD` form. */
+  date: string
+  practice_count: number
+  correct_count: number
+}
+
+export interface StatsOverview {
+  total_questions: number
+  total_generated_questions: number
+  total_practice_records: number
+  /** Correct practice ratio across all records, in the 0–1 range. */
+  accuracy: number
+  mastered_count: number
+  reviewing_count: number
+  unmastered_count: number
+  weak_knowledge_points: StatsWeakKnowledgePoint[]
+  recent_trend: StatsTrendPoint[]
+  updated_at: string
+}
+
 export interface ApiErrorDetail {
   code: string
   message: string
