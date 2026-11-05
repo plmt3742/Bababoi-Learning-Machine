@@ -380,8 +380,10 @@ onBeforeUnmount(() => {
 
 .list-footer__total {
   color: var(--color-text-3);
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 1023px) {

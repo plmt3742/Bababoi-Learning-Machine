@@ -108,6 +108,7 @@ const generationBusy = computed(() => quizActive.value || generationRequested.va
 const generationButtonLabel = computed(() => {
   if (quizTask.value?.status === 'running') return '生成中…'
   if (generationBusy.value) return '等待生成…'
+  if (generatedCount.value > 0) return '重新生成'
   return '生成相似题'
 })
 
@@ -380,7 +381,10 @@ onBeforeUnmount(() => {
       <div class="detail-stack">
         <section class="detail-section" aria-labelledby="question-original-heading">
           <div class="section-heading">
-            <h2 id="question-original-heading" class="section-heading__title">原题</h2>
+            <div class="section-heading__main">
+              <span class="section-heading__index" aria-hidden="true">01</span>
+              <h2 id="question-original-heading" class="section-heading__title">原题</h2>
+            </div>
             <span class="section-heading__meta">
               {{ questionTypeLabel(question.question_type) }}
             </span>
@@ -388,10 +392,14 @@ onBeforeUnmount(() => {
 
           <a-card class="question-card" :bordered="false">
             <div class="question-card__meta">
+              <span class="question-card__ref">#{{ question.id }}</span>
               <a-tag size="small" :color="masteryStatusColor(question.mastery_status)">
                 {{ masteryStatusLabel(question.mastery_status) }}
               </a-tag>
-              <span>录入于 {{ createdAt }}</span>
+              <span class="question-card__created">
+                录入于
+                <time :datetime="question.created_at">{{ createdAt }}</time>
+              </span>
             </div>
 
             <MarkdownRenderer :content="question.content_md" />
@@ -433,6 +441,7 @@ onBeforeUnmount(() => {
         </section>
 
         <AnalysisCard
+          index="02"
           :analysis="question.analysis"
           :pending="analysisPending"
           :failed="analysisFailed"
@@ -462,12 +471,15 @@ onBeforeUnmount(() => {
           aria-labelledby="question-generated-heading"
         >
           <div class="section-heading">
-            <h2 id="question-generated-heading" class="section-heading__title">
-              生成题
-              <span v-if="generatedCount > 0" class="section-heading__count">
-                {{ generatedCount }}/3
-              </span>
-            </h2>
+            <div class="section-heading__main">
+              <span class="section-heading__index" aria-hidden="true">03</span>
+              <h2 id="question-generated-heading" class="section-heading__title">
+                生成题
+                <span v-if="generatedCount > 0" class="section-heading__count">
+                  {{ generatedCount }}/3
+                </span>
+              </h2>
+            </div>
             <a-button size="small" type="text" :loading="refreshing" @click="handleRefreshQuestion">
               <template #icon>
                 <IconRefresh />
@@ -579,6 +591,21 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
 }
 
+.section-heading__main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.section-heading__index {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  letter-spacing: 0.06em;
+}
+
 .section-heading__title {
   font-size: var(--text-lg);
   line-height: var(--text-lg-leading);
@@ -620,6 +647,17 @@ onBeforeUnmount(() => {
   color: var(--color-text-3);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
+}
+
+.question-card__ref {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.question-card__created time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .question-options {

@@ -14,14 +14,14 @@ import { normalizeApiError } from '../api/errors'
 import type { Draft, Task, TaskStatus } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
 import { formatDateTime } from '../utils/question'
-import { taskErrorMessage, taskStageLabel, taskStatusColor, taskStatusLabel } from '../utils/task'
+import { taskErrorMessage, taskStageLabel, taskStatusLabel } from '../utils/task'
 
 type StatusFilter = 'all' | TaskStatus
 
 const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'queued', label: '排队中' },
-  { value: 'running', label: '生成中' },
+  { value: 'running', label: '进行中' },
   { value: 'done', label: '完成' },
   { value: 'failed', label: '失败' },
 ]
@@ -50,6 +50,18 @@ const filteredTasks = computed(() => {
   if (statusFilter.value === 'all') return tasks.value
   return tasks.value.filter((task) => task.status === statusFilter.value)
 })
+
+const statusCounts = computed<Record<StatusFilter, number>>(() => ({
+  all: tasks.value.length,
+  queued: tasks.value.filter((task) => task.status === 'queued').length,
+  running: tasks.value.filter((task) => task.status === 'running').length,
+  done: tasks.value.filter((task) => task.status === 'done').length,
+  failed: tasks.value.filter((task) => task.status === 'failed').length,
+}))
+
+function formatQuestionRef(questionId: number): string {
+  return `Q-${String(questionId).padStart(4, '0')}`
+}
 
 const initialLoading = computed(() => {
   if (!draftLoaded.value) return true
@@ -163,29 +175,12 @@ onMounted(() => {
       eyebrow="TASK-01"
       title="任务中心"
       description="跟踪 AI 分析与生题进度，失败可重试；有进行中的任务时自动刷新。"
-    >
-      <template #actions>
-        <a-button :loading="manualRefreshing" :disabled="manualRefreshing" @click="handleRefresh">
-          <template #icon>
-            <IconRefresh />
-          </template>
-          刷新
-        </a-button>
-      </template>
-    </PageHeader>
+    />
 
     <LoadingSkeleton v-if="initialLoading" variant="list" :rows="4" label="正在加载任务" />
 
     <template v-else>
-      <div v-if="tasks.length > 0" class="task-toolbar">
-        <div class="task-status" aria-live="polite">
-          <span class="task-status__dot" :class="`task-status__dot--${liveStatusTone}`" />
-          <span class="task-status__text">{{ liveStatusText }}</span>
-          <span v-if="lastUpdatedText" class="task-status__updated">
-            {{ lastUpdatedText }}
-          </span>
-        </div>
-
+      <div class="task-toolbar">
         <div class="task-filters" role="group" aria-label="按任务状态筛选">
           <a-button
             v-for="option in STATUS_FILTERS"
@@ -196,6 +191,30 @@ onMounted(() => {
             @click="statusFilter = option.value"
           >
             {{ option.label }}
+            <span class="task-filters__count">{{ statusCounts[option.value] }}</span>
+          </a-button>
+        </div>
+
+        <div class="task-toolbar__side">
+          <div class="task-status" aria-live="polite">
+            <span class="task-status__dot" :class="`task-status__dot--${liveStatusTone}`" />
+            <span class="task-status__text">{{ liveStatusText }}</span>
+            <span v-if="lastUpdatedText" class="task-status__updated">
+              {{ lastUpdatedText }}
+            </span>
+          </div>
+
+          <a-button
+            class="task-toolbar__refresh"
+            size="small"
+            :loading="manualRefreshing"
+            :disabled="manualRefreshing"
+            @click="handleRefresh"
+          >
+            <template #icon>
+              <IconRefresh />
+            </template>
+            刷新
           </a-button>
         </div>
       </div>
@@ -249,36 +268,74 @@ onMounted(() => {
         @action="handleEmptyAction"
       />
 
-      <ul v-else class="task-list">
-        <li v-for="task in filteredTasks" :key="task.id" class="task-row">
-          <div class="task-row__main">
-            <div class="task-row__topline">
-              <span class="task-row__id">#{{ task.id }}</span>
-              <a-tag size="small" :color="taskStatusColor(task.status)">
-                {{ taskStatusLabel(task.status) }}
-              </a-tag>
-              <a-tag size="small" color="gray">{{ taskStageLabel(task.stage) }}</a-tag>
-            </div>
+      <div v-else class="task-ledger" role="table" aria-label="AI 任务列表">
+        <div class="task-ledger__head" role="row">
+          <span role="columnheader">任务</span>
+          <span role="columnheader">阶段</span>
+          <span role="columnheader">状态</span>
+          <span role="columnheader">题目</span>
+          <span role="columnheader">创建时间</span>
+          <span class="task-ledger__action-head" role="columnheader">操作</span>
+        </div>
 
-            <RouterLink class="task-row__question" :to="`/questions/${task.question_id}`">
-              题目 #{{ task.question_id }}
-              <IconArrowRight />
+        <div
+          v-for="task in filteredTasks"
+          :key="task.id"
+          class="task-ledger__row"
+          :class="{ 'task-ledger__row--failed': task.status === 'failed' }"
+          role="row"
+        >
+          <span class="task-ledger__id" role="cell">#{{ task.id }}</span>
+
+          <span class="task-ledger__stage" role="cell">
+            <a-tag size="small" color="gray">{{ taskStageLabel(task.stage) }}</a-tag>
+          </span>
+
+          <span class="task-ledger__status" role="cell">
+            <span
+              class="task-ledger__dot"
+              :class="`task-ledger__dot--${task.status}`"
+              aria-hidden="true"
+            />
+            <span
+              class="task-ledger__status-text"
+              :class="`task-ledger__status-text--${task.status}`"
+            >
+              {{ taskStatusLabel(task.status) }}
+            </span>
+          </span>
+
+          <span class="task-ledger__question" role="cell">
+            <RouterLink
+              class="task-question-link"
+              :to="`/questions/${task.question_id}`"
+              :aria-label="`查看题目 ${formatQuestionRef(task.question_id)}`"
+            >
+              {{ formatQuestionRef(task.question_id) }}
+              <IconArrowRight aria-hidden="true" />
             </RouterLink>
+          </span>
 
-            <p v-if="task.status === 'failed'" class="task-row__error">
-              <span v-if="task.error_code" class="task-row__error-code">
-                {{ task.error_code }}
-              </span>
-              <span>{{ taskErrorMessage(task.error_code) }}</span>
-            </p>
-          </div>
+          <time class="task-ledger__time" :datetime="task.created_at" role="cell">
+            {{ formatDateTime(task.created_at) }}
+          </time>
 
-          <div class="task-row__meta">
-            <time class="task-row__time" :datetime="task.created_at">
-              {{ formatDateTime(task.created_at) }}
-            </time>
+          <span class="task-ledger__action" role="cell">
+            <RouterLink class="task-action-link" :to="`/questions/${task.question_id}`">
+              查看
+            </RouterLink>
+          </span>
+
+          <div
+            v-if="task.status === 'failed'"
+            class="task-ledger__error"
+            role="cell"
+            :aria-colspan="6"
+          >
+            <span v-if="task.error_code" class="task-error-code">{{ task.error_code }}</span>
+            <span class="task-error-message">{{ taskErrorMessage(task.error_code) }}</span>
             <a-button
-              v-if="task.status === 'failed'"
+              class="task-error-retry"
               size="small"
               type="outline"
               status="danger"
@@ -289,8 +346,8 @@ onMounted(() => {
               重试
             </a-button>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -303,11 +360,29 @@ onMounted(() => {
 }
 
 .task-toolbar {
+  position: sticky;
+  top: var(--layout-topbar-height);
+  z-index: calc(var(--z-topbar) - 1);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.task-toolbar__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.task-toolbar__refresh {
+  flex: none;
 }
 
 .task-status {
@@ -324,7 +399,7 @@ onMounted(() => {
   width: var(--space-2);
   height: var(--space-2);
   flex: none;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   background: var(--color-text-3);
 }
 
@@ -349,12 +424,36 @@ onMounted(() => {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
+  font-variant-numeric: tabular-nums;
 }
 
 .task-filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
+  min-width: 0;
+}
+
+.task-filters :deep(.arco-btn) {
+  flex: none;
+}
+
+.task-filters :deep(.arco-btn-text) {
+  color: var(--color-text-2);
+}
+
+.task-filters :deep(.arco-btn-text:hover) {
+  color: var(--color-text-1);
+}
+
+.task-filters__count {
+  margin-left: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.72;
 }
 
 .draft-row {
@@ -403,6 +502,11 @@ onMounted(() => {
   line-height: var(--text-xs-leading);
 }
 
+.draft-row__meta time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .draft-row__action {
   display: inline-flex;
   align-items: center;
@@ -437,111 +541,240 @@ onMounted(() => {
 }
 
 .task-alert__code {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
 }
 
-.task-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.task-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
+.task-ledger {
+  --task-ledger-columns: 72px 76px 104px minmax(140px, 1fr) 144px 64px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
 }
 
-.task-row__main {
-  display: flex;
-  flex: 1 1 320px;
-  flex-direction: column;
-  gap: var(--space-2);
+.task-ledger__head {
+  display: grid;
+  grid-template-columns: var(--task-ledger-columns);
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  letter-spacing: 0.04em;
+}
+
+.task-ledger__action-head {
+  text-align: right;
+}
+
+.task-ledger__row {
+  display: grid;
+  grid-template-columns: var(--task-ledger-columns);
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.task-ledger__row:last-child {
+  border-bottom: 0;
+}
+
+.task-ledger__row:hover {
+  background: var(--color-surface-hover);
+}
+
+.task-ledger__row--failed,
+.task-ledger__row--failed:hover {
+  background: var(--color-danger-soft);
+}
+
+.task-ledger__id {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.task-ledger__stage {
   min-width: 0;
 }
 
-.task-row__topline {
+.task-ledger__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.task-ledger__dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-text-3);
+}
+
+.task-ledger__dot--running {
+  background: var(--color-primary);
+}
+
+.task-ledger__dot--done {
+  background: var(--color-success);
+}
+
+.task-ledger__dot--failed {
+  background: var(--color-danger);
+}
+
+.task-ledger__status-text {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--text-sm-leading);
+}
+
+.task-ledger__status-text--running {
+  color: var(--color-primary);
+}
+
+.task-ledger__status-text--done {
+  color: var(--color-success-text);
+}
+
+.task-ledger__status-text--failed {
+  color: var(--color-danger-text);
+}
+
+.task-ledger__question {
+  min-width: 0;
+}
+
+.task-question-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  color: var(--color-text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.task-question-link:hover {
+  color: var(--color-primary);
+  text-decoration-color: currentColor;
+}
+
+.task-question-link svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: none;
+}
+
+.task-ledger__time {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.task-ledger__row--failed .task-ledger__time {
+  color: var(--color-text-2);
+}
+
+.task-ledger__action {
+  text-align: right;
+}
+
+.task-action-link {
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--text-sm-leading);
+  white-space: nowrap;
+}
+
+.task-action-link:hover {
+  color: var(--color-primary-hover);
+}
+
+.task-ledger__row--failed .task-action-link {
+  color: var(--color-primary-active);
+}
+
+.task-ledger__error {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  grid-column: 1 / -1;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
 
-.task-row__id {
-  color: var(--color-text-3);
+.task-error-code {
+  flex: none;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-danger-text);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
 }
 
-.task-row__question {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  width: fit-content;
-  max-width: 100%;
-  color: var(--color-text-1);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  line-height: var(--text-sm-leading);
-  overflow-wrap: anywhere;
-}
-
-.task-row__question:hover {
-  color: var(--color-primary);
-}
-
-.task-row__error {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 0;
+.task-error-message {
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
   overflow-wrap: anywhere;
 }
 
-.task-row__error-code {
+.task-error-retry {
   flex: none;
-  color: var(--color-danger);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-}
-
-.task-row__meta {
-  display: flex;
-  flex-direction: column;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-2);
-}
-
-.task-row__time {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
+  margin-left: auto;
 }
 
 @media (max-width: 767px) {
   .task-toolbar {
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+  }
+
+  .task-toolbar__side {
+    order: -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: 0;
+  }
+
+  .task-status {
+    min-width: 0;
   }
 
   .task-filters {
@@ -556,11 +789,82 @@ onMounted(() => {
     flex: 0 0 auto;
   }
 
-  .task-row__meta {
-    width: 100%;
-    flex-direction: row;
+  .task-ledger {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .task-ledger__head {
+    display: none;
+  }
+
+  .task-ledger__row {
+    grid-template-areas:
+      'id stage status'
+      'question question question'
+      'time time action';
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-2);
+    min-height: 0;
+    margin-bottom: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+  }
+
+  .task-ledger__row:last-child {
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .task-ledger__row--failed,
+  .task-ledger__row--failed:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-danger-soft);
+  }
+
+  .task-ledger__id {
+    grid-area: id;
+  }
+
+  .task-ledger__stage {
+    grid-area: stage;
+  }
+
+  .task-ledger__status {
+    grid-area: status;
+    justify-self: end;
+  }
+
+  .task-ledger__question {
+    grid-area: question;
+  }
+
+  .task-ledger__time {
+    grid-area: time;
+  }
+
+  .task-ledger__action {
+    grid-area: action;
+    justify-self: end;
+  }
+
+  .task-action-link {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+  }
+
+  .task-ledger__error {
+    grid-column: 1 / -1;
+  }
+
+  .task-error-retry {
+    margin-left: 0;
   }
 
   .draft-row__meta {

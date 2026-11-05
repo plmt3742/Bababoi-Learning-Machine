@@ -9,10 +9,12 @@ const props = withDefaults(
     analysis: Analysis | null
     pending?: boolean
     failed?: boolean
+    index?: string
   }>(),
   {
     pending: false,
     failed: false,
+    index: '',
   },
 )
 
@@ -23,7 +25,10 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
 <template>
   <a-card class="analysis-card" :bordered="false">
     <header class="analysis-card__header">
-      <h2 class="analysis-card__title">AI 分析</h2>
+      <div class="analysis-card__heading">
+        <span v-if="index" class="analysis-card__index" aria-hidden="true">{{ index }}</span>
+        <h2 class="analysis-card__title">AI 分析</h2>
+      </div>
       <a-tag v-if="analysis" size="small" :color="difficultyTone">
         难度：{{ difficultyText }}
       </a-tag>
@@ -64,7 +69,7 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
       <section class="analysis-card__section">
         <h3 class="analysis-card__label">错误原因</h3>
         <ul class="analysis-card__reasons">
-          <li v-for="(reason, index) in analysis.error_reasons" :key="index">
+          <li v-for="(reason, reasonIndex) in analysis.error_reasons" :key="reasonIndex">
             <MarkdownRenderer :content="reason" compact />
           </li>
         </ul>
@@ -101,6 +106,21 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
   gap: var(--space-2);
 }
 
+.analysis-card__heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.analysis-card__index {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  letter-spacing: 0.06em;
+}
+
 .analysis-card__title {
   font-size: var(--text-lg);
   line-height: var(--text-lg-leading);
@@ -133,7 +153,7 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
 }
 
 .analysis-card__meta-item dt {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
 }

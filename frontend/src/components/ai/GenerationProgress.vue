@@ -1,16 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Component } from 'vue'
-import {
-  IconArrowRight,
-  IconCheckCircleFill,
-  IconClockCircle,
-  IconCloseCircleFill,
-  IconLoading,
-  IconMinusCircle,
-  IconRecordStop,
-  IconRefresh,
-} from '@arco-design/web-vue/es/icon'
+import { IconArrowRight, IconRecordStop, IconRefresh } from '@arco-design/web-vue/es/icon'
 import type { Task } from '../../api/types'
 import { hasActiveTasks, latestTask, taskErrorMessage, taskStageLabel } from '../../utils/task'
 
@@ -18,10 +8,12 @@ type StepState = 'waiting' | 'queued' | 'running' | 'done' | 'failed'
 
 interface StepView {
   key: 'analysis' | 'quiz' | 'validation'
+  no: string
   title: string
   state: StepState
   status: string
   description: string
+  taskId: number | null
 }
 
 const props = withDefaults(
@@ -207,24 +199,30 @@ const validationDescription = computed(() => {
 const steps = computed<StepView[]>(() => [
   {
     key: 'analysis',
+    no: '01',
     title: 'AI 分析',
     state: analysisState.value,
     status: stepStatusLabel(analysisState.value, 'analysis'),
     description: analysisDescription.value,
+    taskId: analysisTask.value?.id ?? null,
   },
   {
     key: 'quiz',
+    no: '02',
     title: '生成相似题',
     state: quizState.value,
     status: stepStatusLabel(quizState.value, 'quiz'),
     description: quizDescription.value,
+    taskId: quizTask.value?.id ?? null,
   },
   {
     key: 'validation',
+    no: '03',
     title: '校验 / 完成',
     state: validationState.value,
     status: stepStatusLabel(validationState.value, 'validation'),
     description: validationDescription.value,
+    taskId: null,
   },
 ])
 
@@ -276,21 +274,6 @@ const overallTag = computed<{ color: string; label: string }>(() => {
   return { color: 'gray', label: '等待中' }
 })
 
-function stepIcon(state: StepState): Component {
-  switch (state) {
-    case 'done':
-      return IconCheckCircleFill
-    case 'failed':
-      return IconCloseCircleFill
-    case 'queued':
-      return IconClockCircle
-    case 'running':
-      return IconLoading
-    case 'waiting':
-      return IconMinusCircle
-  }
-}
-
 function handleRetry(taskId: number): void {
   emit('retry', taskId)
 }
@@ -329,16 +312,16 @@ function handleRetry(taskId: number): void {
         class="generation-progress__step"
         :class="`generation-progress__step--${step.state}`"
       >
-        <span class="generation-progress__icon" aria-hidden="true">
-          <component
-            :is="stepIcon(step.state)"
-            :class="{ 'generation-progress__icon--spin': step.state === 'running' }"
-          />
-        </span>
+        <span class="generation-progress__step-index" aria-hidden="true">{{ step.no }}</span>
         <div class="generation-progress__step-body">
           <div class="generation-progress__step-heading">
             <h3 class="generation-progress__step-title">{{ step.title }}</h3>
-            <span class="generation-progress__step-status">{{ step.status }}</span>
+            <span class="generation-progress__step-status">
+              {{ step.status }}
+              <span v-if="step.taskId" class="generation-progress__step-task">
+                #{{ step.taskId }}
+              </span>
+            </span>
           </div>
           <p class="generation-progress__step-description">{{ step.description }}</p>
         </div>
@@ -367,7 +350,9 @@ function handleRetry(taskId: number): void {
         <div class="generation-progress__failure-body">
           <div class="generation-progress__failure-copy">
             <p class="generation-progress__failure-title">
-              {{ taskStageLabel(task.stage) }}任务 #{{ task.id }} 失败
+              {{ taskStageLabel(task.stage) }}任务
+              <span class="generation-progress__task-id">#{{ task.id }}</span>
+              失败
               <span v-if="task.error_code" class="generation-progress__error-code">
                 {{ task.error_code }}
               </span>
@@ -519,30 +504,41 @@ function handleRetry(taskId: number): void {
   gap: var(--space-3);
 }
 
-.generation-progress__icon {
+.generation-progress__step-index {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
-  margin-top: 2px;
+  width: 30px;
+  height: 24px;
+  margin-top: 1px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text-3);
-  font-size: var(--icon-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   line-height: 1;
+  letter-spacing: 0.04em;
 }
 
-.generation-progress__step--queued .generation-progress__icon,
-.generation-progress__step--running .generation-progress__icon {
+.generation-progress__step--queued .generation-progress__step-index,
+.generation-progress__step--running .generation-progress__step-index {
+  border-color: var(--color-primary);
+  background: var(--color-primary-softer);
   color: var(--color-primary);
 }
 
-.generation-progress__step--done .generation-progress__icon {
-  color: var(--color-success);
+.generation-progress__step--done .generation-progress__step-index {
+  border-color: var(--color-success);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
 }
 
-.generation-progress__step--failed .generation-progress__icon {
-  color: var(--color-danger);
-}
-
-.generation-progress__icon--spin {
-  animation: generation-progress-spin 1s linear infinite;
+.generation-progress__step--failed .generation-progress__step-index {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
 }
 
 .generation-progress__step-body {
@@ -568,10 +564,19 @@ function handleRetry(taskId: number): void {
 }
 
 .generation-progress__step-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
   flex: none;
   color: var(--color-text-3);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
+}
+
+.generation-progress__step-task {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .generation-progress__step--queued .generation-progress__step-status,
@@ -580,11 +585,11 @@ function handleRetry(taskId: number): void {
 }
 
 .generation-progress__step--done .generation-progress__step-status {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .generation-progress__step--failed .generation-progress__step-status {
-  color: var(--color-danger);
+  color: var(--color-danger-text);
 }
 
 .generation-progress__step-description {
@@ -607,7 +612,7 @@ function handleRetry(taskId: number): void {
 }
 
 .generation-progress__error-code {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--text-xs-leading);
@@ -634,6 +639,12 @@ function handleRetry(taskId: number): void {
   font-weight: 600;
   line-height: var(--text-sm-leading);
   overflow-wrap: anywhere;
+}
+
+.generation-progress__task-id {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .generation-progress__failure-message {
@@ -678,19 +689,9 @@ function handleRetry(taskId: number): void {
   text-wrap: pretty;
 }
 
-@keyframes generation-progress-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .generation-progress__bar {
     transition: none;
-  }
-
-  .generation-progress__icon--spin {
-    animation: none;
   }
 }
 

@@ -5,8 +5,11 @@
  *   --arcoblue-6: 22, 93, 255;  →  rgb(var(--arcoblue-6))
  * The full 1–10 ramp must be overridden together, otherwise hover / active
  * states keep the old hue. Values are anchored on src/styles/tokens.css.
+ * Arco's base sheet declares the same variables on body, so the doubled
+ * selectors keep this mapping authoritative regardless of stylesheet order.
  */
-:root {
+:root:root,
+html body {
   /* Primary ramp — --color-primary (#165DFF) = arcoblue-6. */
   --arcoblue-1: 232, 243, 255;
   --arcoblue-2: 190, 218, 255;
@@ -71,4 +74,94 @@
   --color-bg-1: var(--color-surface);
   --color-bg-2: var(--color-bg);
   --color-bg-white: var(--color-surface);
+
+  /* Calm radii: tags 4, controls 6, large surfaces 8. */
+  --border-radius-small: var(--radius-sm);
+  --border-radius-medium: var(--radius-md);
+  --border-radius-large: var(--radius-lg);
+}
+
+/* 14px UI floor: Arco's tag and mini sizes ship 12px text. */
+:root:root .arco-tag,
+:root:root .arco-tag-size-small,
+:root:root .arco-tag-size-medium {
+  font-size: var(--text-sm);
+  line-height: var(--text-xs-leading);
+}
+
+:root:root .arco-tag-size-small {
+  height: 24px;
+  padding: 0 var(--space-2);
+}
+
+:root:root .arco-tag-size-medium {
+  height: 26px;
+}
+
+:root:root .arco-btn-size-mini {
+  height: 28px;
+  font-size: var(--text-sm);
+}
+
+:root:root .arco-form-item-message,
+:root:root .arco-form-item-extra,
+:root:root .arco-input-word-limit,
+:root:root .arco-textarea-word-limit {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+}
+
+:root:root .arco-input-wrapper .arco-input-word-limit,
+:root:root .arco-textarea-word-limit {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+:root:root .arco-input-wrapper .arco-input::placeholder,
+:root:root .arco-textarea::placeholder,
+:root:root .arco-select-view-single .arco-select-view-input::placeholder,
+:root:root .arco-input-tag .arco-input-tag-inner .arco-input-tag-input::placeholder {
+  color: var(--color-text-2);
+}
+
+:root:root .arco-form-item-message {
+  min-height: 22px;
+  color: var(--color-danger-text);
+}
+
+:root:root .arco-btn-outline.arco-btn-status-danger,
+:root:root .arco-btn-text.arco-btn-status-danger {
+  color: var(--color-danger-text);
+}
+
+:root:root .arco-btn-primary.arco-btn-status-danger {
+  border-color: var(--color-danger-text);
+  background-color: var(--color-danger-text);
+}
+
+:root:root .arco-btn-primary.arco-btn-status-danger:hover {
+  border-color: var(--color-danger-text-hover);
+  background-color: var(--color-danger-text-hover);
+}
+
+/* Semantic tag text uses darker inks so 14px labels clear 4.5:1 on the wash. */
+:root:root .arco-tag.arco-tag-checked.arco-tag-green {
+  color: var(--color-success-text);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-orange {
+  color: var(--color-warning-text);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-red {
+  color: var(--color-danger-text);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-arcoblue {
+  color: var(--color-primary-active);
+}
+
+:root:root .arco-tag.arco-tag-checked.arco-tag-gray {
+  color: var(--color-text-2);
 }

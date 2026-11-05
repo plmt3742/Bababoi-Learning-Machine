@@ -21,12 +21,15 @@ const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.qu
   <RouterLink :to="detailPath" class="question-card" :aria-label="ariaLabel">
     <a-card class="question-card__surface" :bordered="false">
       <div class="question-card__top">
-        <p class="question-card__subject">
-          {{ question.subject }}
-          <span v-if="question.chapter" class="question-card__chapter">
-            · {{ question.chapter }}
-          </span>
-        </p>
+        <div class="question-card__identity">
+          <span class="question-card__id">#{{ question.id }}</span>
+          <p class="question-card__subject">
+            {{ question.subject }}
+            <span v-if="question.chapter" class="question-card__chapter">
+              · {{ question.chapter }}
+            </span>
+          </p>
+        </div>
         <div class="question-card__badges">
           <a-tag size="small" color="gray">{{ questionTypeLabel(question.question_type) }}</a-tag>
           <a-tag size="small" :color="masteryStatusColor(question.mastery_status)">
@@ -67,14 +70,12 @@ const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.qu
   box-shadow: var(--shadow-card);
   transition:
     border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+    background-color 0.18s ease;
 }
 
 .question-card:hover .question-card__surface {
   border-color: var(--color-primary);
-  box-shadow: var(--shadow-pop);
-  transform: translateY(-1px);
+  background: var(--color-surface-hover);
 }
 
 .question-card:focus-visible {
@@ -95,6 +96,22 @@ const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.qu
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.question-card__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.question-card__id {
+  color: var(--color-text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  font-variant-numeric: tabular-nums;
 }
 
 .question-card__subject {

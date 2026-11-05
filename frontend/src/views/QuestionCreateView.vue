@@ -138,9 +138,12 @@ function handleCancel(): void {
       <div class="editor-layout__main">
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
-            <div>
-              <h2 class="editor-card__title">题干</h2>
-              <p class="editor-card__hint">支持 Markdown；公式用 $...$ 或 $$...$$ 包裹。</p>
+            <div class="editor-card__heading">
+              <span class="editor-card__index" aria-hidden="true">01</span>
+              <div>
+                <h2 class="editor-card__title">题干</h2>
+                <p class="editor-card__hint">支持 Markdown；公式用 $...$ 或 $$...$$ 包裹。</p>
+              </div>
             </div>
             <a-tag size="small" color="gray">必填</a-tag>
           </header>
@@ -160,11 +163,14 @@ function handleCancel(): void {
 
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
-            <div>
-              <h2 class="editor-card__title">答案与解析</h2>
-              <p class="editor-card__hint">
-                可以留空，AI 分析任务会在后台补全；已填写的内容不会被覆盖。
-              </p>
+            <div class="editor-card__heading">
+              <span class="editor-card__index" aria-hidden="true">02</span>
+              <div>
+                <h2 class="editor-card__title">答案与解析</h2>
+                <p class="editor-card__hint">
+                  可以留空，AI 分析任务会在后台补全；已填写的内容不会被覆盖。
+                </p>
+              </div>
             </div>
           </header>
 
@@ -193,11 +199,14 @@ function handleCancel(): void {
 
         <a-card class="editor-card" :bordered="false">
           <header class="editor-card__header">
-            <div>
-              <h2 class="editor-card__title">结构与题型</h2>
-              <p class="editor-card__hint">
-                当前阶段先按解答题保存，选项与空位编辑器在 FE-020 提供。
-              </p>
+            <div class="editor-card__heading">
+              <span class="editor-card__index" aria-hidden="true">03</span>
+              <div>
+                <h2 class="editor-card__title">结构与题型</h2>
+                <p class="editor-card__hint">
+                  当前阶段先按解答题保存，选项与空位编辑器在 FE-020 提供。
+                </p>
+              </div>
             </div>
           </header>
 
@@ -288,7 +297,7 @@ function handleCancel(): void {
   left: 0;
   z-index: var(--z-topbar);
   padding: var(--space-3) var(--layout-gutter);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-strong);
   background: var(--color-surface);
 }
 
@@ -346,6 +355,22 @@ function handleCancel(): void {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.editor-card__heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.editor-card__index {
+  flex: none;
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
+  letter-spacing: 0.06em;
 }
 
 .editor-card__title,

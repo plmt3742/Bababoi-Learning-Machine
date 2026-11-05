@@ -218,7 +218,7 @@ async function handleSubmit(): Promise<void> {
   color: var(--color-text-3);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  line-height: 1.35;
+  line-height: var(--text-xs-leading);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -260,9 +260,10 @@ async function handleSubmit(): Promise<void> {
 }
 
 .login-view__hint-label {
-  color: var(--color-text-3);
+  color: var(--color-text-2);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  line-height: var(--text-xs-leading);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }

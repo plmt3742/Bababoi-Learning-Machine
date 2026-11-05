@@ -91,7 +91,7 @@ async function handleLogout(): Promise<void> {
 .app-topbar__product {
   color: var(--color-text-3);
   font-size: var(--text-xs);
-  line-height: 1.35;
+  line-height: var(--text-xs-leading);
   letter-spacing: 0.04em;
 }
 

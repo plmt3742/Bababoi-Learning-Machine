@@ -141,7 +141,7 @@ watch(
   min-height: var(--layout-bottom-nav-height);
   color: var(--color-text-2);
   font-size: var(--text-xs);
-  line-height: 1.35;
+  line-height: var(--text-xs-leading);
 }
 
 .app-shell__bottom-link--active {
