@@ -38,6 +38,7 @@
 | [agent/10-resources.md](agent/10-resources.md) | 本地资料、docx 摘要、外部链接、术语表 | 查资料 |
 | [agent/11-agent-handoff.md](agent/11-agent-handoff.md) | 新会话交接提示词、角色模板、交接检查 | 切换会话/换 agent |
 | [agent/12-backend-alignment.md](agent/12-backend-alignment.md) | 后端对接结果：队列、裁剪、PRD、分支合并决策 | 后端对接 / M0 契约确认 |
+| [agent/13-backend-merge-audit.md](agent/13-backend-merge-audit.md) | 后端合并审查、未合并分支 review、CI 方案 | 合并审查 / 交接 |
 
 ### 产品设计
 
