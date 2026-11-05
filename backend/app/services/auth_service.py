@@ -21,7 +21,12 @@ from app.schemas.auth import RegisterRequest
 
 
 class LoginRateLimiter:
-    """按 IP 记录最近的登录失败时间；窗口内失败达到上限后拒绝该 IP 的登录。"""
+    """按 IP 记录最近的登录失败时间；窗口内失败达到上限后拒绝该 IP 的登录。
+
+    `_failures` 会记住每一个来试过的 IP，长期跑下去只增不减（issue #11 BE-003）。
+    这里在每次记账时顺带扫一遍过期项：登录失败是低频事件，全表扫的代价可以接受，
+    比引入定时器简单，也不用担心线程生命周期。
+    """
 
     def __init__(self, limit: int, window_s: int) -> None:
         self.limit = limit
@@ -33,6 +38,10 @@ class LoginRateLimiter:
     def _prune(self, failures: deque[float], now: float) -> None:
         while failures and now - failures[0] > self.window_s:
             failures.popleft()
+
+    def _drop_stale(self, now: float) -> None:
+        for ip in [ip for ip, d in self._failures.items() if not d or now - d[-1] > self.window_s]:
+            self._failures.pop(ip, None)
 
     def check(self, ip: str) -> None:
         with self._lock:
@@ -49,8 +58,9 @@ class LoginRateLimiter:
 
     def record_failure(self, ip: str) -> None:
         with self._lock:
-            failures = self._failures.setdefault(ip, deque())
-            failures.append(monotonic())
+            now = monotonic()
+            self._drop_stale(now)
+            self._failures.setdefault(ip, deque()).append(now)
 
     def reset(self, ip: str) -> None:
         with self._lock:

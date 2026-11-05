@@ -205,6 +205,23 @@ def test_rate_limit_counts_ips_independently() -> None:
     limiter.check("2.2.2.2")  # 不抛，即未限流
 
 
+def test_rate_limit_drops_expired_ip_entries(monkeypatch) -> None:
+    """记账时顺带清掉过期 IP，字典不会随扫库的 IP 只增不减（issue #11 BE-003）。"""
+    from app.services import auth_service
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(auth_service, "monotonic", lambda: clock["now"])
+    limiter = auth_service.LoginRateLimiter(limit=5, window_s=60)
+
+    for index in range(50):
+        limiter.record_failure(f"10.0.0.{index}")
+    assert len(limiter._failures) == 50
+
+    clock["now"] += 121  # 全部滑出 60 秒窗口
+    limiter.record_failure("198.51.100.7")
+    assert list(limiter._failures) == ["198.51.100.7"]
+
+
 def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
     _register(client, "alice")
     with db() as s:

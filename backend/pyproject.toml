@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.14",
     "pydantic-settings>=2.16",
     "sqlalchemy>=2.0",
+    "pymysql>=1.1",  # 生产 MySQL 驱动；后端是 sync SQLAlchemy，不能用 aiomysql（13号 §4.3）
     "alembic>=1.13",
     "bcrypt>=4",
     "pyjwt>=2",

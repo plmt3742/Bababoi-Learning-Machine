@@ -360,6 +360,8 @@ erDiagram
 | 403 | `QUESTION_FORBIDDEN` | 访问他人错题 |
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
+| 403 | `FORBIDDEN` | 框架层 403（鉴权中间件等），与业务态 `QUESTION_FORBIDDEN` 区分；issue #11 新增 |
+| 405 | `METHOD_NOT_ALLOWED` | 方法用错；以前被统统标成 `VALIDATION_ERROR`，前端会误查表单字段；issue #11 新增 |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
 | 409 | `DRAFT_VERSION_CONFLICT` | 草稿版本冲突 |
 | 409 | `PRACTICE_DUPLICATE` | 60 秒内相同作答重复提交（BE-012） |
@@ -384,7 +386,7 @@ erDiagram
 
 - 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
 - JWT `sub=user_id`，`exp=7d`；MVP 不做 refresh token。
-- 登录失败 5 次/分钟/IP 限流（简单内存或 DB 计数）。
+- 登录失败 5 次/分钟/IP 限流（简单内存或 DB 计数）。IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。
 
 ### 6.4 错题
 
@@ -820,7 +822,9 @@ app/
 - 中间件生成 `request_id`，响应头返回 `X-Request-ID`。
 - 日志字段：时间、level、request_id、method、path、status、latency_ms、user_id（可选）。
 - AI 日志：operation、model、prompt_version、tokens、latency、status、error_code。
-- `/health`：返回 `{status, version, db}`；`/ready` 可检查 DB/LLM 配置（不实际调 LLM）。
+- `/health`：返回 `{status, version, db}`；`db` 是真跑了一次 `SELECT 1` 的结果（`ok`/`unavailable`），连不上返回 **503**，compose/nginx 的 healthcheck 靠状态码。issue #11 起生效。
+- `/ready`：`{status, version, checks:{db, llm}}`；检查 DB 连通与 LLM 配置是否齐备（mock 模式不需要 Key），**不实际调模型**。
+- 客户端 IP：只有直连来源在 `TRUSTED_PROXIES` 里时才读 `X-Forwarded-For`，并从右往左取第一个不可信地址（最左那项是客户端自己写的）。反代后不配这个，登录限流会把全站算成同一个 IP。
 - 演示前检查日志，确保没有密钥/密码泄漏。
 
 ## 10. 性能与可靠性
@@ -864,6 +868,8 @@ AI_TIMEOUT_SECONDS=90
 AI_VISION_TIMEOUT_SECONDS=90
 AI_TASK_TIMEOUT_SECONDS=120
 AI_MAX_RETRIES=1
+# 只有这些直连来源的 X-Forwarded-For 才被采信；nginx 同网段部署时填 nginx 的 IP
+TRUSTED_PROXIES=[]
 AI_ENABLE_JUDGE=false
 DEMO_FALLBACK_ENABLED=false
 ```
@@ -914,5 +920,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3.1 | 框题 P0 改为可移动/缩放 AI 框；`from-image` 第二阶段支持 `crop_box`；整页/无 candidate 走整图识别 | 霹雳马桶 / agent |
+| 2026-11-05 | v0.3.2 | issue #11 / 13号 §4 修复：`/health` 真查库（不可用 503）+ 新增 `/ready`；框架错误按状态码分派（新增 `FORBIDDEN`/`METHOD_NOT_ALLOWED`）；MySQL 驱动定为 `pymysql`；登录限流引入 `TRUSTED_PROXIES`；JWT/LLM 配置启动即校验 | 人机 |
 | 2026-11-05 | v0.3.2 | 补 `PRACTICE_DUPLICATE`、mastery PATCH、`include=generated`、轮询 P0/SSE P1、TaskOut.question_id | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

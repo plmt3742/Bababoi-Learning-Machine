@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # 登录失败限流（05 §6.3：5 次/分钟/IP，内存计数即可，不引入 Redis）
     login_rate_limit: int = 5
     login_rate_window_s: int = 60
+    # 反代后 request.client.host 恒为 nginx 的 IP，限流会把所有用户算成同一个（13号 §4.6）。
+    # 只有直连来源在这个列表里时，才读 X-Forwarded-For；默认空 = 不信任任何代理头。
+    trusted_proxies: list[str] = []
 
     # 数据库：BE-001 只提供配置项，连接与建表在 BE-002
     database_url: str = ""
@@ -47,6 +50,16 @@ class Settings(BaseSettings):
     # 分页（05 §6.1）
     page_size_default: int = 20
     page_size_max: int = 100
+
+    def validate_for_startup(self) -> None:
+        """启动时把密钥类配置一次性查完，而不是等第一个请求 500（13号 §4 / issue #11）。"""
+        if len(self.jwt_secret.encode("utf-8")) < 32:
+            raise RuntimeError(
+                "JWT_SECRET 未配置或不足 32 字节（05 §9.4）；"
+                "生成：python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        if not self.llm_mock and not self.llm_api_key:
+            raise RuntimeError("LLM_MOCK=false 但 LLM_API_KEY 未配置")
 
 
 settings = Settings()
