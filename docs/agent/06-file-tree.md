@@ -9,25 +9,33 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
+> 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
+
 ```text
 BababoiLearningMachine/
 ├── AGENTS.md
 ├── README.md                      # 项目说明/结构/快速开始
-├── .gitignore                     # Resource/、.env、依赖、数据等不上传
-├── .github/workflows/ci.yml       # CI：backend + frontend（PR #10）
-├── Resource/
-│   └── 基于生成式AI的错题整理系统.docx   # 本地只读参考，不上传仓库
+├── .gitignore                     # Resource/、tools/、.env、依赖、数据等不上传
+├── .github/
+│   ├── workflows/ci.yml           # CI：backend + frontend（PR #10）
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug.md
+│   │   └── feature.md
+│   └── pull_request_template.md
+├── Resource/                      # 本地只读参考，不上传仓库
 ├── frontend/
 │   ├── README.md                  # 目录骨架；脚手架待 FE-001
-│   ├── src/.gitkeep
-│   └── tests/.gitkeep
-├── backend/
+│   ├── public/.gitkeep
+│   ├── src/                       # api/assets/components/... 目录骨架
+│   ├── tests/.gitkeep
+│   └── e2e/.gitkeep
+├── backend/                       # 按 origin/main 实际结构；本分支未合并 main
 │   ├── README.md                  # 状态过期，issue #11 修
 │   ├── pyproject.toml             # uv + ruff + pytest（BE-001）
 │   ├── uv.lock
 │   ├── .env.example
 │   ├── alembic.ini
-│   ├── alembic/versions/          # 7d155a41e345 initial schema（BE-002）
+│   ├── alembic/versions/7d155a41e345_initial_schema.py
 │   ├── app/
 │   │   ├── main.py
 │   │   ├── core/                  # config/security/errors/observability
@@ -36,9 +44,17 @@ BababoiLearningMachine/
 │   │   ├── schemas/               # auth/question
 │   │   ├── api/v1/                # health/auth/deps
 │   │   └── services/              # auth_service
+│   ├── fixtures/.gitkeep
+│   ├── scripts/.gitkeep
 │   └── tests/                     # health/auth/models/migrations/question_schema
+├── contracts/
+│   ├── README.md
+│   ├── openapi/README.md          # openapi.json 待 BE-009 导出
+│   └── examples/README.md
 ├── deploy/
-│   └── README.md                  # compose/nginx 待补
+│   └── README.md                  # compose/nginx 待 OPS-001
+├── scripts/
+│   └── README.md                  # 跨端开发脚本待补
 ├── tools/                         # 本地工具，不上传（gitignore）
 │   ├── README.md
 │   └── opencode-session-monitor/  # 本地会话/子 agent 监控
@@ -49,7 +65,8 @@ BababoiLearningMachine/
     │   ├── ADR-000-template.md
     │   ├── ADR-001-tech-stack.md
     │   ├── ADR-002-mvp-scope.md
-    │   └── ADR-003-image-input-vision.md
+    │   ├── ADR-003-image-input-vision.md
+    │   └── ADR-004-image-text-extraction.md
     ├── agent/
     │   ├── README.md
     │   ├── 00-context.md
@@ -64,24 +81,28 @@ BababoiLearningMachine/
     │   ├── 09-risks.md
     │   ├── 10-resources.md
     │   ├── 11-agent-handoff.md
-    │   └── 12-backend-alignment.md
-    ├── interaction/                 # 框题交互参考 demo（BE-001 附带）
-    ├── learning/                    # 本地学习笔记（gitignore，不上传）
+    │   ├── 12-backend-alignment.md
+    │   └── 13-backend-merge-audit.md
+    ├── interaction/                # 框题交互参考 demo（main；图片 v2 后仅历史参考）
+    ├── learning/                   # 本地学习笔记（gitignore，不上传）
     └── product/
         ├── README.md
+        ├── PRD-v0.8-reference.md   # 归档参考，不构成契约
+        ├── 开源项目调研.md
         ├── 01-prd-lite.md
         ├── 02-ia-and-flows.md
         ├── 03-page-specs.md
         ├── 04-design-system.md
         ├── 05-ue-spec.md
         ├── 06-draft-dual-write.md
-        ├── PRD-v0.8-reference.md
-        └── 开源项目调研.md
+        ├── 07-page-drafts.md       # 本分支有，main 尚未合并
+        ├── 08-interaction-map.md   # 本分支有，main 尚未合并
+        └── drafts/
+            ├── prototype.html      # 旧 8 页原型；待按图片 v2 更新
+            └── interaction-map.html # 旧页面地图；待按图片 v2 更新
 ```
 
-> `main` 当前包含 BE-001/002/003 与 CI #10；`frontend/` 仍待 FE-001；`deploy/` 待 OPS-001。
-> 前端 07/08/页面原型/交互地图在 `feat/frontend-m0-foundation` 分支，尚未合入 `main`。
-> `docs/product/PRD.md` v0.9 尚未合并；`docs/prd` 已删除，v0.8 归档在 `PRD-v0.8-reference.md`。
+> **同步说明（2026-11-05）**：`origin/main @ 2335773` 已包含 BE-001/002/003、CI #10、`docs/agent/13-backend-merge-audit.md`；本分支 `feat/frontend-m0-foundation` 额外持有 07/08/原型/交互地图，尚未合入 main。`frontend/` 仍待 FE-001；`deploy/` 待 OPS-001。`docs/product/` 已有 PRD-lite、IA/流程、设计 tokens、草稿双写、8 页线框与交互地图；`03-page-specs.md` 仍需按 8 个页面填全。下图是完整目标结构。
 
 ## 2. 目标文件树
 
@@ -174,8 +195,9 @@ BababoiLearningMachine/
 | 目录 | 放什么 | 不放什么 |
 |---|---|---|
 | `docs/agent/` | 工程上下文、契约、进度、风险、工作流 | 代码、临时笔记、聊天记录 |
-| `docs/product/` | PRD、IA、流程、页面规范、设计 tokens | 实现细节、API 字段定义（放 05） |
+| `docs/product/` | PRD、IA/流程、页面规范、设计 tokens、草稿双写、线框/交互地图 | 实现细节、API 字段定义（放 05） |
 | `docs/adr/` | 不可逆/跨模块决策 | 日常小决定 |
+| `docs/interaction/` | 交互参考 demo（历史参考，非契约） | 业务代码、API 字段定义 |
 | `frontend/src/api/` | Axios 实例、端点函数、请求/响应类型 | 业务组件、页面状态 |
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
 | `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |

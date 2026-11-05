@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>草稿页面原型 · Bababoi Learning Machine</title>
+<style>
+  :root {
+    --ink: #111;
+    --ink-2: #333;
+    --ink-3: #666;
+    --paper: #fff;
+    --panel: #f7f7f7;
+    --line: #cfcfcf;
+    --border: #111;
+    --mono: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+    --sans: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+  }
+  header {
+    padding: 18px 24px 12px;
+    border-bottom: 1px solid #ddd;
+    max-width: 1440px;
+  }
+  h1 { font-size: 19px; margin: 0 0 5px; }
+  .sub { margin: 0; font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+  .sub code {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    background: var(--panel);
+    padding: 1px 4px;
+    border: 1px solid #e3e3e3;
+  }
+  .tabs {
+    max-width: 1440px;
+    padding: 12px 24px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .tab {
+    font: inherit;
+    font-size: 11.5px;
+    padding: 5px 9px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--paper); }
+  .tab .id { font-family: var(--mono); font-size: 10px; margin-right: 4px; }
+  .viewer { max-width: 1440px; padding: 18px 24px 44px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .overview-card {
+    font: inherit;
+    text-align: left;
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--ink);
+  }
+  .overview-card:hover { outline: 2px solid #999; outline-offset: 2px; }
+  .overview-card .card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10.5px;
+  }
+  .overview-card .card-title { font-size: 14px; font-weight: 700; }
+  .overview-card .card-route { font-family: var(--mono); font-size: 10px; color: #555; }
+  .overview-card .card-desc { font-size: 10.5px; color: #555; line-height: 1.45; min-height: 30px; }
+  .thumb {
+    border: 1px solid #bbb;
+    background: #fafafa;
+    height: 104px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .thumb .tbar { height: 8px; background: #d5d5d5; }
+  .thumb .tline { height: 5px; background: #e3e3e3; }
+  .thumb .trow { display: flex; gap: 4px; flex: 1; }
+  .thumb .tbox { border: 1px solid #c9c9c9; background: #fff; flex: 1; min-height: 14px; }
+  .thumb .tbox.wide { flex: 2; }
+  .thumb .tbox.dark { background: #d5d5d5; }
+  .thumb .tcol { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .thumb .tcenter { flex: 1; display: grid; place-items: center; }
+  .thumb .tcard { border: 1px solid #c9c9c9; background: #fff; width: 64%; height: 58px; }
+  .screen-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .screen-title { font-size: 16px; margin: 0; }
+  .screen-meta {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .wireframe {
+    border: 2px solid var(--border);
+    background: var(--paper);
+    min-height: 420px;
+    padding: 10px;
+  }
+  .wf-topbar {
+    border: 1px solid var(--line);
+    padding: 7px 9px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-bottom: 10px;
+  }
+  .wf-shell { display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+  .wf-sidebar {
+    border: 1px solid var(--line);
+    padding: 8px;
+    font-size: 11px;
+    color: var(--ink-3);
+    min-height: 340px;
+  }
+  .wf-sidebar div { padding: 4px 6px; border-bottom: 1px dashed #e2e2e2; }
+  .wf-main { display: grid; gap: 10px; align-content: start; }
+  .wf-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .wf-row > * { flex: 0 1 auto; }
+  .wf-grow { flex: 1 1 auto; }
+  .wf-box {
+    border: 1px solid var(--line);
+    padding: 8px 10px;
+    font-size: 11px;
+    color: var(--ink-2);
+    background: var(--paper);
+  }
+  .wf-box.dashed { border-style: dashed; }
+  .wf-box.filled { background: var(--panel); }
+  .wf-box.title { border-left: 4px solid var(--ink); font-weight: 600; }
+  .wf-input {
+    border: 1px solid #bdbdbd;
+    min-height: 26px;
+    padding: 4px 7px;
+    color: #777;
+    font-size: 11px;
+    background: var(--paper);
+  }
+  .wf-textarea {
+    border: 1px solid #bdbdbd;
+    min-height: 96px;
+    padding: 7px;
+    color: #777;
+    font-size: 11px;
+    background: var(--paper);
+  }
+  .wf-button {
+    border: 1px solid var(--ink);
+    padding: 5px 10px;
+    font-size: 11px;
+    background: var(--paper);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .wf-button.primary { background: var(--ink); color: var(--paper); }
+  .wf-chip {
+    border: 1px solid #bdbdbd;
+    padding: 1px 5px;
+    font-size: 10px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .wf-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .wf-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .wf-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .wf-note { font-size: 10.5px; color: var(--ink-3); line-height: 1.5; }
+  .wf-table { border: 1px solid var(--line); }
+  .wf-table-row {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr 1fr 1fr 0.9fr;
+    gap: 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #e5e5e5;
+    font-size: 11px;
+    color: var(--ink-3);
+  }
+  .wf-table-row.head { background: var(--panel); color: var(--ink); font-weight: 600; }
+  .wf-center { max-width: 380px; margin: 34px auto; }
+  .wf-auth-card { border: 1px solid var(--line); padding: 16px; display: grid; gap: 9px; }
+  .wf-split { display: grid; grid-template-columns: 1.25fr 0.75fr; gap: 10px; }
+  .wf-image {
+    border: 1px dashed #999;
+    min-height: 180px;
+    display: grid;
+    place-items: center;
+    color: #777;
+    font-size: 11px;
+    background: var(--panel);
+  }
+  .wf-frame {
+    position: relative;
+    border: 2px solid var(--ink);
+    margin: 22px;
+    min-height: 100px;
+    padding: 20px 14px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .wf-frame::before {
+    content: "AI 框";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  .wf-frame-handle {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .meta-panel {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    border-top: 1px solid #ddd;
+    padding-top: 10px;
+  }
+  .meta-panel h3 { font-size: 11px; margin: 0 0 4px; }
+  .meta-panel div { font-size: 11px; line-height: 1.6; color: var(--ink-2); }
+  .meta-panel code { font-family: var(--mono); font-size: 10px; background: var(--panel); padding: 0 3px; }
+  .footer-note { max-width: 1440px; padding: 0 24px 36px; font-size: 11px; color: var(--ink-3); }
+  @media (max-width: 900px) {
+    .wf-shell { grid-template-columns: 1fr; }
+    .wf-sidebar { display: none; }
+    .wf-grid-2, .wf-grid-3, .wf-grid-4, .meta-panel, .overview-grid { grid-template-columns: 1fr; }
+    .wf-split { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>草稿页面原型 · 仅结构，不含视觉风格</h1>
+  <p class="sub">8 个关键页面的线框级原型；对应 <code>docs/product/07-page-drafts.md</code> 与 <code>08-interaction-map.md</code>。只表达区块、信息层级与操作，不定义颜色/字体/品牌。</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="页面原型">
+  <button class="tab" role="tab" aria-selected="true" data-target="overview"><span class="id">总览</span>页面列表</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="auth"><span class="id">AUTH-01</span>登录/注册</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="home"><span class="id">HOME-01</span>首页</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="qlist"><span class="id">QLIST-01</span>错题列表</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="qedit"><span class="id">QEDIT-01</span>录入/编辑</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="task"><span class="id">TASK-01</span>任务中心</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="qdetail"><span class="id">QDETAIL-01</span>详情/生成</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="practice"><span class="id">PRACTICE-01</span>练习</button>
+  <button class="tab" role="tab" aria-selected="false" data-target="stats"><span class="id">STATS-01</span>统计 P1</button>
+</nav>
+
+<main class="viewer">
+  
+  <section class="screen active" id="overview" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">页面总览</h2>
+      <div class="screen-meta"><span>点击卡片查看对应页面的排版布局</span></div>
+    </div>
+    <div class="overview-grid">
+      <button class="overview-card" data-target="auth">
+        <div class="card-top"><span>AUTH-01</span><span>P0</span></div>
+        <div class="card-title">登录/注册</div>
+        <div class="card-route">/login</div>
+        <div class="card-desc">居中登录卡；用户名 / 密码；错误提示。</div>
+        <div class="thumb"><div class="tbar"></div><div class="tcenter"><div class="tcard"></div></div></div>
+      </button>
+      <button class="overview-card" data-target="home">
+        <div class="card-top"><span>HOME-01</span><span>P0</span></div>
+        <div class="card-title">首页</div>
+        <div class="card-route">/</div>
+        <div class="card-desc">侧边栏 + 顶栏；快捷操作、任务、最近错题。</div>
+        <div class="thumb"><div class="tbar"></div><div class="trow"><div class="tbox" style="flex:.35"></div><div class="tcol"><div class="tline"></div><div class="tline"></div><div class="tline"></div></div></div></div>
+      </button>
+      <button class="overview-card" data-target="qlist">
+        <div class="card-top"><span>QLIST-01</span><span>P0</span></div>
+        <div class="card-title">错题列表</div>
+        <div class="card-route">/questions</div>
+        <div class="card-desc">搜索/筛选 + 列表 + 分页；空态与筛选无结果。</div>
+        <div class="thumb"><div class="tbar"></div><div class="trow"><div class="tbox wide"></div><div class="tbox"></div></div><div class="tline"></div><div class="tline"></div><div class="tline"></div></div>
+      </button>
+      <button class="overview-card" data-target="qedit">
+        <div class="card-top"><span>QEDIT-01</span><span>P0</span></div>
+        <div class="card-title">录入/编辑</div>
+        <div class="card-route">/questions/new</div>
+        <div class="card-desc">三种题型 + 工具栏；图片 AI 框题；草稿双写。</div>
+        <div class="thumb"><div class="tbar"></div><div class="trow"><div class="tbox wide"></div><div class="tbox"></div></div><div class="trow"><div class="tbox"></div><div class="tbox dark"></div></div></div>
+      </button>
+      <button class="overview-card" data-target="task">
+        <div class="card-top"><span>TASK-01</span><span>P0</span></div>
+        <div class="card-title">任务中心</div>
+        <div class="card-route">/tasks</div>
+        <div class="card-desc">草稿行；排队/生成/失败重试；不做复杂筛选。</div>
+        <div class="thumb"><div class="tbar"></div><div class="tline"></div><div class="trow"><div class="tbox"></div><div class="tbox"></div><div class="tbox"></div></div><div class="trow"><div class="tbox"></div><div class="tbox"></div><div class="tbox"></div></div></div>
+      </button>
+      <button class="overview-card" data-target="qdetail">
+        <div class="card-top"><span>QDETAIL-01</span><span>P0</span></div>
+        <div class="card-title">错题详情/生成</div>
+        <div class="card-route">/questions/:id</div>
+        <div class="card-desc">原题 + 分析 + 3 道生成题；去练习/重新生成。</div>
+        <div class="thumb"><div class="tbar"></div><div class="tline"></div><div class="tbox"></div><div class="tbox"></div><div class="tbox"></div></div>
+      </button>
+      <button class="overview-card" data-target="practice">
+        <div class="card-top"><span>PRACTICE-01</span><span>P0</span></div>
+        <div class="card-title">练习</div>
+        <div class="card-route">/practice/:id?</div>
+        <div class="card-desc">进度/计时；作答；看解析；自评；结果。</div>
+        <div class="thumb"><div class="tbar"></div><div class="tline"></div><div class="tbox"></div><div class="trow"><div class="tbox wide"></div><div class="tbox"></div></div></div>
+      </button>
+      <button class="overview-card" data-target="stats">
+        <div class="card-top"><span>STATS-01</span><span>P1</span></div>
+        <div class="card-title">统计/概览</div>
+        <div class="card-route">/stats</div>
+        <div class="card-desc">4 个数字 + 薄弱点 Top3；趋势图 P1。</div>
+        <div class="thumb"><div class="tbar"></div><div class="trow"><div class="tbox"></div><div class="tbox"></div><div class="tbox"></div><div class="tbox"></div></div><div class="tline"></div><div class="tline"></div></div>
+      </button>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="auth" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">登录/注册</h2>
+      <div class="screen-meta"><span>/login</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>产品名</span><span>无导航</span></div>
+      <div class="wf-center">
+        <div class="wf-auth-card">
+          <div class="wf-row"><span class="wf-button primary">登录</span><span class="wf-button">注册</span></div>
+          <div class="wf-input">用户名（3–32 位）</div>
+          <div class="wf-input">密码（≥8 位）</div>
+          <div class="wf-button primary">登录 / 注册</div>
+          <div class="wf-note">错误提示区：401 / 409 / 网络错误</div>
+          <div class="wf-note">P0 不做找回密码 / 邮箱验证</div>
+        </div>
+      </div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>redirect、空表单</div>
+      <div><h3>数据流出</h3><code>access_token</code>、<code>user</code></div>
+      <div><h3>布局区域</h3>顶部品牌 / 居中卡片 / 表单 / 错误区</div>
+      <div><h3>状态</h3>idle / submitting / error / success</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="home" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">首页</h2>
+      <div class="screen-meta"><span>/</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>首页</span><span>任务中心 · 用户菜单</span></div>
+      <div class="wf-shell">
+        <aside class="wf-sidebar"><div>首页</div><div>错题本</div><div>任务中心</div><div>练习</div><div>统计 P1</div><div>设置 P1</div></aside>
+        <div class="wf-main">
+          <div class="wf-row"><span class="wf-button primary">＋ 录入错题</span><span class="wf-button">去练习</span><span class="wf-grow"></span><span class="wf-button">任务中心</span></div>
+          <div class="wf-box title">进行中的任务（最多 3 条） <span class="wf-chip">查看全部</span></div>
+          <div class="wf-box">题目摘要 · 整理中 / 生题 1/3 · 时间 <span class="wf-chip">查看</span></div>
+          <div class="wf-box title">最近错题（3 条） <span class="wf-chip">全部</span></div>
+          <div class="wf-box">求函数 $f(x)=x^3-3x+1$ 的极值 · 高数 · 导数/极值 · 3 题</div>
+          <div class="wf-box dashed">P1：错题数 / 练习数 / 正确率 / 薄弱知识点 Top3 / 趋势</div>
+        </div>
+      </div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>user、最近错题、最近任务</div>
+      <div><h3>数据流出</h3>进入 QEDIT / QLIST / TASK / PRACTICE / STATS</div>
+      <div><h3>布局区域</h3>顶栏 / 侧边栏 / 快捷操作 / 任务列表 / 最近错题 / P1 统计</div>
+      <div><h3>状态</h3>loading / empty / partial / error</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="qlist" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">错题列表</h2>
+      <div class="screen-meta"><span>/questions</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>错题本</span><span><span class="wf-button primary">＋ 新建错题</span></span></div>
+      <div class="wf-row">
+        <div class="wf-input wf-grow">搜索题干 / 标签</div>
+        <span class="wf-button">学科 v</span><span class="wf-button">标签 v</span><span class="wf-button">掌握状态 v</span><span class="wf-button">清空</span>
+      </div>
+      <div class="wf-box title">求函数 $f(x)=x^3-3x+1$ 的极值。</div>
+      <div class="wf-row"><span class="wf-chip">高数</span><span class="wf-chip">导数</span><span class="wf-chip">极值</span><span class="wf-chip">未掌握</span><span class="wf-chip">3 道生成题</span><span class="wf-chip">11-05</span></div>
+      <div class="wf-box title">设 $A=\begin{bmatrix}1&2\\2&1\end{bmatrix}$，求 $A$ 的特征值。</div>
+      <div class="wf-row"><span class="wf-chip">线代</span><span class="wf-chip">特征值</span><span class="wf-chip">复习中</span><span class="wf-chip">3 道生成题</span><span class="wf-chip">11-04</span></div>
+      <div class="wf-row"><span class="wf-note">共 24 条</span><span class="wf-grow"></span><span class="wf-button">上一页</span><span class="wf-button">1</span><span class="wf-button">2</span><span class="wf-button">3</span><span class="wf-button">下一页</span></div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>filters、page、URL query</div>
+      <div><h3>数据流出</h3><code>question_id</code>、删除请求</div>
+      <div><h3>布局区域</h3>顶部工具栏 / 搜索筛选 / 列表 / 分页</div>
+      <div><h3>状态</h3>empty / filter-empty / error</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="qedit" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">录入/编辑</h2>
+      <div class="screen-meta"><span>/questions/new</span><span>P0</span><span>三种题型 + AI 框题 + 草稿</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>录入/编辑</span><span>草稿：已同步 / 未同步 · 取消 · 保存</span></div>
+      <div class="wf-row"><span class="wf-button primary">文本</span><span class="wf-button">图片</span><span class="wf-grow"></span><span class="wf-button">选择题</span><span class="wf-button">填空题</span><span class="wf-button">解答题</span></div>
+      <div class="wf-split">
+        <div class="wf-main">
+          <div class="wf-box title">题干</div>
+          <div class="wf-textarea">求函数 $f(x)=x^3-3x+1$ 的极值。</div>
+          <div class="wf-row"><span class="wf-button">B</span><span class="wf-button">I</span><span class="wf-button">U</span><span class="wf-button">列表</span><span class="wf-button">LaTeX 模板 v</span><span class="wf-button">编号 v</span><span class="wf-button">表格</span><span class="wf-button">插图</span></div>
+          <div class="wf-box dashed">选择题模板（切换后显示）：选项 A–D / 增删 / 单选多选</div>
+          <div class="wf-box dashed">填空题模板（切换后显示）：题干中的 ___ / 每个空的答案</div>
+          <div class="wf-box dashed">解答题模板（切换后显示）：答案 / 解析</div>
+        </div>
+        <div class="wf-main">
+          <div class="wf-box title">图片模式（切到“图片”时显示）</div>
+          <div class="wf-image">原图预览 + AI 预框（可移动 / 缩放 / 重置整图）</div>
+          <div class="wf-frame">“是这道题吗？”<span class="wf-frame-handle"></span></div>
+          <div class="wf-row"><span class="wf-button primary">确认</span><span class="wf-button">切换候选</span><span class="wf-button">重拍</span></div>
+          <div class="wf-box">学科 [高数 v] · 章节 [导数 v] · 标签 [导数][极值] +</div>
+        </div>
+      </div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>draft、image、question（编辑）</div>
+      <div><h3>数据流出</h3><code>question + task_id</code>、<code>draft</code></div>
+      <div><h3>布局区域</h3>顶栏 / 输入方式 + 题型 / 题干编辑 / 工具栏 / 右侧元数据 / 图片确认</div>
+      <div><h3>状态</h3>draft / detecting / confirming / vision / editing / saving / saved / error</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="task" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">任务中心</h2>
+      <div class="screen-meta"><span>/tasks</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>任务中心</span><span>不做复杂筛选 / 通知</span></div>
+      <div class="wf-box title">草稿行：求函数 $f(x)=x^3-3x+1$ 的极值 · 11-05 22:10 <span class="wf-chip">继续编辑</span></div>
+      <div class="wf-table">
+        <div class="wf-table-row head"><span>题目摘要</span><span>整理</span><span>生题</span><span>时间</span><span>操作</span></div>
+        <div class="wf-table-row"><span>求函数 $f(x)=...$</span><span>完成</span><span>3/3 完成</span><span>22:08</span><span>查看</span></div>
+        <div class="wf-table-row"><span>设 $A=[...]$</span><span>生成中</span><span>排队中</span><span>22:12</span><span>查看</span></div>
+        <div class="wf-table-row"><span>概率 $P(|X|\le1.96)$</span><span>失败</span><span>未开始</span><span>22:15</span><span>重试</span></div>
+      </div>
+      <div class="wf-box dashed">空状态：还没有录入记录 → [去录入]</div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>tasks、draft</div>
+      <div><h3>数据流出</h3>retry、question_id、draft.content</div>
+      <div><h3>布局区域</h3>顶栏 / 草稿行 / 任务表 / 空状态</div>
+      <div><h3>状态</h3>queued / running / done / failed</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="qdetail" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">错题详情/生成</h2>
+      <div class="screen-meta"><span>/questions/:id</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>← 返回 错题详情</span><span>删除</span></div>
+      <div class="wf-box title">原题</div>
+      <div class="wf-box">求函数 $f(x)=x^3-3x+1$ 的极值。</div>
+      <div class="wf-row"><span class="wf-button">答案/解析折叠</span><span class="wf-chip">原图缩略图</span></div>
+      <div class="wf-box title">AI 分析（可编辑）</div>
+      <div class="wf-box">考点类型：导数与极值 · 难度：中 · 知识点：导数 / 极值 / 单调性 · 错误原因：求导后未判断符号变化；忽略定义域</div>
+      <div class="wf-box title">生成题 1/3</div>
+      <div class="wf-box">求函数 $f(x)=x^3-6x^2+9x$ 的极值。 <span class="wf-chip">↻ 重新生成</span></div>
+      <div class="wf-box">答案 / 解析（折叠）</div>
+      <div class="wf-row"><span class="wf-button primary">去练习</span></div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>question、analysis、generated、tasks</div>
+      <div><h3>数据流出</h3>analysis 更新、regenerate、practice</div>
+      <div><h3>布局区域</h3>顶栏 / 原题 / 分析 / 生成题卡 / 练习 CTA</div>
+      <div><h3>状态</h3>loading / analysis pending / generated / partial / error</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="practice" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">练习</h2>
+      <div class="screen-meta"><span>/practice/:id?</span><span>P0</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>练习</span><span>进度 1/3 · 00:42</span></div>
+      <div class="wf-box title">求函数 $f(x)=x^3-6x^2+9x$ 的极值。</div>
+      <div class="wf-box title">作答区</div>
+      <div class="wf-textarea">选择题：A/B/C/D 选项；填空题：每个空一个输入框；解答题：文本域</div>
+      <div class="wf-row"><span class="wf-button primary">提交答案</span></div>
+      <div class="wf-box dashed">提交后：参考答案 / 解析（折叠） · [我会了] [我不会] [下一题]</div>
+      <div class="wf-box dashed">结果页：正确率 / 用时 / 薄弱点提示 / [返回详情] [回首页]</div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>generated_questions</div>
+      <div><h3>数据流出</h3><code>practice_records</code></div>
+      <div><h3>布局区域</h3>顶栏 / 进度计时 / 题卡 / 作答 / 解析 / 结果</div>
+      <div><h3>状态</h3>unanswered / answered / revealed / submit failed / result</div>
+    </div>
+  </section>
+
+  
+  <section class="screen" id="stats" role="tabpanel">
+    <div class="screen-head">
+      <h2 class="screen-title">统计/概览（P1）</h2>
+      <div class="screen-meta"><span>/stats</span><span>P1</span></div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-topbar"><span>统计/概览</span><span>P1</span></div>
+      <div class="wf-grid-4">
+        <div class="wf-box">错题数 24</div>
+        <div class="wf-box">练习数 18</div>
+        <div class="wf-box">正确率 72%</div>
+        <div class="wf-box">连续 3 天</div>
+      </div>
+      <div class="wf-box title">薄弱知识点 Top3</div>
+      <div class="wf-box">1. 极值 · 错误 5 / 练习 8 <span class="wf-chip">去练习</span></div>
+      <div class="wf-box">2. 特征值 · 错误 3 / 练习 6 <span class="wf-chip">去练习</span></div>
+      <div class="wf-box">3. 条件概率 · 错误 2 / 练习 4 <span class="wf-chip">去练习</span></div>
+      <div class="wf-box dashed">趋势（P1 有余力）：练习数 / 正确率</div>
+      <div class="wf-box dashed">空状态：先练习 1 道题 → [去练习]</div>
+    </div>
+    <div class="meta-panel">
+      <div><h3>数据流入</h3>overview、weak-points、trends</div>
+      <div><h3>数据流出</h3>tag 筛选 → QLIST / PRACTICE</div>
+      <div><h3>布局区域</h3>顶栏 / 4 数字 / 薄弱点 / 趋势 / 空状态</div>
+      <div><h3>状态</h3>loading / empty / error</div>
+    </div>
+  </section>
+</main>
+
+<div class="footer-note">结构稿 · 不含视觉风格 · 与 07/08 文档配套 · 2026-11-05</div>
+
+<script>
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  const screens = Array.from(document.querySelectorAll('.screen'));
+  const targets = Array.from(document.querySelectorAll('[data-target]'));
+
+  function show(target, updateHash = true) {
+    const screen = document.getElementById(target) ? target : 'overview';
+    screens.forEach(s => s.classList.toggle('active', s.id === screen));
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.target === screen)));
+    if (updateHash) {
+      const nextUrl = screen === 'overview'
+        ? location.pathname + location.search
+        : '#' + screen;
+      history.replaceState(null, '', nextUrl);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  targets.forEach(el => {
+    el.addEventListener('click', () => show(el.dataset.target));
+  });
+
+  const initial = location.hash ? location.hash.slice(1) : 'overview';
+  show(initial, false);
+</script>
+</body>
+</html>

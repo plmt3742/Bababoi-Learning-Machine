@@ -28,7 +28,7 @@
 
 1. **代码与 OpenAPI 实际输出**：实现细节的最终事实。
 2. **`05-architecture.md`**：API / 数据模型 / 技术栈；改接口必须先改这里。
-3. **PRD**：范围 / 交互 / 验收；合并后的 `docs/product/PRD.md` v0.9 为准（v0.8 已归档为 `PRD-v0.8-reference.md`）。
+3. **PRD**：范围 / 交互 / 验收；合并后的 `docs/product/PRD.md` 为准（当前在 `docs/prd` 分支）。
 4. **`01-project.md` / `02-goals.md`**：摘要与目标；不单独新增范围。
 5. **`03-roadmap.md` / `04-todos.md`**：进度与任务；判断“现在做什么”看这里。
 6. **`Resource/` 的 docx**：背景参考，不是准则。
@@ -86,9 +86,10 @@
 
 - 阶段：M0（11.4–11.7）
 - 头号目标：把 P0 范围、API 契约 v0、设计稿、仓库骨架在 11.7 24:00 前落地
-- 已确认：大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态识图、框题确认 P0 增强、数据库 schema 由人机负责、两位开发共同负责产品设计
-- 当前代码：`main @ 9814f90`；BE-001/002/003 已合（PR #2/#3/#4）；CI #10 已合；PR #5/#6/#7/#8/#9 open；issue #11 是 BE-001~003 follow-up
+- 已确认：大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态、图片 v2（裁剪 + 多题文本提取）、数据库 schema 由人机负责、两位开发共同负责产品设计
+- 设计产出：01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；03 页面规范待填；07/08/原型待按图片 v2 更新
+- 当前代码：`origin/main @ 2335773`；BE-001/002/003 已合（PR #2/#3/#4）；CI #10 已合；PR #5/#6/#7/#8/#9 open；issue #11 follow-up
 - 前端：`feat/frontend-m0-foundation` 有 07/08/页面原型/交互地图；FE-001 尚未开始
 - 头号风险：范围过大 + 部署拖到最后（见 `09-risks.md` R-001、R-010）
-- 下一步：后端按 `#7 → #6 → #5 → rebase #9 → #8` 推进；开分支保护；前端做 FE-001；PRD v0.9 从归档修订
+- 下一步：按 [12-backend-alignment.md](12-backend-alignment.md) 确认 05 v0.4（图片 v2/队列/草稿/题型）；完成 FE-001；合并 PRD v0.9
 - 新会话交接：用 [11-agent-handoff.md](11-agent-handoff.md) 的提示词

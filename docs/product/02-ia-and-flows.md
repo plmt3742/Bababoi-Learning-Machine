@@ -66,23 +66,30 @@ flowchart TD
   A[进入录入/编辑页] --> B{录入方式}
   B -- 文本 --> C[粘贴/拖入题干、答案、选题型]
   B -- 图片 --> IMG[电脑粘贴/拖入；手机相册/拍照]
-  IMG --> FRAME[AI 预框核心题目 → 用户确认/切换候选/移动缩放 AI 框]
-  FRAME --> OCR[裁剪 → DeepSeek 识图 → 结构化题目]
+  IMG --> CROP[用户裁剪图片（可重置）]
+  CROP --> EXTRACT[DeepSeek 提取题目文本（公式 LaTeX）]
+  EXTRACT --> ITEMS[返回 1..N 道题，按 ① ② ③ … 条目展示]
+  ITEMS --> CONFIRM[逐条确认/编辑；含图题提示“仅提取文字”]
   C --> EDIT[显示题目内容 → 编辑]
-  OCR --> EDIT
+  CONFIRM --> EDIT
   EDIT --> SAVE{保存}
   SAVE -- 校验失败 --> EDIT
   SAVE -- 成功 --> QUEUE[入库 + 后台整理/生题入队]
   QUEUE --> TASK[任务中心：排队/生成/完成/失败]
-  TASK --> DETAIL[错题详情：分析 + 3 道题]
+  TASK --> DETAIL[错题详情：分析 + 答案/解析 + 3 道题]
+  DETAIL --> SELECT[选择 1–3 道题目（高亮）]
+  SELECT --> GENERATE[生成相似题]
+  GENERATE --> TASK
   DETAIL --> PRACTICE[练习：作答/计时/自评]
   PRACTICE --> RECORD[练习记录/错题本]
 ```
 
 **关键分支**：
 
-- 识图/分析失败：保留输入，可重试；不创建重复错题。
+- 图片提取失败：保留已输入内容，可重拍/换图/改文本；不创建重复错题。
+- 多题提取部分失败：已识别条目保留，缺失条目可重试；不阻塞其他条目。
 - 生成失败：任务中心显示失败 + 重试；不阻塞连续录入。
+- 多选生成：每个选中题目独立任务/3 道题；P0 上限 3 道。
 - 草稿：服务端 + localStorage 双写；离开/取消有三选项。
 - 统计/概览是 P1，不阻塞主闭环。
 
@@ -131,13 +138,14 @@ flowchart TD
 | 状态 | UI | 用户动作 | 失败/退出 |
 |---|---|---|---|
 | idle | 空状态 + “开始分析” | 编辑题干 | — |
-| detecting | “正在识别题目区域…” + 原图 | 等待/取消 | 重拍/换图/改文本 |
-| confirming | 原图高亮框 + “是这道题吗？” + 确认/切换候选 + 移动/缩放框 | 确认/切换/移动缩放/重置整图/取消 | 重拍/换图/改文本 |
-| vision | 裁剪后识图进度 | 等待/取消 | 重拍/换图/改文本 |
+| cropping | 图片裁剪器 + 重置/确认 | 裁剪/重置/确认 | 重拍/换图/改文本 |
+| uploading | 上传进度 | 等待/取消 | 重拍/换图/改文本 |
+| extracting | “正在提取题目文本…” + 原图 | 等待/取消 | 重拍/换图/改文本 |
+| confirming_items | “识别到 N 道题” + ① ② ③ … 条目列表 | 逐条编辑/删除/确认 | 重试缺失/改文本 |
 | submitting | 按钮 loading，表单禁用 | 等待 | 网络错误提示 |
 | analyzing | 阶段进度 + 骨架屏 | 等待/取消 | 重试分析 |
-| analyzed | 分析卡片 + “生成相似题” | 查看/编辑/生成 | — |
-| generating | 3 个题卡骨架 + 阶段文案 | 等待/取消 | 重试生成 |
+| analyzed | 分析卡片 + 答案/解析 + 题目条目选择 | 查看/编辑/选择题目 | — |
+| generating | 选中题目对应的 3 个题卡骨架 | 等待/取消 | 重试生成 |
 | validating | “正在校验题目质量…” | 等待 | 自动重试 1 次 |
 | partial | 已生成题卡 + 失败提示 | 重试缺失/重新生成 | 重试 |
 | success | 3 张完整题卡 | 保存/练习/重新生成 | — |
@@ -155,12 +163,12 @@ flowchart TD
 | 页面 | 主要 API | 关键数据 |
 |---|---|---|
 | 登录/注册 | `POST /auth/login`、`POST /auth/register`、`GET /auth/me` | token、user |
-| 首页 | `GET /questions?page=1`、`GET /tasks` | 最近错题、任务状态 |
+| 首页 | `GET /questions?page=1`、`GET /tasks?limit=` | 最近错题、任务状态 |
 | 错题列表 | `GET /questions`、`DELETE /questions/{id}` | items、total、filters |
 | 录入/编辑（文本） | `POST /questions`、`GET/PUT/DELETE /drafts/me` | question、content_md、options、blanks、analysis |
-| 录入/编辑（图片） | `POST /questions/from-image`（先返回候选框，确认后再识别）、`POST /questions` | image_path、candidates、bbox、content_md、analysis |
-| 任务中心 | `GET /tasks?question_id=`、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me`；SSE `GET /questions/{id}/events` 为 P1 | task status、draft |
-| 详情 | `GET /questions/{id}?include=generated`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、generated、tasks |
+| 录入/编辑（图片） | `POST /uploads/images`、`POST /questions/from-image`（返回 `questions[]`）、`POST /questions`（逐条） | image_path、content_md、question_type、warnings |
+| 任务中心 | `GET /tasks?question_id=`（P0 轮询）、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me`；SSE P1 | task status、draft |
+| 详情 | `GET /questions/{id}?include=generated`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、answer/explanation、generated、tasks |
 | 练习 | `GET /questions/{id}?include=generated`、`POST /practice-records` | 题卡、记录 |
 | 统计/概览（P1） | `GET /stats/overview`、`GET /stats/trends`、`GET /stats/weak-points` | 数字、趋势、薄弱点 |
 
@@ -169,9 +177,9 @@ flowchart TD
 - [ ] 每条流程有起点、终点、主按钮。
 - [ ] 每个失败分支有下一步。
 - [ ] 每个异步动作有 loading/error/retry。
-- [ ] 图片录入有上传/框题/确认/识图/编辑/失败状态；失败可退回文本。
-- [ ] 框题确认支持确认/切换候选 + 移动/缩放 AI 框 + 重置整图；从零画框 P1。
-- [ ] AI 判定整页/无 candidate 时退回整图识别，不阻塞文本。
+- [ ] 图片录入有裁剪/上传/提取/多题条目确认/编辑/失败状态；失败可退回文本。
+- [ ] 多题条目支持逐条编辑、删除、确认；选中 1–3 道可生成相似题。
+- [ ] 当前阶段只提取文本；含图题提示“仅提取文字”，不阻塞文本闭环。
 - [ ] 返回/刷新不会丢关键数据（或明确提示）。
 - [ ] 重复点击不会产生重复数据。
 - [ ] 空数据有引导。

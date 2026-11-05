@@ -8,6 +8,7 @@ read_when: 后端合并审查、CI 设立、M0 收尾、PR 复盘
 # 13 · 后端合并审查与 CI 方案
 
 > 审查对象：`origin/main @ 18cc663`（后端 BE-001/002/003 合并后的状态）
+> 2026-11-05 注：图片交互已由 ADR-004 改为「用户裁剪 + 多题文本提取」，本文中框题 demo/bbox 仅作历史参考。
 > 对照基线：`07-workflow.md`、`05-architecture.md` v0.3、`12-backend-alignment.md`
 > 结论先行：**内容基本可运行，但合并过程不合规；不建议 revert，建议冻结 main + 修复 forward。**
 
