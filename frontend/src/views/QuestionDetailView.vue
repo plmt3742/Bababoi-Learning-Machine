@@ -9,11 +9,15 @@ import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
 import MarkdownRenderer from '../components/common/MarkdownRenderer.vue'
+import GenerationProgress from '../components/ai/GenerationProgress.vue'
 import AnalysisCard from '../components/question/AnalysisCard.vue'
 import GeneratedQuestionCard from '../components/question/GeneratedQuestionCard.vue'
 import { generateQuestions, getQuestion, removeQuestion } from '../api/questions'
+import { retryTask } from '../api/tasks'
 import { normalizeApiError } from '../api/errors'
-import type { QuestionDetail } from '../api/types'
+import type { QuestionDetail, Task } from '../api/types'
+import { useTaskPolling } from '../composables/useTaskPolling'
+import { hasActiveTasks, latestTask } from '../utils/task'
 import {
   formatDateTime,
   masteryStatusColor,
@@ -33,11 +37,14 @@ const notFound = ref(false)
 const deleteDialogVisible = ref(false)
 const deleteError = ref('')
 const deleting = ref(false)
-const generating = ref(false)
+const submittingGeneration = ref(false)
 const refreshing = ref(false)
 const generationRequested = ref(false)
 const actionError = ref('')
+const retryingTaskId = ref<number | null>(null)
 
+const handledDoneTaskIds = new Set<number>()
+let knownQuizTaskId = 0
 let loadToken = 0
 
 const questionId = computed<number | null>(() => {
@@ -47,6 +54,24 @@ const questionId = computed<number | null>(() => {
 
   const parsed = Number.parseInt(value, 10)
   return Number.isFinite(parsed) && parsed > 0 && String(parsed) === value ? parsed : null
+})
+
+const {
+  tasks: liveTasks,
+  polling: isPolling,
+  loading: tasksLoading,
+  timedOut: pollingTimedOut,
+  stopped: pollingStopped,
+  error: pollingError,
+  start: startTaskPolling,
+  stop: stopTaskPolling,
+  refresh: refreshTasks,
+  reset: resetTaskPolling,
+  setTasks: setPollingTasks,
+} = useTaskPolling({
+  questionId: () => questionId.value,
+  intervalMs: 1500,
+  timeoutMs: 120_000,
 })
 
 const pageDescription = computed(() => {
@@ -62,33 +87,78 @@ const hasAnswer = computed(() => Boolean(question.value?.answer_md?.trim()))
 const hasExplanation = computed(() => Boolean(question.value?.explanation_md?.trim()))
 const blanks = computed(() => question.value?.blanks ?? [])
 const generatedCount = computed(() => question.value?.generated_questions.length ?? 0)
+const analysisReady = computed(() => Boolean(question.value?.analysis))
 
-const analysisTask = computed(
-  () => question.value?.tasks.find((task) => task.stage === 'analysis') ?? null,
-)
+const analysisTask = computed(() => latestTask(liveTasks.value, 'analysis'))
+const quizTask = computed(() => latestTask(liveTasks.value, 'quiz'))
+
 const analysisPending = computed(
   () =>
-    !question.value?.analysis &&
+    !analysisReady.value &&
     (analysisTask.value?.status === 'queued' || analysisTask.value?.status === 'running'),
 )
 const analysisFailed = computed(
-  () => !question.value?.analysis && analysisTask.value?.status === 'failed',
+  () => !analysisReady.value && analysisTask.value?.status === 'failed',
+)
+
+const quizActive = computed(
+  () => quizTask.value?.status === 'queued' || quizTask.value?.status === 'running',
+)
+const generationBusy = computed(() => quizActive.value || generationRequested.value)
+const generationButtonLabel = computed(() => {
+  if (quizTask.value?.status === 'running') return '生成中…'
+  if (generationBusy.value) return '等待生成…'
+  return '生成相似题'
+})
+
+const hasActiveTask = computed(() => hasActiveTasks(liveTasks.value))
+
+const hasRelevantFailure = computed(
+  () =>
+    (analysisTask.value?.status === 'failed' && !analysisReady.value) ||
+    quizTask.value?.status === 'failed',
+)
+
+const syncPending = computed(
+  () =>
+    (analysisTask.value?.status === 'done' && !analysisReady.value) ||
+    (quizTask.value?.status === 'done' && generatedCount.value === 0),
+)
+
+const showGenerationProgress = computed(
+  () =>
+    isPolling.value ||
+    pollingTimedOut.value ||
+    pollingStopped.value ||
+    Boolean(pollingError.value) ||
+    hasActiveTask.value ||
+    generationBusy.value ||
+    hasRelevantFailure.value ||
+    syncPending.value,
 )
 
 const generatedStatus = computed<'ready' | 'analysis-pending' | 'generating' | 'empty'>(() => {
   if (generatedCount.value > 0) return 'ready'
   if (analysisPending.value) return 'analysis-pending'
-  if (generationRequested.value) return 'generating'
-
-  const quizRunning = (question.value?.tasks ?? []).some(
-    (task) => task.stage === 'quiz' && (task.status === 'queued' || task.status === 'running'),
-  )
-
-  return quizRunning ? 'generating' : 'empty'
+  if (generationBusy.value || syncPending.value) return 'generating'
+  return 'empty'
 })
+
+function rememberLatestQuizTask(tasks: Task[]): void {
+  const latestQuizTask = latestTask(tasks, 'quiz')
+  if (latestQuizTask && latestQuizTask.id > knownQuizTaskId) {
+    knownQuizTaskId = latestQuizTask.id
+  }
+}
 
 async function loadQuestion(): Promise<void> {
   const id = questionId.value
+
+  resetTaskPolling()
+  handledDoneTaskIds.clear()
+  knownQuizTaskId = 0
+  generationRequested.value = false
+  retryingTaskId.value = null
 
   if (id === null) {
     loading.value = false
@@ -108,7 +178,15 @@ async function loadQuestion(): Promise<void> {
   try {
     const detail = await getQuestion(id, { includeGenerated: true })
     if (token !== loadToken) return
+
     question.value = detail
+    setPollingTasks(detail.tasks)
+    rememberLatestQuizTask(detail.tasks)
+    for (const task of detail.tasks) {
+      if (task.status === 'done') handledDoneTaskIds.add(task.id)
+    }
+
+    if (hasActiveTasks(detail.tasks)) startTaskPolling()
   } catch (cause) {
     if (token !== loadToken) return
 
@@ -126,16 +204,22 @@ async function loadQuestion(): Promise<void> {
   }
 }
 
-async function refreshQuestion(): Promise<void> {
+async function refreshQuestion(options: { silent?: boolean } = {}): Promise<void> {
   const current = question.value
   if (!current || refreshing.value) return
 
   refreshing.value = true
-  actionError.value = ''
+  if (!options.silent) actionError.value = ''
 
   try {
-    question.value = await getQuestion(current.id, { includeGenerated: true })
+    const detail = await getQuestion(current.id, { includeGenerated: true })
+    question.value = detail
     generationRequested.value = false
+    rememberLatestQuizTask(detail.tasks)
+
+    for (const task of detail.tasks) {
+      if (task.status === 'done') handledDoneTaskIds.add(task.id)
+    }
   } catch (cause) {
     actionError.value = normalizeApiError(cause).message
   } finally {
@@ -145,23 +229,54 @@ async function refreshQuestion(): Promise<void> {
 
 async function handleGenerate(): Promise<void> {
   const current = question.value
-  if (!current || generating.value) return
+  if (!current || submittingGeneration.value || generationBusy.value) return
 
-  generating.value = true
+  submittingGeneration.value = true
   actionError.value = ''
 
   try {
     const result = await generateQuestions(current.id)
     generationRequested.value = true
+    startTaskPolling()
     Message.success({
-      content: `已提交生成任务（#${result.task_id}），完成后点击“刷新状态”查看相似题。`,
-      duration: 4500,
+      content: `已提交生成任务（#${result.task_id}），完成后会自动展示相似题。`,
+      duration: 4000,
     })
   } catch (cause) {
     actionError.value = normalizeApiError(cause).message
   } finally {
-    generating.value = false
+    submittingGeneration.value = false
   }
+}
+
+async function handleRetryTask(taskId: number): Promise<void> {
+  if (retryingTaskId.value !== null) return
+
+  retryingTaskId.value = taskId
+  actionError.value = ''
+
+  try {
+    await retryTask(taskId)
+    Message.success(`任务 #${taskId} 已重新提交`)
+    startTaskPolling()
+  } catch (cause) {
+    actionError.value = normalizeApiError(cause).message
+  } finally {
+    retryingTaskId.value = null
+  }
+}
+
+async function handleRefreshTasks(): Promise<void> {
+  const result = await refreshTasks()
+  if (result === null) return
+
+  if (!hasActiveTasks(result)) {
+    await refreshQuestion({ silent: true })
+  }
+}
+
+function handleRefreshQuestion(): void {
+  void refreshQuestion()
 }
 
 async function handleDelete(): Promise<boolean> {
@@ -194,6 +309,28 @@ function goPractice(): void {
   if (!question.value) return
   void router.push(`/practice/${question.value.id}`)
 }
+
+watch(
+  () => liveTasks.value,
+  (next) => {
+    let shouldRefreshQuestion = false
+
+    for (const task of next) {
+      if (task.status !== 'done' || handledDoneTaskIds.has(task.id)) continue
+
+      handledDoneTaskIds.add(task.id)
+      shouldRefreshQuestion = true
+    }
+
+    const latestQuizTask = latestTask(next, 'quiz')
+    if (latestQuizTask && latestQuizTask.id > knownQuizTaskId) {
+      knownQuizTaskId = latestQuizTask.id
+      generationRequested.value = false
+    }
+
+    if (shouldRefreshQuestion) void refreshQuestion({ silent: true })
+  },
+)
 
 watch(questionId, () => void loadQuestion(), { immediate: true })
 
@@ -301,7 +438,29 @@ onBeforeUnmount(() => {
           :failed="analysisFailed"
         />
 
-        <section class="detail-section" aria-labelledby="question-generated-heading">
+        <GenerationProgress
+          v-if="showGenerationProgress"
+          :tasks="liveTasks"
+          :polling="isPolling"
+          :loading="tasksLoading"
+          :timed-out="pollingTimedOut"
+          :stopped="pollingStopped"
+          :error-message="pollingError?.message ?? ''"
+          :error-code="pollingError?.code ?? ''"
+          :generated-count="generatedCount"
+          :analysis-ready="analysisReady"
+          :generation-requested="generationRequested"
+          :retrying-task-id="retryingTaskId"
+          @retry="handleRetryTask"
+          @stop="stopTaskPolling"
+          @refresh="handleRefreshTasks"
+        />
+
+        <section
+          v-if="generatedStatus !== 'generating'"
+          class="detail-section"
+          aria-labelledby="question-generated-heading"
+        >
           <div class="section-heading">
             <h2 id="question-generated-heading" class="section-heading__title">
               生成题
@@ -309,20 +468,16 @@ onBeforeUnmount(() => {
                 {{ generatedCount }}/3
               </span>
             </h2>
-            <a-button size="small" type="text" :loading="refreshing" @click="refreshQuestion">
+            <a-button size="small" type="text" :loading="refreshing" @click="handleRefreshQuestion">
               <template #icon>
                 <IconRefresh />
               </template>
-              刷新状态
+              刷新
             </a-button>
           </div>
 
           <a-alert v-if="generatedStatus === 'analysis-pending'" type="info" :show-icon="true">
             AI 分析任务还在进行，完成后即可基于分析结果生成 3 道相似题。
-          </a-alert>
-
-          <a-alert v-else-if="generatedStatus === 'generating'" type="info" :show-icon="true">
-            相似题生成任务已提交，完成后点击「刷新状态」即可查看。
           </a-alert>
 
           <div v-if="generatedCount > 0" class="generated-list">
@@ -347,7 +502,9 @@ onBeforeUnmount(() => {
         <section class="detail-actions" aria-labelledby="question-actions-heading">
           <div class="detail-actions__copy">
             <h2 id="question-actions-heading" class="section-heading__title">下一步</h2>
-            <p class="detail-actions__hint">去练习用相似题自测，或继续补全这道题的生成结果。</p>
+            <p class="detail-actions__hint">
+              去练习用相似题自测；生成任务会在本页自动刷新，无需手动操作。
+            </p>
           </div>
 
           <a-alert v-if="actionError" type="error" show-icon closable @close="actionError = ''">
@@ -357,13 +514,19 @@ onBeforeUnmount(() => {
           <div class="detail-actions__buttons">
             <a-button
               type="primary"
-              :loading="generating"
-              :disabled="generating"
+              :loading="submittingGeneration"
+              :disabled="submittingGeneration || generationBusy"
               @click="handleGenerate"
             >
-              生成相似题
+              {{ generationButtonLabel }}
             </a-button>
-            <a-button @click="goPractice">去练习</a-button>
+            <a-button
+              :disabled="generatedCount === 0"
+              :title="generatedCount === 0 ? '生成相似题后即可练习' : undefined"
+              @click="goPractice"
+            >
+              去练习
+            </a-button>
           </div>
         </section>
       </div>

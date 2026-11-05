@@ -21,6 +21,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 - **下一步顺序**：后端 `#7 → #6 → #5 → rebase #9 → #8`；开 `main` 分支保护；前端 FE-001 + 图片 v2；PRD v0.9
 - **审查报告**：`docs/agent/13-backend-merge-audit.md`
 - **不要做**：不要 revert BE-001/002/003；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题方案
+- **分支规则**：所有开发（含前端/文档）从 `main` 开短分支 + PR；不要直接合入 `main`，合并前等用户确认。
 
 ## 1. 最小启动提示词（复制即用）
 
@@ -56,6 +57,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
+不要直接 push/merge `main`；完成后开 PR，等用户确认后再合并。
 开发页面时参照 `docs/product/drafts/prototype.html` 的结构和 `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
 视觉语言以 `04-design-system.md` 的第一/第二原则为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。

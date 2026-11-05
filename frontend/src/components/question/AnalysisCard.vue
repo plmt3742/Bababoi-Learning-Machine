@@ -30,11 +30,11 @@ const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty
     </header>
 
     <a-alert v-if="pending" class="analysis-card__notice" type="info" :show-icon="true">
-      AI 正在分析这道题，完成后刷新页面即可查看考点、错误原因与解题摘要。
+      AI 正在分析这道题，完成后会自动更新考点、错误原因与解题摘要。
     </a-alert>
 
     <a-alert v-else-if="failed" class="analysis-card__notice" type="warning" :show-icon="true">
-      分析任务没有成功完成，可稍后在任务中心重试，或直接查看原题与答案。
+      分析任务没有成功完成，可在 AI 生成进度卡中重试，或直接查看原题与答案。
     </a-alert>
 
     <a-empty v-else-if="!analysis" description="暂无分析结果" />

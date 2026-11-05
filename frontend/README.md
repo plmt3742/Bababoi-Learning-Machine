@@ -2,9 +2,9 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态：FE-001 ~ FE-008、FE-010、FE-012 已完成（2026-11-05）。应用壳、路由、设计 tokens、
+> 状态：FE-001 ~ FE-010、FE-012、FE-019 已完成（2026-11-05）。应用壳、路由、设计 tokens、
 > API client、Mock API、登录/注册与路由守卫已就位；错题录入、列表、详情、Markdown/公式渲染、
-> 空/错/loading 状态已可用。AI 任务轮询（FE-009）、练习、统计等仍待实现。
+> 空/错/loading 状态、AI 生成进度轮询与任务中心已可用。练习、统计等仍待实现。
 
 ## 技术栈（实际安装版本）
 
@@ -72,8 +72,11 @@ VITE_USE_MOCK=true
   触发统一的清 token / 跳登录处理。
 - Mock 覆盖：认证、错题 CRUD/筛选、创建后的分析任务、相似题生成任务、任务列表与重试、
   草稿 GET/PUT/DELETE、练习记录创建/列表。Mock 数据在内存中，刷新后新增数据会重置
-  （演示账号保留）；种子题 101 自带 3 道生成题。Mock 的生成任务只推进任务状态，
-  不会新增生成题，FE-009/FE-015 接入轮询与完整生成 UI 后再补。
+  （演示账号保留）；种子题 101 自带 3 道生成题。
+- Mock 任务时间线：`queued → running` 约 900ms，`running → done` 约 2400ms，接口统一
+  320ms 延迟。`quiz` 任务完成后会为父题替换/创建 3 道 `generated_questions`，因此
+  102/104 生成后轮询即可看到题卡；`analysis` 任务完成后补全通用分析。种子数据中的
+  进行中任务也会按同一时间线推进，便于任务中心演示。
 
 ## 路由
 
@@ -85,7 +88,7 @@ VITE_USE_MOCK=true
 | `/`              | 首页占位                     | AppShell |
 | `/questions`     | 错题列表（筛选/搜索/分页）   | AppShell |
 | `/questions/new` | 录入错题（文本）             | AppShell |
-| `/tasks`         | 任务中心占位                 | AppShell |
+| `/tasks`         | 任务中心（列表/筛选/重试）   | AppShell |
 | `/questions/:id` | 错题详情（分析/生成题/删除） | AppShell |
 | `/practice/:id?` | 练习占位（`id` 可选）        | AppShell |
 | `/stats`         | 统计占位（P1）               | AppShell |
@@ -98,9 +101,24 @@ VITE_USE_MOCK=true
   成功后跳转详情并提示分析任务已入队。当前按解答题保存，选项/空位编辑器留待 FE-020。
 - **列表 `/questions`**：卡片列表，关键词搜索 300ms 防抖，学科/标签/掌握状态筛选与
   URL query 同步；分页默认 20 条。区分空账号与筛选无结果，错误可重试。
-- **详情 `/questions/:id`**：按“原题 → AI 分析 → 生成题 → 下一步”纵向排列；
+- **详情 `/questions/:id`**：按“原题 → AI 分析 → 生成进度 → 生成题 → 下一步”纵向排列；
   答案/解析默认折叠，分析未完成时显示等待/失败提示；生成相似题调用
-  `POST /questions/{id}/generate` 并展示任务号；删除使用 Arco Modal 二次确认。
+  `POST /questions/{id}/generate` 后自动开始轮询，完成后自动刷新题卡；删除使用
+  Arco Modal 二次确认。
+
+## AI 任务轮询与任务中心（FE-009 / FE-019）
+
+- `src/composables/useTaskPolling.ts` 封装 `GET /tasks` 轮询：同一时间只允许一个请求，
+  组件卸载 / `reset` 后忽略迟到响应。
+- 详情页用 `question_id` 过滤，每 **1.5s** 轮询；任务中心跨题展示，每 **2s** 轮询。
+- 只要有 `queued` / `running` 任务就继续轮询；全部进入 `done` / `failed` 后自动停止。
+- 手动「停止等待」只暂停本页刷新，服务器任务继续；超过 **120s** 仍未结束会显示慢任务提示。
+- 详情页在分析/生题任务完成后自动 `GET /questions/{id}?include=generated`，无需手动刷新；
+  失败的 `analysis` / `quiz` 任务可原地重试并恢复轮询。
+- 任务中心包含状态筛选（全部/排队中/生成中/完成/失败）、任务行（任务号、阶段、状态、
+  题目链接、创建时间、错误信息、失败重试）与草稿行（`GET /drafts/me`，有草稿时链接到
+  `/questions/new`）。
+- P0 不接 SSE；进度只走 `/tasks` 轮询。
 
 ## Markdown 与公式（FE-010）
 
@@ -143,15 +161,17 @@ src/
 ├── App.vue
 ├── api/                 # client/errors/types/endpoints + mocks
 ├── components/
+│   ├── ai/              # GenerationProgress（阶段进度/失败重试/停止等待）
 │   ├── common/          # PageHeader、MarkdownRenderer、Empty/Error/LoadingSkeleton
 │   ├── layout/          # AppShell、AppSidebar、AppTopBar、AppNavigation
 │   └── question/        # QuestionCard、AnalysisCard、GeneratedQuestionCard
+├── composables/         # useTaskPolling（/tasks 轮询、超时与卸载清理）
 ├── router/              # 路由表 + 登录守卫 + 标题同步
 ├── stores/              # pinia 单例 + auth store
 ├── styles/              # tokens / arco-theme / global
 ├── types/               # env、RouteMeta 类型扩展
-├── utils/               # markdown/KaTeX 渲染、错题标签与日期格式化
-└── views/               # 登录 + 错题录入/列表/详情 + 其余占位页
+├── utils/               # markdown/KaTeX 渲染、错题标签、日期与任务文案
+└── views/               # 登录 + 错题录入/列表/详情 + 任务中心 + 其余占位页
 ```
 
 除 `/login` 外，AppShell 下的页面都需要登录；未登录访问会跳转到
@@ -159,7 +179,6 @@ src/
 
 ## 尚未实现
 
-- FE-009：AI 生成任务轮询与阶段进度（当前只提示任务号，需手动刷新详情）。
 - FE-013 / FE-014：练习页与统计/概览。
 - FE-015：更完整的标签筛选/搜索体验（当前列表已具备基础版本）。
 - FE-016 / FE-021：图片上传、裁剪、多题识别与选择生成。
