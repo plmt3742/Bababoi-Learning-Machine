@@ -37,7 +37,7 @@
 | `--color-surface` | `#FFFFFF` | 卡片/面板 |
 | `--color-text-1` | `#1D2129` | 标题/正文 |
 | `--color-text-2` | `#4E5969` | 次要文字 |
-| `--color-text-3` | `#86909C` | 辅助/占位 |
+| `--color-text-3` | `#6B7280` | 辅助/占位；小字号对比度 ≥ 4.5:1 |
 | `--color-border` | `#E5E6EB` | 分割线/边框 |
 | `--color-fill` | `#F2F3F5` | 标签/次级背景 |
 

@@ -16,6 +16,9 @@
   "dependencies": {
     "@arco-design/web-vue": "2.59.0",
     "axios": "1.21.0",
+    "dompurify": "3.4.17",
+    "katex": "0.19.1",
+    "markdown-it": "15.0.3",
     "pinia": "3.0.4",
     "vue": "3.5.44",
     "vue-router": "4.6.4"

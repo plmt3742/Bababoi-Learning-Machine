@@ -36,11 +36,6 @@ const emit = defineEmits<{ navigate: [] }>()
     <div class="app-sidebar__nav">
       <AppNavigation @navigate="emit('navigate')" />
     </div>
-
-    <div class="app-sidebar__footer">
-      <span class="app-sidebar__status-dot" aria-hidden="true"></span>
-      <span>M0 · 前端骨架</span>
-    </div>
   </div>
 </template>
 
@@ -111,24 +106,5 @@ const emit = defineEmits<{ navigate: [] }>()
 .app-sidebar__nav {
   flex: 1;
   min-height: 0;
-}
-
-.app-sidebar__footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-2) 0;
-  border-top: 1px solid var(--color-border);
-  color: var(--color-text-3);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs-leading);
-}
-
-.app-sidebar__status-dot {
-  width: 6px;
-  height: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--color-success);
 }
 </style>

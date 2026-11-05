@@ -2,8 +2,9 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态：FE-001 ~ FE-006 已完成（2026-11-05）。应用壳、路由、设计 tokens、API client、
-> Mock API、登录/注册与路由守卫已就位；业务页面目前仍是占位页。
+> 状态：FE-001 ~ FE-008、FE-010、FE-012 已完成（2026-11-05）。应用壳、路由、设计 tokens、
+> API client、Mock API、登录/注册与路由守卫已就位；错题录入、列表、详情、Markdown/公式渲染、
+> 空/错/loading 状态已可用。AI 任务轮询（FE-009）、练习、统计等仍待实现。
 
 ## 技术栈（实际安装版本）
 
@@ -17,6 +18,9 @@ Vue 3 + Vite + TypeScript + Arco Design Vue。
 | Pinia              | 3.0.4                          |
 | Axios              | 1.21.0                         |
 | axios-mock-adapter | 2.1.0（devDependency）         |
+| markdown-it        | 15.0.3                         |
+| KaTeX              | 0.19.1                         |
+| DOMPurify          | 3.4.17                         |
 | ESLint             | 10.14.0（flat config）         |
 | Prettier           | 3.9.10                         |
 | 组件自动导入       | unplugin-vue-components 32.1.0 |
@@ -66,24 +70,51 @@ VITE_USE_MOCK=true
   恢复用户，token 失效会清空登录态并回到 `/login`。
 - 受保护页面通过 `meta.requiresAuth` + 全局路由守卫拦截；任意接口返回 401 会
   触发统一的清 token / 跳登录处理。
-- Mock 覆盖：认证、错题 CRUD/筛选、任务列表与重试、草稿 GET/PUT/DELETE、
-  练习记录创建/列表。Mock 数据在内存中，刷新后新增数据会重置（演示账号保留）。
+- Mock 覆盖：认证、错题 CRUD/筛选、创建后的分析任务、相似题生成任务、任务列表与重试、
+  草稿 GET/PUT/DELETE、练习记录创建/列表。Mock 数据在内存中，刷新后新增数据会重置
+  （演示账号保留）；种子题 101 自带 3 道生成题。Mock 的生成任务只推进任务状态，
+  不会新增生成题，FE-009/FE-015 接入轮询与完整生成 UI 后再补。
 
 ## 路由
 
 使用 `createWebHistory`，每个路由通过 `meta.title` 同步浏览器标题。
 
-| 路径             | 页面                  | 布局     |
-| ---------------- | --------------------- | -------- |
-| `/login`         | 登录/注册             | 独立页   |
-| `/`              | 首页占位              | AppShell |
-| `/questions`     | 错题本占位            | AppShell |
-| `/questions/new` | 录入错题占位          | AppShell |
-| `/tasks`         | 任务中心占位          | AppShell |
-| `/questions/:id` | 错题详情占位          | AppShell |
-| `/practice/:id?` | 练习占位（`id` 可选） | AppShell |
-| `/stats`         | 统计占位（P1）        | AppShell |
-| 其余路径         | 404                   | AppShell |
+| 路径             | 页面                         | 布局     |
+| ---------------- | ---------------------------- | -------- |
+| `/login`         | 登录/注册                    | 独立页   |
+| `/`              | 首页占位                     | AppShell |
+| `/questions`     | 错题列表（筛选/搜索/分页）   | AppShell |
+| `/questions/new` | 录入错题（文本）             | AppShell |
+| `/tasks`         | 任务中心占位                 | AppShell |
+| `/questions/:id` | 错题详情（分析/生成题/删除） | AppShell |
+| `/practice/:id?` | 练习占位（`id` 可选）        | AppShell |
+| `/stats`         | 统计占位（P1）               | AppShell |
+| 其余路径         | 404                          | AppShell |
+
+## 错题页面（FE-007 / FE-008）
+
+- **录入 `/questions/new`**：桌面两栏（左侧题干/答案/解析，右侧学科/章节/标签），
+  移动端单栏；学科必选、题干必填且 ≤5000 字；保存调用 `POST /questions`，
+  成功后跳转详情并提示分析任务已入队。当前按解答题保存，选项/空位编辑器留待 FE-020。
+- **列表 `/questions`**：卡片列表，关键词搜索 300ms 防抖，学科/标签/掌握状态筛选与
+  URL query 同步；分页默认 20 条。区分空账号与筛选无结果，错误可重试。
+- **详情 `/questions/:id`**：按“原题 → AI 分析 → 生成题 → 下一步”纵向排列；
+  答案/解析默认折叠，分析未完成时显示等待/失败提示；生成相似题调用
+  `POST /questions/{id}/generate` 并展示任务号；删除使用 Arco Modal 二次确认。
+
+## Markdown 与公式（FE-010）
+
+- `src/components/common/MarkdownRenderer.vue` 封装
+  `markdown-it + KaTeX + DOMPurify`，`html: false`，渲染结果统一过 DOMPurify。
+- 支持行内 `$...$` 与块级 `$$...$$`；KaTeX 解析失败时保留可读源码，不出现空白。
+- 外链自动加 `target="_blank"` 与 `rel="noopener noreferrer"`。
+- 样式覆盖集中在组件 scoped `:deep()` 中，组件样式只消费 `var(--token)`。
+
+## 共享状态组件（FE-012）
+
+- `EmptyState`：标题/描述/主操作，支持 `compact` 紧凑变体。
+- `ErrorState`：错误标题、ApiError 消息、错误码与重试事件。
+- `LoadingSkeleton`：`list` / `detail` / `card` 三种骨架，列表与详情页已接入。
 
 ## 设计系统
 
@@ -112,13 +143,15 @@ src/
 ├── App.vue
 ├── api/                 # client/errors/types/endpoints + mocks
 ├── components/
-│   ├── common/          # PageHeader、PlaceholderPanel
-│   └── layout/          # AppShell、AppSidebar、AppTopBar、AppNavigation
+│   ├── common/          # PageHeader、MarkdownRenderer、Empty/Error/LoadingSkeleton
+│   ├── layout/          # AppShell、AppSidebar、AppTopBar、AppNavigation
+│   └── question/        # QuestionCard、AnalysisCard、GeneratedQuestionCard
 ├── router/              # 路由表 + 登录守卫 + 标题同步
 ├── stores/              # pinia 单例 + auth store
 ├── styles/              # tokens / arco-theme / global
 ├── types/               # env、RouteMeta 类型扩展
-└── views/               # 登录/注册 + 8 个占位业务页面
+├── utils/               # markdown/KaTeX 渲染、错题标签与日期格式化
+└── views/               # 登录 + 错题录入/列表/详情 + 其余占位页
 ```
 
 除 `/login` 外，AppShell 下的页面都需要登录；未登录访问会跳转到
@@ -126,9 +159,11 @@ src/
 
 ## 尚未实现
 
-- FE-007 及以后：录入、列表/详情、AI 生成、练习、统计等业务页面（API 层与 Mock
-  已按 P0 契约准备好）。
-- 图片上传/裁剪/多题识别（FE-016 / FE-021）。
+- FE-009：AI 生成任务轮询与阶段进度（当前只提示任务号，需手动刷新详情）。
+- FE-013 / FE-014：练习页与统计/概览。
+- FE-015：更完整的标签筛选/搜索体验（当前列表已具备基础版本）。
+- FE-016 / FE-021：图片上传、裁剪、多题识别与选择生成。
+- FE-020：选择题/填空题结构编辑器与编辑工具栏。
 
 ## 约定
 
