@@ -4,6 +4,7 @@ import apiClient from '../client'
 import type {
   Analysis,
   AuthResponse,
+  Difficulty,
   Draft,
   DraftSavePayload,
   LoginPayload,
@@ -11,9 +12,11 @@ import type {
   PracticeRecord,
   PracticeRecordCreate,
   Question,
+  QuestionBlank,
   QuestionCreate,
   QuestionDetail,
   QuestionListItem,
+  QuestionOption,
   QuestionTag,
   QuestionType,
   RegisterPayload,
@@ -34,6 +37,132 @@ const genericAnalysis: Analysis = {
   knowledge_points: ['基础概念'],
   error_reasons: ['等待 AI 分析真实错误原因'],
   solution_summary: '此处为 Mock 数据；接入真实后端后会返回结构化分析。',
+}
+
+interface GeneratedTemplate {
+  content_md: string
+  answer_md: string
+  explanation_md: string
+  question_type: QuestionType
+  difficulty: Difficulty
+  options?: QuestionOption[]
+  blanks?: QuestionBlank[]
+}
+
+const GENERATED_QUIZ_TEMPLATES: Record<number, GeneratedTemplate[]> = {
+  101: [
+    {
+      content_md: String.raw`求函数 $f(x)=x^3-6x^2+9x$ 的极值。`,
+      answer_md: String.raw`极大值 $f(1)=4$，极小值 $f(3)=0$。`,
+      explanation_md: String.raw`$f'(x)=3x^2-12x+9=3(x-1)(x-3)$。由 $f'(x)$ 的符号变化可得 $x=1$ 为极大值点，$x=3$ 为极小值点。`,
+      question_type: 'solve',
+      difficulty: 'medium',
+    },
+    {
+      content_md: String.raw`求函数 $f(x)=2x^3-3x^2-12x+5$ 的极值。`,
+      answer_md: String.raw`极大值 $f(-1)=12$，极小值 $f(2)=-15$。`,
+      explanation_md: String.raw`$f'(x)=6x^2-6x-12=6(x+1)(x-2)$，在 $x=-1$ 与 $x=2$ 两侧判断导数符号即可。`,
+      question_type: 'solve',
+      difficulty: 'medium',
+    },
+    {
+      content_md: String.raw`求函数 $f(x)=x^4-2x^2+1$ 的极值。`,
+      answer_md: String.raw`极大值 $f(0)=1$，极小值 $f(\pm 1)=0$。`,
+      explanation_md: String.raw`$f'(x)=4x(x-1)(x+1)$，用符号表判断 $x=-1,0,1$ 三处的极值类型。`,
+      question_type: 'solve',
+      difficulty: 'hard',
+    },
+  ],
+  102: [
+    {
+      content_md: String.raw`设 $A=\begin{pmatrix}2&1\\1&2\end{pmatrix}$，求 $A$ 的特征值与特征向量。`,
+      answer_md: String.raw`特征值为 $3$ 与 $1$；对应特征向量分别为 $(1,1)^T$ 与 $(1,-1)^T$。`,
+      explanation_md: String.raw`由 $|A-\lambda I|=(2-\lambda)^2-1=0$ 得 $\lambda=3$ 或 $\lambda=1$，再分别解 $(A-\lambda I)x=0$。`,
+      question_type: 'solve',
+      difficulty: 'medium',
+    },
+    {
+      content_md: String.raw`设 $A=\begin{pmatrix}1&2\\0&3\end{pmatrix}$，求 $A$ 的特征值，并判断 $A$ 是否可对角化。`,
+      answer_md: String.raw`特征值为 $1$ 与 $3$，两个特征值互异，因此 $A$ 可对角化。`,
+      explanation_md: String.raw`上三角矩阵的特征值为主对角线元素；两个互异特征值对应线性无关的特征向量。`,
+      question_type: 'solve',
+      difficulty: 'medium',
+    },
+    {
+      content_md: String.raw`已知三阶矩阵 $A$ 的特征值为 $1,2,3$，求 $\det(A)$ 与 $\operatorname{tr}(A)$。`,
+      answer_md: String.raw`$\det(A)=6$，$\operatorname{tr}(A)=6$。`,
+      explanation_md: String.raw`行列式等于特征值之积，迹等于特征值之和。`,
+      question_type: 'solve',
+      difficulty: 'easy',
+    },
+  ],
+  103: [
+    {
+      content_md: String.raw`设 $P(A)=0.5$，$P(B\mid A)=0.6$，则 $P(AB)=$（ ）。`,
+      answer_md: 'A',
+      explanation_md: String.raw`由乘法公式 $P(AB)=P(A)P(B\mid A)=0.5\times 0.6=0.3$。`,
+      question_type: 'choice',
+      difficulty: 'easy',
+      options: [
+        { label: 'A', content_md: '$0.3$' },
+        { label: 'B', content_md: '$0.5$' },
+        { label: 'C', content_md: '$0.8$' },
+        { label: 'D', content_md: '$1.1$' },
+      ],
+    },
+    {
+      content_md: String.raw`设 $P(A)=0.4$，$P(B)=0.5$，且 $A,B$ 相互独立，则 $P(AB)=$（ ）。`,
+      answer_md: 'B',
+      explanation_md: String.raw`独立事件满足 $P(AB)=P(A)P(B)=0.4\times 0.5=0.2$。`,
+      question_type: 'choice',
+      difficulty: 'easy',
+      options: [
+        { label: 'A', content_md: '$0.1$' },
+        { label: 'B', content_md: '$0.2$' },
+        { label: 'C', content_md: '$0.45$' },
+        { label: 'D', content_md: '$0.9$' },
+      ],
+    },
+    {
+      content_md: String.raw`设 $P(A)=0.7$，$P(B\mid A)=0.4$，则 $P(AB)=$（ ）。`,
+      answer_md: 'A',
+      explanation_md: String.raw`由乘法公式 $P(AB)=P(A)P(B\mid A)=0.7\times 0.4=0.28$。`,
+      question_type: 'choice',
+      difficulty: 'medium',
+      options: [
+        { label: 'A', content_md: '$0.28$' },
+        { label: 'B', content_md: '$0.35$' },
+        { label: 'C', content_md: '$0.4$' },
+        { label: 'D', content_md: '$0.7$' },
+      ],
+    },
+  ],
+  104: [
+    {
+      content_md: String.raw`一飞轮以角速度 $\omega_0=20\ \mathrm{rad/s}$ 转动，经 $t=4\ \mathrm{s}$ 匀减速停止，则角加速度大小为 ___ $\mathrm{rad/s^2}$。`,
+      answer_md: '$5$',
+      explanation_md: String.raw`由 $\omega=\omega_0+\alpha t$ 且末角速度为 $0$，得 $\alpha=-5\ \mathrm{rad/s^2}$，大小为 $5\ \mathrm{rad/s^2}$。`,
+      question_type: 'blank',
+      difficulty: 'easy',
+      blanks: [{ index: 1, answer_md: '$5$' }],
+    },
+    {
+      content_md: String.raw`一圆盘从静止开始以角加速度 $\alpha=2\ \mathrm{rad/s^2}$ 匀加速转动，则 $t=3\ \mathrm{s}$ 时的角速度为 ___ $\mathrm{rad/s}$。`,
+      answer_md: '$6$',
+      explanation_md: String.raw`由 $\omega=\omega_0+\alpha t=0+2\times 3=6\ \mathrm{rad/s}$。`,
+      question_type: 'blank',
+      difficulty: 'easy',
+      blanks: [{ index: 1, answer_md: '$6$' }],
+    },
+    {
+      content_md: String.raw`一飞轮转速在 $5\ \mathrm{s}$ 内由 $300\ \mathrm{r/min}$ 均匀降到 $120\ \mathrm{r/min}$，则角加速度大小为 ___ $\mathrm{rad/s^2}$。`,
+      answer_md: String.raw`$1.2\pi$`,
+      explanation_md: String.raw`$300\ \mathrm{r/min}=10\pi\ \mathrm{rad/s}$，$120\ \mathrm{r/min}=4\pi\ \mathrm{rad/s}$，故 $|\alpha|=|4\pi-10\pi|/5=1.2\pi\ \mathrm{rad/s^2}$。`,
+      question_type: 'blank',
+      difficulty: 'medium',
+      blanks: [{ index: 1, answer_md: String.raw`$1.2\pi$` }],
+    },
+  ],
 }
 
 let adapter: MockAdapter | null = null
@@ -216,8 +345,87 @@ function toAnalysis(value: unknown): Analysis | null {
   }
 }
 
-function scheduleTaskProgress(task: Task, question?: Question): void {
+function buildFallbackTemplates(question: Question): GeneratedTemplate[] {
+  const label = question.chapter ?? question.subject
+  const excerpt = makeExcerpt(question.content_md, 36)
+  const fallbackOptions: QuestionOption[] = [
+    { label: 'A', content_md: '选项 A' },
+    { label: 'B', content_md: '选项 B' },
+    { label: 'C', content_md: '选项 C' },
+    { label: 'D', content_md: '选项 D' },
+  ]
+
+  const build = (index: number): GeneratedTemplate => {
+    const content = `基于「${label}」的同类变式 ${index}：参考「${excerpt}」的结构完成练习，并写出关键步骤。`
+
+    if (question.question_type === 'choice') {
+      return {
+        content_md: `${content}（ ）`,
+        answer_md: 'A',
+        explanation_md: 'Mock 生成题；接入真实后端后会返回完整解析。',
+        question_type: 'choice',
+        difficulty: 'medium',
+        options: fallbackOptions,
+      }
+    }
+
+    if (question.question_type === 'blank') {
+      return {
+        content_md: `${content} 答案：___`,
+        answer_md: '请参考原题解析',
+        explanation_md: 'Mock 生成题；接入真实后端后会返回完整解析。',
+        question_type: 'blank',
+        difficulty: 'medium',
+        blanks: [{ index: 1, answer_md: '请参考原题解析' }],
+      }
+    }
+
+    return {
+      content_md: content,
+      answer_md: '请参考原题解析',
+      explanation_md: 'Mock 生成题；接入真实后端后会返回完整解析。',
+      question_type: 'solve',
+      difficulty: 'medium',
+    }
+  }
+
+  return [build(1), build(2), build(3)]
+}
+
+function materializeGeneratedQuestions(state: MockState, question: Question): void {
+  const templates = GENERATED_QUIZ_TEMPLATES[question.id] ?? buildFallbackTemplates(question)
+  const createdAt = nowIso()
+
+  state.generatedQuestions = state.generatedQuestions.filter(
+    (item) => item.parent_question_id !== question.id,
+  )
+
+  for (const template of templates.slice(0, 3)) {
+    state.generatedQuestions.push({
+      id: state.nextGeneratedId,
+      parent_question_id: question.id,
+      content_md: template.content_md,
+      answer_md: template.answer_md,
+      explanation_md: template.explanation_md,
+      question_type: template.question_type,
+      options: template.options ?? null,
+      blanks: template.blanks ?? null,
+      difficulty: template.difficulty,
+      model: 'deepseek-flash',
+      prompt_version: 'generate_v1',
+      validation_status: 'valid',
+      created_at: createdAt,
+    })
+    state.nextGeneratedId += 1
+  }
+}
+
+function scheduleTaskProgress(task: Task, state: MockState, question?: Question): void {
+  const attempt = task.retry_index
+
   setTimeout(() => {
+    if (task.retry_index !== attempt) return
+
     if (task.status === 'queued') {
       task.status = 'running'
       task.started_at = nowIso()
@@ -225,15 +433,25 @@ function scheduleTaskProgress(task: Task, question?: Question): void {
   }, 900)
 
   setTimeout(() => {
+    // A retry bumped retry_index, so this timer belongs to a stale attempt.
+    if (task.retry_index !== attempt) return
     if (task.status !== 'running') return
 
     task.status = 'done'
     task.finished_at = nowIso()
 
-    if (question && task.stage === 'analysis' && !question.analysis) {
-      question.analysis = genericAnalysis
-      question.updated_at = nowIso()
+    if (!question) return
+
+    if (task.stage === 'analysis') {
+      if (!question.analysis) {
+        question.analysis = genericAnalysis
+        question.updated_at = nowIso()
+      }
+      return
     }
+
+    materializeGeneratedQuestions(state, question)
+    question.updated_at = nowIso()
   }, 2400)
 }
 
@@ -245,6 +463,13 @@ export function setupMocks(): void {
   if (adapter) return
 
   const state = createMockState()
+
+  for (const task of state.tasks) {
+    if (task.status === 'queued' || task.status === 'running') {
+      scheduleTaskProgress(task, state, findQuestion(state, task.question_id))
+    }
+  }
+
   adapter = new MockAdapter(apiClient, { delayResponse: LATENCY_MS })
 
   adapter.onPost('/auth/register').reply((config) => {
@@ -397,7 +622,7 @@ export function setupMocks(): void {
     }
     state.nextTaskId += 1
     state.tasks.push(task)
-    scheduleTaskProgress(task, question)
+    scheduleTaskProgress(task, state, question)
 
     return [201, { question, task_id: task.id }]
   })
@@ -497,7 +722,7 @@ export function setupMocks(): void {
     }
     state.nextTaskId += 1
     state.tasks.push(task)
-    scheduleTaskProgress(task, question)
+    scheduleTaskProgress(task, state, question)
 
     return [200, { task_id: task.id }]
   })
@@ -534,7 +759,7 @@ export function setupMocks(): void {
     task.error_code = null
     task.started_at = null
     task.finished_at = null
-    scheduleTaskProgress(task, findQuestion(state, task.question_id))
+    scheduleTaskProgress(task, state, findQuestion(state, task.question_id))
 
     return [200, task]
   })

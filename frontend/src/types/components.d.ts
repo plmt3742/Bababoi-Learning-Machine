@@ -43,6 +43,7 @@ declare module 'vue' {
     EmptyState: typeof import('./../components/common/EmptyState.vue')['default']
     ErrorState: typeof import('./../components/common/ErrorState.vue')['default']
     GeneratedQuestionCard: typeof import('./../components/question/GeneratedQuestionCard.vue')['default']
+    GenerationProgress: typeof import('./../components/ai/GenerationProgress.vue')['default']
     LoadingSkeleton: typeof import('./../components/common/LoadingSkeleton.vue')['default']
     MarkdownRenderer: typeof import('./../components/common/MarkdownRenderer.vue')['default']
     PageHeader: typeof import('./../components/common/PageHeader.vue')['default']
