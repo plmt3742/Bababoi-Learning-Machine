@@ -1,6 +1,8 @@
 """应用装配：只做组装，不放业务。"""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,7 +13,15 @@ from app.core.observability import register_observability, setup_logging
 
 setup_logging()
 
-app = FastAPI(title=settings.project_name, version=settings.version)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 密钥类配置在启动时一次查完；留到第一个登录请求只会变成一个没信息的 500
+    settings.validate_for_startup()
+    yield
+
+
+app = FastAPI(title=settings.project_name, version=settings.version, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

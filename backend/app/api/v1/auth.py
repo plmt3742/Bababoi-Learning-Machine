@@ -10,10 +10,7 @@ from app.db.session import get_session
 from app.models import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.services import auth_service
-
-
-def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
+from app.utils.client_ip import client_ip
 
 
 def _token_response(user: User) -> TokenResponse:
@@ -36,7 +33,7 @@ def register(
 def login(
     data: LoginRequest, request: Request, session: Session = Depends(get_session)
 ) -> TokenResponse:
-    user = auth_service.login(session, _client_ip(request), data.username, data.password)
+    user = auth_service.login(session, client_ip(request), data.username, data.password)
     return _token_response(user)
 
 
