@@ -150,10 +150,11 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 | 文档体系 | DONE | `docs/agent/`、`docs/product/` 模板、`docs/adr/` |
 | 根级 AGENTS.md | DONE | agent 入口 |
 | 关键决策 | DONE | 大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态识图、框题确认 P0 增强、数据库 schema 归人机 |
-| 产品设计 | DOING | PRD v0.8 在 `docs/prd` 分支待合并/修订 v0.9；01 PRD-lite 已定稿；02/03/04 进行中 |
-| API 契约 v0 | DOING | `05-architecture.md` v0.2 草案（含框题确认）；v0.3 补队列/草稿/题型/掌握状态，待两人确认 |
-| 仓库骨架 | DOING | 以 `chore/init-repo-structure` 为开发基准；`frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/` 目录+说明已建；`tools/` 为本地工具不上传；脚手架/CI 待 FE-001/BE-001 |
-| CI | TODO | 需要 `.github/workflows/ci.yml` |
+| 产品设计 | DOING | 01 PRD-lite 已定稿；07/08/页面原型/交互地图在 `feat/frontend-m0-foundation`；PRD v0.9 待从归档修订 |
+| API 契约 v0 | DOING | `05-architecture.md` v0.3；BE-001/002/003 已合；待补 `PRACTICE_DUPLICATE`、mastery PATCH、生成题取法、轮询/SSE 口径 |
+| 仓库骨架 | DOING | `backend/` BE-001 已合；`frontend/` FE-001 TODO；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
+| CI | DONE | `.github/workflows/ci.yml`；PR #10 已合；frontend 在 FE-001 后生效 |
+| 后端后续 | DOING | PR #5/#6/#7/#9 open；PR #8 docs 暂缓；issue #11 跟踪 BE-001~003 follow-up |
 | 部署 | TODO | 11.14 前必须完成 |
 | 种子数据 | TODO | 需要 10+ 道大学理科真实错题；3 道含图/公式题用于识图 |
 

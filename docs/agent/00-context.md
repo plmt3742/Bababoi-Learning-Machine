@@ -62,6 +62,16 @@ AI 分析（知识点、题型、错误原因）
 
 > 今天是 11.5，距离 M0 截止只有 2 天。设计阶段必须“够用就停”，不要追求完整 PRD。
 
+## 当前实际状态（2026-11-05）
+
+- `main`：`9814f90`（CI 修复 PR #10 已合）
+- 已合并：BE-001 / BE-002 / BE-003（PR #2 / #3 / #4）
+- 后端待合并：PR #5 / #6 / #7 / #8 / #9
+- 后端 follow-up：issue #11（BE-001~003 的 health、MySQL 驱动、文档、限流等）
+- 前端页面草稿：`feat/frontend-m0-foundation`（PR 未建；含 07/08/原型/交互地图）
+- `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`
+- CI：`.github/workflows/ci.yml` 已由 PR #10 加固；frontend 在 FE-001 后生效
+
 ## 当前阶段：M0
 
 **目标**：在 11.7 24:00 前拿到四样东西：
@@ -84,14 +94,14 @@ AI 分析（知识点、题型、错误原因）
 | Q-010 | 网页端；电脑上传图片；手机拍照或相册 | 手机相机需要 HTTPS/安全上下文；桌面不受限 |
 | Q-011 | 后端统一 Python 3.13 | 用 uv 固定 3.13；BE-001 后尽早做依赖兼容 spike |
 | Q-012 | 图片框题确认：P0 增强；P0 可移动/缩放 AI 框，从零画框 P1 | 新增 detecting/confirming 状态；`from-image` 第二阶段支持 `crop_box` |
+| Q-002 | 最小登录（注册/登录/JWT）；不做找回密码/邮箱验证 | BE-003 已实现 |
+| Q-004 | P0 任务进度用 `GET /tasks` 轮询；SSE 为 P1 | FE-009 用轮询；BE-010 P1 |
 
 ## 待确认
 
 | ID | 问题 | 建议 | 截止 |
 |---|---|---|---|
-| Q-002 | 登录做不做？ | 做最小登录（注册/登录/JWT），不做找回密码/邮箱验证 | 11.5 |
-| Q-004 | 流式做到什么程度？ | 阶段级 SSE；token 级为 stretch | 11.5 |
-| Q-005 | 演示数据库？ | MySQL 部署；未稳定则 SQLite + WAL 兜底（人机定） | 11.14 |
+| Q-005 | 演示数据库？ | SQLite 本地/测试；MySQL 部署后验证；未稳定则 SQLite + WAL 兜底 | 11.14 |
 | Q-007 | 是否有域名 + HTTPS？ | 手机拍照需要安全上下文；没有 HTTPS 时手机端退回相册/文本 | 11.12 |
 | Q-008 | 答辩分工？ | 前端讲产品/交互，后端讲架构/AI | 11.26 |
 
@@ -107,8 +117,8 @@ AI 分析（知识点、题型、错误原因）
 
 ## 下一步
 
-1. 合并 `docs/prd` 的 PRD v0.8 并修订为 v0.9；`01-prd-lite.md` 保持速览；继续完成 `02-ia-and-flows.md`、`03-page-specs.md`、`04-design-system.md`
-2. 和搭档对齐 `05-architecture.md` v0.2 的 API 契约 + 框题确认接口 + Python 3.13 兼容（60 分钟）
-3. 按 `04-todos.md` 的 M0 任务开工：FE-001、BE-001、SH-003
-4. 每天结束更新 `04-todos.md` 状态；11.7 晚做 M0 验收
-5. 切换会话时用 `11-agent-handoff.md` 的提示词，不要从零解释
+1. 后端按 issue #11 修 BE-001~003 follow-up；按 `#7 → #6 → #5 → rebase #9 → #8` 推进 open PR
+2. 开启 `main` 分支保护：Require PR + 1 approval + CI + no bypass
+3. 前端在 `feat/frontend-m0-foundation` 做 FE-001；完成后 rebase 到最新 main
+4. 从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；`01-prd-lite.md` 保持速览
+5. 每天结束更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`
