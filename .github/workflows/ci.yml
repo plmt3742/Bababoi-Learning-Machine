@@ -2,12 +2,20 @@ name: CI
 
 on:
   push:
-    branches: ['**']   # 所有分支的 push 都跑；否则只推功能分支时 CI 等于没开
-  pull_request:        # 不写 branches = 所有 base 分支（含堆叠 PR，如 be-002 → be-001）
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -18,19 +26,17 @@ jobs:
           python-version: "3.13"
           enable-network-caching: true
       - name: Install dependencies
-        run: uv sync --group dev
-      - name: ruff check
+        run: uv sync --frozen --group dev
+      - name: Lint
         run: uv run ruff check app tests
-      - name: pytest
+      - name: Test
         run: uv run pytest
         env:
-          LLM_MOCK: "true"  # CI 不调真实模型（12号 §6.1）
+          LLM_MOCK: "true"
 
   frontend:
-    # FE-001 还没提交 package.json。
-    # 不能用 job 级 `if: hashFiles(...)`：job 级 if 在 checkout 之前求值，工作区是空的，
-    # hashFiles 永远返回 ''，该 job 会被永久跳过。改成先 checkout、再 step 级判断。
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Detect frontend scaffold
@@ -40,11 +46,40 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::frontend/package.json not found; skipping frontend checks until FE-001"
           fi
-      # pnpm / node 版本与 lint/typecheck/build 的具体命令由 FE-001 的作者补，
-      # 我不替前端定包管理器版本——写错了只会让 CI 无故变红。
-      - name: TODO(FE-001)
+      - uses: pnpm/action-setup@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm lint
+      - name: Typecheck
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm typecheck
+      - name: Build
+        if: steps.detect.outputs.ready == 'true'
+        working-directory: frontend
+        run: pnpm build
+      - name: Test
         if: steps.detect.outputs.ready == 'true'
         working-directory: frontend
         run: |
-          echo "TODO(FE-001): 装依赖并跑 pnpm lint / typecheck / build"
+          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+            pnpm test
+          else
+            echo "No test script in frontend/package.json; skipping"
+          fi
