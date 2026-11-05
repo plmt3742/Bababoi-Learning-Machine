@@ -37,8 +37,6 @@ async function handleLogout(): Promise<void> {
       <span class="app-topbar__title">{{ pageTitle }}</span>
     </div>
 
-    <a-tag class="app-topbar__stage" color="arcoblue" size="small">M0 骨架</a-tag>
-
     <div class="app-topbar__auth">
       <a-dropdown v-if="auth.isAuthenticated" trigger="click" position="br">
         <a-button class="app-topbar__user" type="text" aria-label="账号菜单">
@@ -105,11 +103,6 @@ async function handleLogout(): Promise<void> {
   line-height: 1.375;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.app-topbar__stage {
-  margin-left: auto;
-  flex: none;
 }
 
 .app-topbar__auth {

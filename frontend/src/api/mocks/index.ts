@@ -475,6 +475,33 @@ export function setupMocks(): void {
     return [204, null]
   })
 
+  adapter.onPost(/^\/questions\/\d+\/generate$/).reply((config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const match = /^\/questions\/(\d+)\/generate$/.exec(config.url ?? '')
+    const question = match ? findQuestion(state, Number.parseInt(match[1], 10)) : undefined
+    if (!question) return apiError(404, 'QUESTION_NOT_FOUND', '错题不存在或已删除')
+
+    const timestamp = nowIso()
+    const task: Task = {
+      id: state.nextTaskId,
+      question_id: question.id,
+      stage: 'quiz',
+      status: 'queued',
+      target_index: null,
+      retry_index: 0,
+      error_code: null,
+      created_at: timestamp,
+      started_at: null,
+      finished_at: null,
+    }
+    state.nextTaskId += 1
+    state.tasks.push(task)
+    scheduleTaskProgress(task, question)
+
+    return [200, { task_id: task.id }]
+  })
+
   adapter.onGet('/tasks').reply((config) => {
     if (!authorizedUser(config, state)) return unauthorized()
 

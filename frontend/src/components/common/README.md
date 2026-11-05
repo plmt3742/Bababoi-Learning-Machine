@@ -54,4 +54,5 @@
 | `usePagination`  | 列表分页/筛选                     |
 | `useAsyncState`  | loading/error/data 三态           |
 
-> 当前是目录骨架，组件在 FE-001 / FE-012 里开始实现。
+> `PageHeader`、`MarkdownRenderer`、`EmptyState`、`ErrorState`、`LoadingSkeleton`
+> 已在 FE-010 / FE-012 实现；其余组件按任务陆续补齐。

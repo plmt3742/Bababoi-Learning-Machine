@@ -57,6 +57,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
 开发页面时参照 `docs/product/drafts/prototype.html` 的结构和 `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
+视觉语言以 `04-design-system.md` 的第一/第二原则为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
 图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题。
 必须覆盖 cropping/uploading/extracting/confirming_items/editing/saving/error 等状态；AI 页面加 partial/retry。

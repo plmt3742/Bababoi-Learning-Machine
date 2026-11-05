@@ -119,7 +119,7 @@ export function createMockState(): MockState {
     },
     {
       id: 103,
-      subject: '概率论',
+      subject: '概率论与数理统计',
       chapter: '条件概率',
       source_type: 'text',
       content_md: String.raw`设 $P(A)=0.6$，$P(B\mid A)=0.5$，则 $P(AB)=$（ ）。`,
