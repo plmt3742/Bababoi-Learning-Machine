@@ -6,10 +6,21 @@ from __future__ import annotations
 
 
 class AIError(Exception):
-    """AI 模块异常基类；带 error_code 供上层映射。"""
+    """AI 模块异常基类；带 error_code 供上层映射。
+
+    `message` 是子类兜底文案；给了 detail 就覆盖成实例属性——任务中心靠
+    task.error_message 回答「为什么这道题生不出来」，只留兜底文案等于没日志。
+    `raw_text` 是模型当时的原始输出，跟着异常交给上层写进 ai_call_logs。
+    """
 
     error_code = "AI_PROVIDER_ERROR"
     message = "AI 服务错误"
+
+    def __init__(self, detail: str | None = None, raw_text: str | None = None) -> None:
+        super().__init__(detail or self.message)
+        if detail:
+            self.message = detail
+        self.raw_text = raw_text
 
 
 class AITimeoutError(AIError):

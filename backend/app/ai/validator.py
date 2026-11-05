@@ -113,10 +113,14 @@ def validate_quiz(
     original_content_md: str | None = None,
 ) -> list[GeneratedQuestionSpec]:
     """05 §7.2 的六道校验：恰好 N 题、非空（由 schema 的 min_length 保证）、
-    不与原题高度重复（归一化相似度 <0.9）、三题彼此不重复、不依赖图片、LaTeX 成对、长度限制。
+    不与原题高度重复（归一化相似度 <0.9）、不依赖图片、LaTeX 成对、长度限制。
 
-    `original_content_md` 由 worker 用 partial 注入；不传就跳过与原题的比对
-    （单测里直接喂 JSON 时不必构造原题）。
+    `original_content_md` 由 worker 用 partial 注入；不传就跳过与原题的比对。
+
+    三题彼此只拒「归一化后完全相同」，**不套用 0.9**——这条是我一开始自己加的，
+    真模型 4 轮实测：含参解答题三题彼此相似度 0.846–0.966（模板一样、只有函数式不同），
+    按 0.9 拦会把连续两轮合法输出判死、任务直接 failed；
+    而与原题的相似度最高才 0.833，说明 05 那个 0.9 阈值本来就是冲着「抄原题」设计的。
     """
     if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
         raise ValueError('输出必须是 {"questions": [...]}')
@@ -127,10 +131,10 @@ def validate_quiz(
 
     seen: list[str] = []
     for index, spec in enumerate(specs, start=1):
-        for previous in seen:
-            if similarity(spec.content_md, previous) >= 0.9:
-                raise ValueError(f"第 {index} 题与前面生成的题目高度重复")
-        seen.append(spec.content_md)
+        normalized = _normalize_for_compare(spec.content_md)
+        if normalized in seen:
+            raise ValueError(f"第 {index} 题与前面生成的题目完全相同")
+        seen.append(normalized)
         if original_content_md and similarity(spec.content_md, original_content_md) >= 0.9:
             raise ValueError(f"第 {index} 题与原题高度重复，换个数值或情境重出")
     return specs

@@ -83,9 +83,11 @@ def test_prompts_wrap_question_in_delimiters() -> None:
 
 def test_pipeline_retries_then_fails_on_garbage() -> None:
     client = FakeClient(["这不是 JSON", "还不是 JSON"])
-    with pytest.raises(AIInvalidOutputError):
+    with pytest.raises(AIInvalidOutputError) as excinfo:
         run(client, OPERATION_ANALYSIS, [], parse=validator.AnalysisResult)
     assert client.calls == [OPERATION_ANALYSIS, OPERATION_ANALYSIS]  # 重试了 1 次
+    # 最后一次原始输出要跟着异常带出去，worker 才能写进 ai_call_logs.raw_response
+    assert excinfo.value.raw_text == "还不是 JSON"
 
 
 def test_pipeline_succeeds_on_second_attempt() -> None:
@@ -191,8 +193,12 @@ def test_validate_quiz_rejects_duplicate_of_original() -> None:
         validator.validate_quiz(_quiz_payload(), original_content_md=original)
 
 
-def test_validate_quiz_rejects_two_identical_questions() -> None:
-    """三题彼此也不能是复制粘贴——只写「恰好 3 题」拦不住这个。"""
+def test_validate_quiz_rejects_identical_questions_but_allows_same_template() -> None:
+    """三题不许是复制粘贴；但「模板相同、函数式不同」的相似题必须放行。
+
+    真模型 4 轮实测：含参解答题三题彼此相似度 0.846–0.966，
+    照抄与原题同款 0.9 阈值会把合法输出判死，所以彼此只比「归一化后完全相同」。
+    """
 
     def solve(content: str) -> dict:
         return {
@@ -204,9 +210,17 @@ def test_validate_quiz_rejects_two_identical_questions() -> None:
         }
 
     same = "求 $h(x)=x^2-2x$ 的最小值。"
-    duplicated = {"questions": [solve(same), solve(same), solve("求 $k(x)=x^2+4x$ 的最小值。")]}
-    with pytest.raises(ValueError, match="高度重复"):
-        validator.validate_quiz(duplicated)
+    with pytest.raises(ValueError, match="完全相同"):
+        validator.validate_quiz({"questions": [solve(same), solve(same), solve("别的题。")]})
+
+    # 相似度实测 ≈0.97 的一对（只差一个字母），属于正常出题，不该被拦
+    near = [
+        solve("已知函数 $f(x)=x-a\\ln x$，讨论 $f(x)$ 的单调性。"),
+        solve("已知函数 $f(x)=ax-\\ln x$，讨论 $f(x)$ 的单调性。"),
+        solve("已知函数 $f(x)=x^2-2ax+a\\ln x$，讨论 $f(x)$ 的单调性。"),
+    ]
+    assert validator.similarity(near[0]["content_md"], near[1]["content_md"]) > 0.9
+    assert len(validator.validate_quiz({"questions": near})) == 3
 
 
 def test_prompt_versions_are_per_operation() -> None:

@@ -40,8 +40,10 @@ def run[T: BaseModel](
         raise ValueError("parse 与 custom_validate 必须二选一")
 
     last_error: Exception | None = None
+    last_raw: str | None = None
     for attempt in range(1, retry_limit + 2):
         usage = client.complete(operation, messages)
+        last_raw = usage.text  # 坏输出也要把原文带出去，否则没法定位 prompt
         try:
             raw = parser.extract_json(usage.text)
             value: object
@@ -54,4 +56,4 @@ def run[T: BaseModel](
             last_error = exc
 
     detail = last_error.errors()[0]["msg"] if isinstance(last_error, ValidationError) else str(last_error)
-    raise AIInvalidOutputError(f"重试 {retry_limit} 次后输出仍不合法：{detail}")
+    raise AIInvalidOutputError(f"重试 {retry_limit} 次后输出仍不合法：{detail}", raw_text=last_raw)
