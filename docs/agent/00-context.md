@@ -64,10 +64,10 @@ AI 分析（知识点、题型、错误原因）
 
 ## 当前实际状态（2026-11-06）
 
-- `origin/main @ 974cc16`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013（#23）、FE-014（#24）、FE-020（#25）、FE-023（#28）、FE-016/021（#29）、FE-018（#30）、首页（#34）、个人设置/BYOK（#35）等已合并
-- 后端待处理：BE-014 图片文本提取、BE-018 草稿、BE-013 统计、BE-020 用户 AI Key、BE-008 种子、BE-009 OpenAPI、OPS；#8 docs 需关闭或缩成 backend README
+- `origin/main @ 7ee6029`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013（#23）、FE-014（#24）、FE-020（#25）、FE-023（#28）、FE-016/021（#29）、FE-018（#30）、首页（#34）、个人设置/BYOK（#35）等已合并
+- 后端待处理：BE-014 图片文本提取（open issue #13）、BE-020 用户 AI Key（#32）、BE-018 草稿、BE-013 统计、BE-008 种子、BE-009 OpenAPI、OPS；#8 docs 需关闭或缩成 backend README
 - 前端：FE-001~024 全部页面已合（含首页/个人设置）；剩余 FE-017 的 768/键盘细节与真接口联调
-- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
+- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
 - `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
 - CI：`.github/workflows/ci.yml` 已存在；frontend job 已跑真实 lint/typecheck/build
 - 图片录入正式决策已变更：不再 AI 框题，改为用户裁剪 + 图片转文本 + 多题条目（见 Q-013 / ADR-004）
@@ -121,8 +121,9 @@ AI 分析（知识点、题型、错误原因）
 
 ## 下一步
 
-1. 后端按 issue #11 修 BE-001~003 follow-up；按 `#7 → #6 → #5 → rebase #9 → #8` 推进 open PR；图片 v2 见 issue #13
-2. 开启 `main` 分支保护：Require PR + 1 approval + CI + no bypass
-3. 前端 FE-001~012/015 已合；FE-009/019 在 PR #19；Calm Academic 全量视觉覆写在 PR #21（stacked，CI 绿）；先 review/合并 #19，再把 #21 base 改为 main；之后 FE-013（练习）、FE-014（统计 P1）、FE-016（图片 v2）、FE-018（草稿保存/恢复）、FE-020（三题型编辑器）、FE-021（多题条目）；图片 v2 按 ADR-004 + 05 v0.4 设计
-4. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
-5. 每天结束更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`
+1. **后端优先 BE-014 图片文本提取**：`POST /uploads/images` + `POST /questions/from-image`（open issue #13）；前端 FE-016/021 已完成，只等真接口联调
+2. **后端 BE-018 草稿 / BE-013 统计 / BE-020 BYOK**：前端 FE-018/FE-014/FE-024 已按 mock 完成
+3. **后端 ADR-006 三段并发**：新 PR base=main；`tasks[]`、`target_index`/`difficulty`、按格替换、单段重试；前端 FE-023 已兼容旧 `task_id`
+4. **前端 FE-017**：768px 与完整键盘细节；之后统一做真接口联调
+5. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
+6. `main` 分支保护：Require PR + 1 approval + CI + no bypass；每天更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`

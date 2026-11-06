@@ -8,7 +8,7 @@
 
 - 仓库：https://github.com/plmt3742/Bababoi-Learning-Machine
 - 产品定位：学生录入错题 → AI 分析知识点/错误原因 → 生成 3 道相似题 → 练习 → 统计薄弱点
-- 当前阶段：M0 收尾；FE-001~012/015/009/019/022 已合入 main；`admin/` 为 P1 内部运维台（ADR-005），不进入 11.29 演示；截止 11.7 24:00
+- 当前阶段：M0 收尾；FE-001~024 页面已合入 main（含首页/个人设置）；后端核心闭环已合，剩余 BE-014/BE-018/BE-013/BE-020/ADR-006；`admin/` 为 P1 内部运维台（ADR-005），BYOK 见 ADR-007，均不进入 11.29 演示关键路径；截止 11.7 24:00
 - 详细上下文：`docs/agent/00-context.md`
 
 ## 团队与分工
@@ -71,24 +71,25 @@
 - **不要删除失败测试来“通过”**：修实现或明确标注已知失败。
 - **不要凭记忆写库 API**：脚手架和关键依赖以官方文档为准，并在 PR 描述里贴出版本。
 
-## 常用命令（脚手架完成后补充）
+## 常用命令
 
 ```bash
-# 前端
+# 前端（PowerShell 用 cd "路径"，不要用 cd /d）
 cd frontend && pnpm install && pnpm dev
+cd frontend && pnpm lint && pnpm typecheck && pnpm build
 
 # 后端
-cd backend && uv sync && uv run uvicorn app.main:app --reload
+cd backend && uv sync
+cp .env.example .env   # 填 JWT_SECRET（>=32 字节）、LLM_MOCK=true
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
+cd backend && uv run ruff check app tests && uv run pytest
 
-# 一键起本地依赖（MySQL 等）
+# 一键起本地依赖（MySQL 等；尚未实现）
 docker compose -f deploy/docker-compose.dev.yml up -d
-
-# 测试
-cd frontend && pnpm test
-cd backend && uv run pytest
 ```
 
-> 当前仓库尚未初始化前后端代码，以上命令是目标状态；M0 完成脚手架后回来更新本节。
+> 前端开发模式默认 mock（`VITE_USE_MOCK !== 'false'`）；演示账号 `student01 / password123`。真实后端目前只有认证/错题/分析/生成/任务/练习；图片/草稿/统计/BYOK 仍待后端实现。不要从仓库根目录执行 `pnpm dev`。
 
 ## 共享边界
 

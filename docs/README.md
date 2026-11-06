@@ -105,3 +105,4 @@
 | 2026-11-05 | 同步 origin/main：补 13-backend-merge-audit；新增 ADR-004 图片文本提取 v2；后端通知 issue #13 | 霹雳马桶 / agent |
 | 2026-11-06 | 同步前端进度：FE-009/019（PR #19）与全量 Calm Academic 视觉覆写（PR #21）已合入 main；旧 PR #20 关闭；更新 00/03/04/11 + 04 design system + 02/06/07 + frontend README | 霹雳马桶 / agent |
 | 2026-11-06 | 新增 ADR-005：独立 `admin/` 为 P1 内部运维台，不进入 11.29 演示；同步 01-project/06-file-tree/README/AGENTS | 霹雳马桶 / 人机 |
+| 2026-11-06 | 会话交接同步：main @ 7ee6029；前端 FE-001~024 页面完成；后端剩余 BE-014/BE-018/BE-013/BE-020/ADR-006；新增 ADR-007 BYOK | 霹雳马桶 / agent |
