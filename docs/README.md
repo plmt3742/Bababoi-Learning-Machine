@@ -39,6 +39,8 @@
 | [agent/11-agent-handoff.md](agent/11-agent-handoff.md) | 新会话交接提示词、角色模板、交接检查 | 切换会话/换 agent |
 | [agent/12-backend-alignment.md](agent/12-backend-alignment.md) | 后端对接结果：队列、图片 v2、PRD、分支合并决策 | 后端对接 / M0 契约确认 |
 | [agent/13-backend-merge-audit.md](agent/13-backend-merge-audit.md) | 后端合并审查、未合并分支 review、CI 方案 | 合并审查 / 交接 |
+| [agent/14-generation-three-segments-reply.md](agent/14-generation-three-segments-reply.md) | 三段并发生成：Q1–Q7、PRD/05 改动、图片实测回复 | 三段并发 / 生成链路 |
+| [agent/15-backend-sync-20261106.md](agent/15-backend-sync-20261106.md) | 后端对接同步：已合 PR、下一步、接口确认 | 后端对接 / 联调 |
 
 ### 产品设计
 
