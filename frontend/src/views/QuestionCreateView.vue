@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
 import PageHeader from '../components/common/PageHeader.vue'
+import DraftRestoreBar from '../components/common/DraftRestoreBar.vue'
 import ImageIntakeFlow from '../components/question/image/ImageIntakeFlow.vue'
 import BlankEditor from '../components/question/editor/BlankEditor.vue'
 import ChoiceEditor from '../components/question/editor/ChoiceEditor.vue'
@@ -22,6 +23,10 @@ import {
   validateChoiceOptions,
 } from '../utils/questionEditor'
 import type { BlankAnswerDraft } from '../utils/questionEditor'
+import { formatDraftClockTime } from '../utils/draft'
+import type { QuestionDraftContent } from '../utils/draft'
+import { useQuestionDraft } from '../composables/useQuestionDraft'
+import { useAuthStore } from '../stores/auth'
 import { questionTypeLabel } from '../utils/question'
 import type { QuestionCreate, QuestionType } from '../api/types'
 
@@ -30,6 +35,7 @@ const MAX_TAGS = 10
 const SUBJECTS = ['高等数学', '线性代数', '概率论与数理统计', '大学物理']
 
 const router = useRouter()
+const auth = useAuthStore()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const editMode = ref(true)
@@ -37,6 +43,22 @@ const intakeMode = ref<'text' | 'image'>('text')
 const errorMessage = ref('')
 const attemptedSubmit = ref(false)
 const choiceCorrectLabel = ref('')
+const validationSummary = ref<string[]>([])
+const validationFields = ref<string[]>([])
+const errorSummaryRef = ref<HTMLElement | null>(null)
+const structureErrorRef = ref<HTMLElement | null>(null)
+const continueDraftButton = ref<HTMLButtonElement | null>(null)
+const conflictPanelRef = ref<HTMLElement | null>(null)
+const restoreBarRef = ref<InstanceType<typeof DraftRestoreBar> | null>(null)
+
+const FIELD_FOCUS_ORDER = [
+  'subject',
+  'content_md',
+  'chapter',
+  'tags',
+  'answer_md',
+  'explanation_md',
+] as const
 
 const pageDescription = computed(() =>
   intakeMode.value === 'text'
@@ -55,6 +77,166 @@ const form = reactive({
   options: createDefaultChoiceOptions(),
   blanks: [] as BlankAnswerDraft[],
 })
+
+const {
+  status: draftStatus,
+  savedAt: draftSavedAt,
+  errorMessage: draftErrorMessage,
+  conflict: draftConflict,
+  candidate: draftCandidate,
+  candidateVisible: draftCandidateVisible,
+  hasHiddenCandidate: hasHiddenDraftCandidate,
+  hasDraft: hasDraftContent,
+  blockedReason: draftBlockedReason,
+  loading: draftLoading,
+  resolvingConflict,
+  busy: draftBusy,
+  restore: restoreDraft,
+  dismissRestore: dismissDraftRestore,
+  showRestore: showDraftRestore,
+  discard: discardDraft,
+  retry: retryDraft,
+  resolveConflict: resolveDraftConflict,
+  prepareSubmit: prepareDraftSubmit,
+  cancelSubmit: cancelDraftSubmit,
+  clearAfterSubmit: clearDraftAfterSubmit,
+} = useQuestionDraft({
+  content: () => ({
+    subject: form.subject,
+    chapter: form.chapter,
+    question_type: form.question_type,
+    content_md: form.content_md,
+    answer_md: form.answer_md,
+    explanation_md: form.explanation_md,
+    tags: [...form.tags],
+    options: form.options.map((option) => ({ content_md: option.content_md })),
+    blanks: form.blanks.map((blank) => ({ answer_md: blank.answer_md })),
+    choice_correct_label: choiceCorrectLabel.value,
+  }),
+  userId: () => auth.user?.id ?? null,
+  applyContent: applyDraftContent,
+  enabled: () => intakeMode.value === 'text',
+})
+
+const draftStatusText = computed(() => {
+  if (draftLoading.value) return '正在读取草稿…'
+  if (draftConflict.value) return '草稿版本冲突，请选择保留哪一份'
+
+  if (draftCandidate.value) {
+    return draftCandidateVisible.value ? '草稿待恢复或丢弃' : '仅本地保存 · 草稿待处理'
+  }
+
+  switch (draftStatus.value) {
+    case 'pending':
+    case 'saving':
+      return '正在保存…'
+    case 'saved':
+      return draftSavedAt.value
+        ? `草稿已保存 ${formatDraftClockTime(draftSavedAt.value)}`
+        : '草稿已保存'
+    case 'local-only':
+      return '仅本地保存'
+    case 'error':
+      return '仅本地保存 · 同步失败'
+    default:
+      return '输入后自动保存草稿'
+  }
+})
+
+const draftStatusTone = computed<'idle' | 'live' | 'success' | 'warning' | 'danger'>(() => {
+  if (draftLoading.value) return 'idle'
+  if (draftConflict.value || draftStatus.value === 'error') return 'danger'
+  if (draftCandidate.value || draftStatus.value === 'local-only') return 'warning'
+  if (draftStatus.value === 'pending' || draftStatus.value === 'saving') return 'live'
+  if (draftStatus.value === 'saved') return 'success'
+  return 'idle'
+})
+
+const draftStatusHint = computed(() => {
+  if (draftConflict.value) return ''
+  if (draftStatus.value === 'error' && draftErrorMessage.value) return draftErrorMessage.value
+  if (draftStatus.value === 'local-only' && draftErrorMessage.value) {
+    return draftErrorMessage.value
+  }
+  if (draftBlockedReason.value && !draftCandidateVisible.value) {
+    return '恢复或丢弃草稿后才会同步服务端'
+  }
+  return ''
+})
+
+const showDraftRetry = computed(
+  () =>
+    draftStatus.value === 'error' &&
+    Boolean(draftErrorMessage.value) &&
+    !draftCandidate.value &&
+    !draftConflict.value,
+)
+
+const draftConflictTime = computed(() =>
+  draftConflict.value ? formatDraftClockTime(draftConflict.value.updated_at) : '',
+)
+
+const showDraftActions = computed(
+  () =>
+    showDraftRetry.value ||
+    hasHiddenDraftCandidate.value ||
+    (hasDraftContent.value && !draftCandidateVisible.value),
+)
+
+function applyDraftContent(content: QuestionDraftContent): void {
+  form.subject = content.subject
+  form.chapter = content.chapter
+  form.question_type = content.question_type
+  form.content_md = content.content_md
+  form.answer_md = content.answer_md
+  form.explanation_md = content.explanation_md
+  form.tags = [...content.tags]
+  form.options =
+    content.options.length > 0
+      ? content.options.map((option) => ({ content_md: option.content_md }))
+      : createDefaultChoiceOptions()
+  form.blanks = content.blanks.map((blank) => ({ answer_md: blank.answer_md }))
+  choiceCorrectLabel.value = resolveCorrectLabel(content)
+  editMode.value = true
+  intakeMode.value = 'text'
+}
+
+function resolveCorrectLabel(content: QuestionDraftContent): string {
+  if (content.choice_correct_label) return content.choice_correct_label
+
+  const match = /^选\s*([A-F])/i.exec(content.answer_md.trim())
+  return match ? match[1].toUpperCase() : ''
+}
+
+function fieldHasError(field: string): boolean {
+  return validationFields.value.includes(field)
+}
+
+function fieldAria(field: string, extraId?: string): string | undefined {
+  const ids: string[] = []
+  if (extraId) ids.push(extraId)
+  if (validationSummary.value.length > 0 && fieldHasError(field)) {
+    ids.push('create-error-summary')
+  }
+  return ids.length > 0 ? ids.join(' ') : undefined
+}
+
+function focusField(fieldId: string): void {
+  if (typeof document === 'undefined') return
+
+  const root = document.getElementById(fieldId)
+  if (!root) return
+
+  const nested =
+    root.querySelector<HTMLElement>('input, textarea, select') ??
+    root.querySelector<HTMLElement>('[tabindex], .arco-select-view, .arco-input-tag')
+  const target = root.matches('input, textarea, select, button, [tabindex]')
+    ? root
+    : (nested ?? root)
+
+  target.focus({ preventScroll: true })
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 
 const structureError = computed(() => {
   if (form.question_type === 'choice') return validateChoiceOptions(form.options)
@@ -139,24 +321,45 @@ async function handleSubmit(): Promise<void> {
   if (submitting.value || !formRef.value) return
 
   attemptedSubmit.value = true
+  validationSummary.value = []
+  validationFields.value = []
+
   const validationErrors = await formRef.value.validate()
   if (validationErrors) {
+    const fields = Object.keys(validationErrors)
+    const messages: string[] = []
+
+    validationFields.value = fields
+    for (const field of fields) {
+      const message = validationErrors[field]?.message
+      if (message && !messages.includes(message)) messages.push(message)
+    }
+    validationSummary.value = messages
+
     // Keep the stem error visible when the user submits from preview mode.
     if (validationErrors.content_md) editMode.value = true
+
+    await nextTick()
+    const firstField = FIELD_FOCUS_ORDER.find((field) => fields.includes(field)) ?? fields[0]
+    if (firstField) focusField(firstField)
+    else errorSummaryRef.value?.focus()
     return
   }
 
   if (structureError.value) {
     Message.error(structureError.value)
-    document.getElementById('structure-heading')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    })
+    await nextTick()
+    const target = structureErrorRef.value
+    if (target) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
     return
   }
 
   submitting.value = true
   errorMessage.value = ''
+  prepareDraftSubmit()
 
   try {
     const payload: QuestionCreate = {
@@ -177,6 +380,7 @@ async function handleSubmit(): Promise<void> {
     }
 
     const result = await createQuestion(payload)
+    await clearDraftAfterSubmit()
 
     Message.success({
       content: `已保存，AI 分析任务已入队（#${result.task_id}）`,
@@ -184,11 +388,63 @@ async function handleSubmit(): Promise<void> {
     })
     await router.push(`/questions/${result.question.id}`)
   } catch (cause) {
+    cancelDraftSubmit()
     errorMessage.value = normalizeApiError(cause).message
   } finally {
     submitting.value = false
   }
 }
+
+async function handleRestoreDraft(): Promise<void> {
+  editMode.value = true
+  restoreDraft()
+  await nextTick()
+  focusField('content_md')
+}
+
+async function handleRestoreLater(): Promise<void> {
+  dismissDraftRestore()
+  await nextTick()
+  continueDraftButton.value?.focus()
+}
+
+async function handleShowDraft(): Promise<void> {
+  showDraftRestore()
+  await nextTick()
+  restoreBarRef.value?.focusRestore()
+}
+
+async function handleDiscardDraft(): Promise<void> {
+  await discardDraft()
+  if (draftErrorMessage.value) Message.error(draftErrorMessage.value)
+  else Message.success('草稿已丢弃')
+
+  await nextTick()
+  focusField('content_md')
+}
+
+async function handleResolveConflict(choice: 'local' | 'server'): Promise<void> {
+  await resolveDraftConflict(choice)
+  await nextTick()
+  focusField('content_md')
+}
+
+watch(draftConflict, async (value) => {
+  if (!value) return
+
+  await nextTick()
+  conflictPanelRef.value?.focus()
+})
+
+watch(
+  form,
+  () => {
+    if (validationSummary.value.length === 0) return
+    validationSummary.value = []
+    validationFields.value = []
+  },
+  { deep: true },
+)
 
 function handleCancel(): void {
   void router.push('/questions')
@@ -222,6 +478,99 @@ function handleCancel(): void {
       </button>
     </div>
 
+    <DraftRestoreBar
+      v-if="draftCandidate && draftCandidateVisible && intakeMode === 'text'"
+      ref="restoreBarRef"
+      :updated-at="draftCandidate.updatedAt"
+      :source="draftCandidate.source"
+      @restore="handleRestoreDraft"
+      @later="handleRestoreLater"
+      @discard="handleDiscardDraft"
+    />
+
+    <section
+      v-if="draftConflict && intakeMode === 'text'"
+      ref="conflictPanelRef"
+      class="draft-conflict"
+      role="alert"
+      tabindex="-1"
+      aria-labelledby="draft-conflict-title"
+    >
+      <div class="draft-conflict__body">
+        <p id="draft-conflict-title" class="draft-conflict__title">草稿版本冲突</p>
+        <p class="draft-conflict__meta">
+          服务端在 {{ draftConflictTime }} 有更新。当前输入仍保留在本地，请选择要保留的一份。
+        </p>
+      </div>
+      <div class="draft-conflict__actions">
+        <button
+          class="btn btn--outline btn--sm"
+          type="button"
+          :disabled="resolvingConflict"
+          :aria-busy="resolvingConflict"
+          @click="handleResolveConflict('local')"
+        >
+          保留本地
+        </button>
+        <button
+          class="btn btn--outline btn--sm"
+          type="button"
+          :disabled="resolvingConflict"
+          :aria-busy="resolvingConflict"
+          @click="handleResolveConflict('server')"
+        >
+          保留服务端
+        </button>
+      </div>
+    </section>
+
+    <div v-if="intakeMode === 'text'" class="draft-status">
+      <span
+        class="draft-status__dot"
+        :class="`draft-status__dot--${draftStatusTone}`"
+        aria-hidden="true"
+      />
+      <span
+        class="draft-status__live"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        :aria-busy="draftBusy"
+      >
+        {{ draftStatusText }}
+        <span v-if="draftStatusHint" class="draft-status__hint">（{{ draftStatusHint }}）</span>
+      </span>
+      <div v-if="showDraftActions" class="draft-status__actions">
+        <button
+          v-if="showDraftRetry"
+          class="btn btn--quiet btn--sm"
+          type="button"
+          :disabled="draftBusy"
+          :aria-busy="draftBusy"
+          @click="retryDraft"
+        >
+          重试同步
+        </button>
+        <button
+          v-if="hasHiddenDraftCandidate"
+          ref="continueDraftButton"
+          class="btn btn--quiet btn--sm"
+          type="button"
+          @click="handleShowDraft"
+        >
+          继续草稿
+        </button>
+        <button
+          v-if="hasDraftContent && !draftCandidateVisible"
+          class="btn btn--quiet btn--sm"
+          type="button"
+          @click="handleDiscardDraft"
+        >
+          丢弃草稿
+        </button>
+      </div>
+    </div>
+
     <a-alert
       v-if="errorMessage && intakeMode === 'text'"
       class="page__error"
@@ -234,6 +583,20 @@ function handleCancel(): void {
     </a-alert>
 
     <div v-show="intakeMode === 'text'" class="mode-panel">
+      <div
+        v-if="validationSummary.length > 0"
+        id="create-error-summary"
+        ref="errorSummaryRef"
+        class="validation-summary"
+        role="alert"
+        tabindex="-1"
+      >
+        <p class="validation-summary__title">请先修正以下问题</p>
+        <ul class="validation-summary__list">
+          <li v-for="message in validationSummary" :key="message">{{ message }}</li>
+        </ul>
+      </div>
+
       <a-form
         ref="formRef"
         class="editor-layout"
@@ -266,11 +629,16 @@ function handleCancel(): void {
                     placeholder="例如：求函数 $f(x)=x^3-3x+1$ 的极值。"
                     :auto-size="{ minRows: 4, maxRows: 18 }"
                     :max-length="MAX_CONTENT_LENGTH"
-                    :textarea-attrs="{ id: 'content-md' }"
+                    :textarea-attrs="{
+                      id: 'content-md',
+                      'aria-required': 'true',
+                      'aria-invalid': fieldHasError('content_md') ? 'true' : undefined,
+                      'aria-describedby': fieldAria('content_md', 'content-md-help'),
+                    }"
                     allow-clear
                   />
                 </a-form-item>
-                <div class="editor-meta">
+                <div id="content-md-help" class="editor-meta">
                   <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
                   <span class="editor-meta__count">
                     {{ form.content_md.length }} / {{ MAX_CONTENT_LENGTH }}
@@ -321,7 +689,11 @@ function handleCancel(): void {
                     v-model="form.answer_md"
                     placeholder="例如：极大值 $f(-1)=3$，极小值 $f(1)=-1$。"
                     :max-length="MAX_CONTENT_LENGTH"
-                    :input-attrs="{ id: 'answer-md' }"
+                    :input-attrs="{
+                      id: 'answer-md',
+                      'aria-invalid': fieldHasError('answer_md') ? 'true' : undefined,
+                      'aria-describedby': fieldAria('answer_md'),
+                    }"
                     allow-clear
                   />
                 </a-form-item>
@@ -335,7 +707,11 @@ function handleCancel(): void {
                     placeholder="写下你的解题过程，或留空等待 AI 补全。"
                     :auto-size="{ minRows: 3, maxRows: 12 }"
                     :max-length="MAX_CONTENT_LENGTH"
-                    :textarea-attrs="{ id: 'explanation-md' }"
+                    :textarea-attrs="{
+                      id: 'explanation-md',
+                      'aria-invalid': fieldHasError('explanation_md') ? 'true' : undefined,
+                      'aria-describedby': fieldAria('explanation_md'),
+                    }"
                     allow-clear
                   />
                 </a-form-item>
@@ -376,8 +752,10 @@ function handleCancel(): void {
 
               <p
                 v-if="attemptedSubmit && structureError"
+                ref="structureErrorRef"
                 class="field-error structure-error"
                 role="alert"
+                tabindex="-1"
               >
                 {{ structureError }}
               </p>
@@ -390,44 +768,49 @@ function handleCancel(): void {
             <h2 id="meta-heading" class="panel__title">题目信息</h2>
 
             <div class="field">
-              <label class="field-label" for="subject"
-                >学科 <span class="req-text">必填</span></label
-              >
+              <span class="field-label">学科 <span class="req-text">必填</span></span>
               <a-form-item field="subject" hide-label>
                 <a-select
-                  id="subject"
                   v-model="form.subject"
                   placeholder="请选择学科"
                   :options="SUBJECTS"
                   aria-label="学科"
+                  aria-required="true"
+                  :aria-invalid="fieldHasError('subject') ? 'true' : undefined"
+                  :aria-describedby="fieldAria('subject')"
                 />
               </a-form-item>
             </div>
 
             <div class="field">
-              <label class="field-label" for="chapter">章节</label>
+              <label class="field-label" for="chapter-input">章节</label>
               <a-form-item field="chapter" hide-label>
                 <a-input
                   v-model="form.chapter"
                   placeholder="例如：导数与极值"
                   :max-length="100"
-                  :input-attrs="{ id: 'chapter' }"
+                  :input-attrs="{
+                    id: 'chapter-input',
+                    'aria-invalid': fieldHasError('chapter') ? 'true' : undefined,
+                    'aria-describedby': fieldAria('chapter'),
+                  }"
                   allow-clear
                 />
               </a-form-item>
             </div>
 
             <div class="field">
-              <label class="field-label" for="tags">知识点标签</label>
+              <span class="field-label">知识点标签</span>
               <a-form-item field="tags" hide-label>
                 <a-input-tag
-                  id="tags"
                   v-model="form.tags"
                   placeholder="输入后按回车添加"
                   :max-tag-count="MAX_TAGS"
                   :unique-value="true"
                   allow-clear
                   aria-label="知识点标签"
+                  :aria-invalid="fieldHasError('tags') ? 'true' : undefined"
+                  :aria-describedby="fieldAria('tags')"
                 />
               </a-form-item>
             </div>
@@ -460,7 +843,14 @@ function handleCancel(): void {
       <div class="sticky-actions" role="region" aria-label="录入操作">
         <p>保存后将自动创建分析任务，可在任务中心查看进度。</p>
         <div class="sticky-actions__buttons">
-          <button class="btn btn--outline" type="button" @click="handleCancel">取消</button>
+          <button
+            class="btn btn--outline"
+            type="button"
+            :disabled="submitting"
+            @click="handleCancel"
+          >
+            取消
+          </button>
           <button
             class="btn btn--primary"
             type="button"
@@ -495,6 +885,136 @@ function handleCancel(): void {
 .page__error {
   align-items: flex-start;
   margin-bottom: var(--space-5);
+}
+
+.draft-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.draft-status__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-text-3);
+}
+
+.draft-status__dot--live {
+  background: var(--color-primary);
+}
+
+.draft-status__dot--success {
+  background: var(--color-success);
+}
+
+.draft-status__dot--warning {
+  background: var(--color-warning);
+}
+
+.draft-status__dot--danger {
+  background: var(--color-danger);
+}
+
+.draft-status__live {
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+.draft-status__hint {
+  min-width: 0;
+  color: var(--color-text-3);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.draft-status__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.draft-conflict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: 11px var(--space-4);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-soft);
+}
+
+.draft-conflict__body {
+  min-width: 0;
+}
+
+.draft-conflict__title {
+  color: var(--color-text-1);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-weight: 650;
+}
+
+.draft-conflict__meta {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  overflow-wrap: anywhere;
+}
+
+.draft-conflict__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.validation-summary {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.validation-summary__title {
+  font-weight: 650;
+}
+
+.validation-summary__list {
+  margin-top: var(--space-1);
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+@media (max-width: 767px) {
+  .draft-status__actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .draft-conflict {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .intake-switch {
