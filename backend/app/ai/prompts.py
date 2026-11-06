@@ -38,12 +38,15 @@ _SYSTEM_COMMON = (
 
 
 def analysis_messages(question: dict) -> list[dict]:
-    """分析一道错题：知识点/题型/难度/错误原因/解法摘要（05 §6.4 analysis 形状）。"""
+    """分析一道错题：知识点/题型/难度/错因/答案/解析/解法摘要（05 §7.1 形状）。"""
     system = (
         f"{_SYSTEM_COMMON}\n"
         "JSON 字段固定为：topic_type（题型归类，字符串）、difficulty（easy/medium/hard）、"
         "knowledge_points（知识点，字符串数组，1 到 8 个）、"
-        "error_reasons（这道题为什么错，字符串数组）、solution_summary（正确解法摘要，字符串）。"
+        "error_reasons（这道题为什么错，字符串数组）、"
+        "answer_md（这道题的参考答案，字符串）、explanation_md（简要解析，字符串）、"
+        "solution_summary（正确解法摘要，字符串）。"
+        "answer_md/explanation_md 必须给出：原题没填答案时由你来补全，供后端写回题目本体。"
     )
     user = f"<question>\n{json.dumps(question, ensure_ascii=False)}\n</question>"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]

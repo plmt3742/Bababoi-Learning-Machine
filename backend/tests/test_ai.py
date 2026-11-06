@@ -172,11 +172,55 @@ def test_validate_quiz_rejects_unpaired_latex() -> None:
         validator.validate_quiz(broken)
 
 
-def test_validate_quiz_rejects_backslash_paren_math() -> None:
-    r"""05 §7.3：公式统一 $...$，模型爱写的 \(...\) 要拦。"""
-    broken = _quiz_payload(r"求 \(f(x)=x^2\) 的最小值。")
-    with pytest.raises(ValueError, match="公式统一"):
-        validator.validate_quiz(broken)
+def test_validate_quiz_normalizes_backslash_paren_math() -> None:
+    r"""05 §7.3 要 `$...$`，但真模型确实会写 \(...\)（实测 6 次里 1 次）。
+
+    那是排版习惯不是内容错误——判失败等于扔掉一道好题，所以规范化成 `$` 后放行。
+    """
+    payload = _quiz_payload(r"求 \(f(x)=x^2\) 的最小值。")
+    specs = validator.validate_quiz(payload)
+    assert "$f(x)=x^2$" in specs[0].content_md
+    assert "\\" not in specs[0].content_md.replace("\\$", "")
+
+
+def test_analysis_normalizes_math_and_requires_answer_explanation() -> None:
+    """05 §7.1：analysis 现在含 answer_md/explanation_md，且公式分隔符会被规范化。"""
+    result = validator.validate_analysis(
+        {
+            "topic_type": "导数与极值",
+            "difficulty": "medium",
+            "knowledge_points": ["导数"],
+            "error_reasons": ["未判符号"],
+            "answer_md": "极大值 \\(f(-1)=3\\)",
+            "explanation_md": "求导判符号。",
+            "solution_summary": "求导后列表判符号。",
+        }
+    )
+    assert result.answer_md == "极大值 $f(-1)=3$"
+
+    for missing in ("answer_md", "explanation_md"):
+        payload = {
+            "topic_type": "导数与极值",
+            "difficulty": "medium",
+            "knowledge_points": ["导数"],
+            "error_reasons": ["未判符号"],
+            "answer_md": "略",
+            "explanation_md": "略",
+            "solution_summary": "略",
+        }
+        payload.pop(missing)
+        with pytest.raises(ValidationError, match=missing):
+            validator.validate_analysis(payload)
+
+
+def test_sampling_is_per_operation() -> None:
+    """生成温度 0.3 / max_tokens 8000 是实测定的，不是拍脑袋（见 05 §7.3）。"""
+    from app.ai.client import SAMPLING
+
+    assert SAMPLING[OPERATION_ANALYSIS]["temperature"] == 0.2
+    assert SAMPLING[OPERATION_QUIZ]["temperature"] == 0.3
+    # 含参 hard 段实测输出 7089 token，卡 4000 会截断成解析失败
+    assert SAMPLING[OPERATION_QUIZ]["max_tokens"] == 8000
 
 
 def test_validate_quiz_rejects_overlong_content() -> None:

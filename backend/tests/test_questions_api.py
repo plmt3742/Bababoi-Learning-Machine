@@ -32,6 +32,21 @@ def _blank_payload(**overrides) -> dict:
     return payload
 
 
+def _valid_analysis(**overrides) -> dict:
+    """05 §7.1 的合法 analysis；answer_md/explanation_md 必填。"""
+    payload = {
+        "topic_type": "导数与极值",
+        "difficulty": "medium",
+        "knowledge_points": ["导数"],
+        "error_reasons": ["未判断符号"],
+        "answer_md": "极大值 $f(-1)=3$",
+        "explanation_md": "求导后判符号。",
+        "solution_summary": "求导后列表判符号",
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _create(client, token: str, payload: dict) -> dict:
     resp = client.post("/api/v1/questions", json=payload, headers=auth_headers(token))
     assert resp.status_code == 200, resp.text
@@ -156,13 +171,7 @@ def test_patch_updates_fields_tags_and_analysis(client) -> None:
         json={
             "answer_md": "选 B",
             "tags": ["导数"],
-            "analysis": {
-                "topic_type": "导数与极值",
-                "difficulty": "medium",
-                "knowledge_points": ["导数"],
-                "error_reasons": ["未判断符号"],
-                "solution_summary": "求导后列表判符号",
-            },
+            "analysis": _valid_analysis(),
         },
         headers=auth_headers(token),
     )
@@ -331,13 +340,7 @@ def test_patch_analysis_must_match_schema(client) -> None:
     good = client.patch(
         f"/api/v1/questions/{qid}",
         json={
-            "analysis": {
-                "topic_type": "导数与极值",
-                "difficulty": "medium",
-                "knowledge_points": ["导数"],
-                "error_reasons": ["没判符号变化"],
-                "solution_summary": "求导后判断符号。",
-            }
+            "analysis": _valid_analysis(error_reasons=["没判符号变化"])
         },
         headers=auth_headers(token),
     )

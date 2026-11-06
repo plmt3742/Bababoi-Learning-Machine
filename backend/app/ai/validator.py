@@ -28,9 +28,6 @@ GENERATED_CONTENT_MD_MAX = 3000
 # 05 §7.2 第 4 条：生成题不能依赖图片
 _IMAGE_DEPENDENCY = re.compile(r"如[图中下上]|见下?图|照图")
 
-# LaTeX 分隔符必须成对；05 §7.3 只允许 $...$ / $$...$$，\(\) 视为不合规
-_INLINE_MATH = re.compile(r"\\[\(\)]")
-
 
 def _normalize_for_compare(text: str) -> str:
     """去掉空白与常见标点后再比，避免「只是排版不同」被当成同一道题。"""
@@ -42,14 +39,43 @@ def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, _normalize_for_compare(a), _normalize_for_compare(b)).ratio()
 
 
+# 05 §7.3 只允许 $...$ / $$...$$。但真模型确实会写 \(...\)（实测 6 次里 1 次），
+# 那是排版习惯不是内容错误——判失败等于把一道好题扔掉，所以先规范化再校验。
+_MATH_DELIMITERS = (
+    (re.compile(r"\\\["), "$$"),
+    (re.compile(r"\\\]"), "$$"),
+    (re.compile(r"\\\("), "$"),
+    (re.compile(r"\\\)"), "$"),
+)
+
+
+def normalize_math_delimiters(text: str) -> str:
+    """`\\(...\\)` / `\\[...\\]` → `$...$` / `$$...$$`，前端 KaTeX 才认。"""
+    for pattern, replacement in _MATH_DELIMITERS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 class AnalysisResult(BaseModel):
-    """05 §6.4 analysis JSON 的形状，BE-006 落库前用它校验。"""
+    """05 §7.1 analysis JSON 的形状，BE-006 落库前用它校验。
+
+    `answer_md`/`explanation_md` 也在里面：05 v0.4 明确「原题未填时由分析任务补全」，
+    但落库写的是 `questions.answer_md` / `questions.explanation_md` 两个正字段，
+    不塞进 analysis JSON（确认单 14 号 §3）。
+    """
 
     topic_type: str = Field(min_length=1)
     difficulty: Difficulty
     knowledge_points: list[str] = Field(min_length=1, max_length=8)
     error_reasons: list[str] = Field(max_length=8)
+    answer_md: str = Field(min_length=1)
+    explanation_md: str = Field(min_length=1)
     solution_summary: str = Field(min_length=1)
+
+    @field_validator("topic_type", "answer_md", "explanation_md", "solution_summary", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
 
     @field_validator("knowledge_points", "error_reasons")
     @classmethod
@@ -71,6 +97,11 @@ class GeneratedQuestionSpec(BaseModel):
     options: list[ChoiceOption] | None = None
     blanks: list[BlankAnswer] | None = None
 
+    @field_validator("content_md", "answer_md", "explanation_md", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
     @field_validator("content_md")
     @classmethod
     def content_is_self_contained_text(cls, value: str) -> str:
@@ -79,8 +110,6 @@ class GeneratedQuestionSpec(BaseModel):
             raise ValueError("生成题不能依赖图片（出现「如图/图中/下图」等说法）")
         if value.count("$") % 2:
             raise ValueError("题干里的 `$` 不成对，LaTeX 公式没闭合")
-        if _INLINE_MATH.search(value):
-            raise ValueError("公式统一用 `$...$`，不要用 `\\(...\\)`")
         return value
 
     @field_validator("options")

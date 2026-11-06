@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
+import httpx
 import openai
 
 from app.ai.errors import AIProviderError, AITimeoutError
@@ -29,6 +30,16 @@ def _timeout_for(operation: str) -> int:
     if operation == OPERATION_VISION:
         return settings.recognize_client_timeout_s
     return settings.task_hard_timeout_s
+
+
+# 采样参数按操作分档。生成温度定 0.3 而不是 05 §7.3 原先写的 0.7：
+# 实测 0.3 下三段并发的三题相似度只有 0.535–0.622（0.7 的 batch 是 0.907–0.950），
+# 既稳又不雷同。max_tokens 8000 是给 hard 档留的——实测含参 hard 段一次输出 7089 token，
+# 卡 4000 会把 JSON 截断成解析失败。
+SAMPLING = {
+    OPERATION_ANALYSIS: {"temperature": 0.2, "max_tokens": 4000},
+    OPERATION_QUIZ: {"temperature": 0.3, "max_tokens": 8000},
+}
 
 
 @dataclass(frozen=True)
@@ -61,20 +72,30 @@ class MockLLMClient:
 
 class DeepSeekClient:
     def __init__(self) -> None:
+        # trust_env=False：不让 httpx 去读系统代理。Windows/macOS 上代理一坏，
+        # 请求会变成 APIConnectionError: SSL UNEXPECTED_EOF，看着像模型挂了
+        # 其实是网络配置问题（本地实测踩过一次，排查成本很高）。
         self._client = openai.OpenAI(
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             # 兜底值；真正生效的是每次请求按 operation 覆盖的 timeout
             timeout=settings.task_hard_timeout_s,
             max_retries=settings.task_retry_limit,  # SDK 自带传输层重试
+            http_client=httpx.Client(
+                trust_env=False, timeout=settings.task_hard_timeout_s
+            ),
         )
         self._model = settings.llm_model
 
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         start = time.monotonic()
+        sampling = SAMPLING.get(operation, {})
         try:
             resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
-                model=self._model, messages=messages
+                model=self._model,
+                messages=messages,
+                response_format={"type": "json_object"},  # 实测 deepseek-flash 支持
+                **sampling,
             )
         except openai.APITimeoutError as exc:
             raise AITimeoutError(str(exc)) from None
@@ -105,6 +126,8 @@ _MOCK_ANALYSIS = {
     "difficulty": "medium",
     "knowledge_points": ["导数", "极值", "单调性"],
     "error_reasons": ["求导后未判断符号变化"],
+    "answer_md": "极大值 $f(-1)=3$，极小值 $f(1)=-1$",
+    "explanation_md": "求导得 $f'(x)=3x^2-3$，令其为 0 得驻点，两侧符号由正变负为极大值。",
     "solution_summary": "求导，令导数为 0 求驻点，列表判断两侧符号得极值。",
 }
 
