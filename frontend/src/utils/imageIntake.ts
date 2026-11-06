@@ -1,4 +1,5 @@
 import type {
+  Difficulty,
   ExtractedImageQuestion,
   ImageExtractionResult,
   Question,
@@ -25,6 +26,9 @@ export interface ImageItemDraft {
   sourceIndex: number
   content_md: string
   question_type: QuestionType
+  subject: string
+  chapter: string
+  difficulty: Difficulty | null
   options: ChoiceOptionDraft[]
   blanks: BlankAnswerDraft[]
   correct_label: string
@@ -60,12 +64,19 @@ function toBlankDrafts(question: ExtractedImageQuestion): BlankAnswerDraft[] {
   return (question.blanks ?? []).map((blank) => createBlankAnswer(blank.answer_md))
 }
 
+export function firstDetectedSubject(result: ImageExtractionResult): string {
+  return result.questions.map((question) => question.subject?.trim() ?? '').find(Boolean) ?? ''
+}
+
 export function createImageItemDrafts(result: ImageExtractionResult): ImageItemDraft[] {
   return result.questions.map((question, position) => ({
     key: `image-item-${question.index}-${position}`,
     sourceIndex: question.index,
     content_md: question.content_md,
     question_type: question.question_type,
+    subject: question.subject?.trim() ?? '',
+    chapter: question.chapter?.trim() ?? '',
+    difficulty: question.difficulty ?? null,
     options: toOptionDrafts(question),
     blanks: toBlankDrafts(question),
     correct_label: '',
@@ -108,7 +119,7 @@ export function toImageQuestionPayload(
 ): QuestionCreate {
   const payload: QuestionCreate = {
     subject: subject.trim(),
-    chapter: null,
+    chapter: item.chapter.trim() || null,
     source_type: 'image',
     question_type: item.question_type,
     content_md: item.content_md.trim(),
