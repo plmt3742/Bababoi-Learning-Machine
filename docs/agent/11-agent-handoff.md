@@ -27,7 +27,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
   - 练习（#23）、统计（#24，mock；等 BE-013）、三题型编辑器（#25）
 - **前端剩余**：FE-017 的 768px 宽度与完整键盘细节；真接口联调
 - **管理端**：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
-- **PRD**：`docs/prd` 已删除；v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
+- **范围/交互/验收**：以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 - **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题；见 ADR-004 / issue #13
 - **BYOK（ADR-007）**：Key 只提交后端加密存储；前端不落 localStorage/Pinia、不回显完整值；P1，不进入 11.29 演示关键路径
 - **下一步顺序**：
@@ -35,7 +35,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
   2. 后端 **BE-018 草稿 / BE-013 统计 / BE-020 BYOK**
   3. 后端 **ADR-006 三段并发**（新 PR，base=main）
   4. 前端 **FE-017** 768/键盘收尾 + 真接口联调
-  5. M0 验收、部署 staging、PRD v0.9
+  5. M0 验收、部署 staging
 - **本地启动**：
   - 前端：`cd "G:\AIworkspace\opencode\BababoiLearningMachine\frontend"` → `pnpm dev`（PowerShell 不要用 `cd /d`）
   - 开发模式默认 mock；演示账号 `student01 / password123`

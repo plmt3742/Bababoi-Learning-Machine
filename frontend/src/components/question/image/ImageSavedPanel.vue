@@ -116,7 +116,10 @@ function excerpt(content: string, limit = 96): string {
               <span>题目 #{{ entry.question.id }}</span>
               <span>分析任务 #{{ entry.taskId }}</span>
               <span v-if="taskFor(entry.question.id)" class="tag tag--run">
-                生成任务 #{{ taskFor(entry.question.id)?.taskId }}
+                生成任务 #{{ taskFor(entry.question.id)?.taskIds[0] }}
+                <template v-if="(taskFor(entry.question.id)?.taskIds.length ?? 0) > 1">
+                  等 {{ taskFor(entry.question.id)?.taskIds.length }} 个
+                </template>
               </span>
             </div>
 
@@ -150,11 +153,15 @@ function excerpt(content: string, limit = 96): string {
       </div>
 
       <div v-if="tasks.length" class="task-result">
-        <p class="task-result__title">已创建 {{ tasks.length }} 个生成任务</p>
+        <p class="task-result__title">
+          已创建 {{ tasks.reduce((count, task) => count + task.taskIds.length, 0) }} 个生成任务
+        </p>
         <div class="task-result__chips">
-          <span v-for="task in tasks" :key="task.taskId" class="tag tag--run">
-            任务 #{{ task.taskId }} · 题目 #{{ task.questionId }}
-          </span>
+          <template v-for="task in tasks" :key="task.questionId">
+            <span v-for="taskId in task.taskIds" :key="taskId" class="tag tag--run">
+              任务 #{{ taskId }} · 题目 #{{ task.questionId }}
+            </span>
+          </template>
         </div>
         <div class="task-result__actions">
           <button class="btn btn--outline btn--sm" type="button" @click="emit('go-tasks')">

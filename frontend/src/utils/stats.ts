@@ -5,8 +5,8 @@ export function clampAccuracy(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
-export function formatAccuracy(accuracy: number, totalCount: number): string {
-  if (totalCount <= 0) return '—'
+export function formatAccuracy(accuracy: number | null | undefined, totalCount: number): string {
+  if (totalCount <= 0 || accuracy === null || accuracy === undefined) return '—'
   return `${Math.round(clampAccuracy(accuracy) * 100)}%`
 }
 

@@ -2,10 +2,12 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态：FE-001 ~ FE-012、FE-015、FE-019 已完成；FE-009/019 在 PR #19，全量 Calm Academic
-> 视觉覆写在 PR #21（stacked，2026-11-06，均 CI 绿待合并）。应用壳、路由、设计 tokens、API
-> client、Mock API、登录/注册与路由守卫已就位；错题录入、列表、详情、Markdown/公式渲染、
-> 空/错/loading 状态、AI 生成进度轮询与任务中心已可用。练习、统计等仍待实现。
+> 状态（2026-11-07）：FE-001 ~ FE-026 已合入 main；FE-027 正在收口——题目编辑、设置页题型开关、
+> 18 号识图口径、Vitest 单元测试、PRD 清理。核心闭环（登录/文本录入/列表/详情/分析/三段生成/
+> 任务中心/练习）已接真实后端；图片识图随 BE-014 合入；统计/草稿/BYOK 仍等后端接口。
+> 应用壳、路由、设计 tokens、API client、Mock API、登录/注册与路由守卫、错题录入/列表/详情、
+> 练习、统计、三种题型编辑器、图片裁剪与多题条目、草稿双写、三段并发生成 UI、首页学习概览、
+> 个人设置（BYOK）均已可用。
 
 ## 技术栈（实际安装版本）
 
@@ -86,20 +88,25 @@ VITE_USE_MOCK=true
 | 路径             | 页面                         | 布局     |
 | ---------------- | ---------------------------- | -------- |
 | `/login`         | 登录/注册                    | 独立页   |
-| `/`              | 首页占位                     | AppShell |
+| `/`              | 首页学习概览                 | AppShell |
 | `/questions`     | 错题列表（筛选/搜索/分页）   | AppShell |
-| `/questions/new` | 录入错题（文本）             | AppShell |
-| `/tasks`         | 任务中心（列表/筛选/重试）   | AppShell |
-| `/questions/:id` | 错题详情（分析/生成题/删除） | AppShell |
-| `/practice/:id?` | 练习占位（`id` 可选）        | AppShell |
-| `/stats`         | 统计占位（P1）               | AppShell |
+| `/questions/new` | 录入错题（文本/图片）        | AppShell |
+| `/questions/:id` | 错题详情（分析/生成题/编辑/删除） | AppShell |
+| `/questions/:id/edit` | 编辑错题（完整三题型） | AppShell |
+| `/tasks` | 任务中心（列表/筛选/重试） | AppShell |
+| `/practice/:id?` | 练习（`id` 可选）            | AppShell |
+| `/stats`         | 统计/概览（P1）              | AppShell |
+| `/settings`      | 个人设置 / AI Key / 生成偏好 | AppShell |
 | 其余路径         | 404                          | AppShell |
 
 ## 错题页面（FE-007 / FE-008）
 
 - **录入 `/questions/new`**：桌面两栏（左侧题干/答案/解析，右侧学科/章节/标签），
   移动端单栏；学科必选、题干必填且 ≤5000 字；保存调用 `POST /questions`，
-  成功后跳转详情并提示分析任务已入队。当前按解答题保存，选项/空位编辑器留待 FE-020。
+  成功后跳转详情并提示分析任务已入队。三种题型使用统一编辑器。
+- **编辑 `/questions/:id/edit`**：复用录入页的完整三题型编辑器，可改题干/答案/解析/
+  学科/章节/标签/选项/空位；保存调用 `PATCH /questions/{id}`。后端尚未支持题型结构
+  编辑时会明确提示，不静默丢改动。
 - **列表 `/questions`**：卡片列表，关键词搜索 300ms 防抖，学科/标签/掌握状态筛选与
   URL query 同步；分页默认 20 条。区分空账号与筛选无结果，错误可重试。
 - **详情 `/questions/:id`**：按“原题 → AI 分析 → 生成进度 → 生成题 → 下一步”纵向排列；
@@ -161,8 +168,8 @@ VITE_USE_MOCK=true
 
 - `src/components/layout/AppShell.vue`：Calm 纸面 frame + 顶部 appbar + 内容区；桌面无侧边栏。
 - `src/components/layout/AppTopBar.vue`：品牌（BrandMark + Bababoi + 错题学习机）、错题本 / 录入错题 / 任务中心导航、用户菜单。
-- `< 768px`：appbar 收为品牌 + 当前页；底部快捷导航为 错题 / 录入 / 任务 / 练习，内容预留 safe-area。
-- 首页 `/` 仍保留占位；统计/设置属于后续 P1，不在主 appbar 中占位。
+- `< 768px`：appbar 收为品牌 + 当前页；底部快捷导航为 首页 / 错题 / 录入 / 任务 / 练习，内容预留 safe-area。
+- 首页 `/`、统计、设置均已实现；统计/设置属于 P1，不在主 appbar 中占位。
 
 ## 当前目录
 
@@ -188,13 +195,21 @@ src/
 除 `/login` 外，AppShell 下的页面都需要登录；未登录访问会跳转到
 `/login?redirect=<原路径>`。
 
-## 尚未实现
+## 当前后端依赖
 
-- FE-013 / FE-014：练习页与统计/概览。
-- FE-016 / FE-021：图片上传、裁剪、多题识别与选择生成。
-- FE-018：完整键盘/可访问性走查、草稿自动保存/恢复与冲突处理。
-- FE-020：选择题/填空题结构编辑器与编辑工具栏。
-- FE-017 剩余：练习/统计页的移动端适配（四核心屏已完成 375/1366 适配）。
+- BE-013 统计（Issue #45）：统计页与首页统计卡片仍走 mock。
+- BE-018 草稿（Issue #46）：服务端草稿仍走 mock，本地草稿可兜底。
+- BE-020 BYOK（Issue #32）：设置页 AI Key 仍走 mock。
+- BE-025 三题型 PATCH（Issue #43）：前端编辑页已完成，后端未支持时明确提示。
+- BE-026 题型一致性开关（Issue #44）：前端设置页已完成，默认开启，等待后端执行。
+- BE-024 两步识图（Issue #47）：前端 loading/180s 超时已接，后端链路待实现。
+- BE-008/BE-009/OPS-005（Issue #48）：seed、OpenAPI、staging 仍待补。
+
+## 测试
+
+- `pnpm test` 运行 Vitest 单元测试，覆盖 API 归一化、任务错误码、草稿、图片映射、统计、设置校验。
+- `pnpm test:watch` 本地监听；CI 的 frontend job 会执行 `pnpm test`。
+- E2E（Playwright）暂未接入，核心路径仍以手工冒烟为主。
 
 ## 约定
 

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
-import { IconArrowLeft, IconDelete, IconRefresh } from '@arco-design/web-vue/es/icon'
+import { IconArrowLeft, IconDelete, IconEdit, IconRefresh } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
 import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
@@ -348,6 +348,11 @@ function goPractice(): void {
   void router.push(`/practice/${question.value.id}`)
 }
 
+function goEdit(): void {
+  if (!question.value) return
+  void router.push(`/questions/${question.value.id}/edit`)
+}
+
 watch(
   () => liveTasks.value,
   (next) => {
@@ -415,6 +420,10 @@ onBeforeUnmount(() => {
             <span class="dot" aria-hidden="true" />
             {{ masteryStatusLabel(question.mastery_status) }}
           </span>
+          <button class="btn btn--outline" type="button" @click="goEdit">
+            <IconEdit class="icon" />
+            编辑
+          </button>
           <button class="btn btn--danger" type="button" @click="openDeleteDialog">
             <IconDelete class="icon" />
             删除
@@ -428,7 +437,8 @@ onBeforeUnmount(() => {
             <div class="paper__head">
               <h2 id="original-title">原题</h2>
               <span class="paper__meta">
-                {{ questionTypeLabel(question.question_type) }} · 文字录入
+                {{ questionTypeLabel(question.question_type) }} ·
+                {{ question.source_type === 'image' ? '图片录入' : '文字录入' }}
               </span>
             </div>
             <div class="paper__body">

@@ -15,9 +15,13 @@ export async function extractQuestions(
   imagePath: string,
   subject?: string,
 ): Promise<ImageExtractionResult> {
-  const { data } = await apiClient.post<ImageExtractionResult>('/questions/from-image', {
-    image_path: imagePath,
-    ...(subject?.trim() ? { subject: subject.trim() } : {}),
-  })
+  const { data } = await apiClient.post<ImageExtractionResult>(
+    '/questions/from-image',
+    {
+      image_path: imagePath,
+      ...(subject?.trim() ? { subject: subject.trim() } : {}),
+    },
+    { timeout: 180_000 },
+  )
   return data
 }

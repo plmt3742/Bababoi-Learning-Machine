@@ -21,11 +21,13 @@ const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
 
 const TASK_ERROR_MESSAGES: Record<string, string> = {
   AI_TIMEOUT: 'AI 服务响应超时，请重试。',
-  AI_SERVICE_UNAVAILABLE: 'AI 服务暂时不可用，请稍后重试。',
+  AI_PROVIDER_ERROR: 'AI 服务暂时不可用，请稍后重试。',
   AI_RATE_LIMITED: 'AI 调用次数过多，请稍后重试。',
-  AI_INVALID_RESPONSE: 'AI 返回结果不完整，请重试。',
-  VALIDATION_FAILED: '生成结果未通过校验，请重试。',
-  TASK_EXECUTION_FAILED: '任务执行失败，请重试。',
+  AI_INVALID_OUTPUT: 'AI 返回结果不完整，请重试。',
+  AI_INVALID_IMAGE: '图片无法识别，请裁剪后重试。',
+  AI_INVALID_KEY: '个人 API Key 无效，请到设置页检查。',
+  TASK_NOT_FOUND: '任务不存在或已被清理。',
+  VALIDATION_ERROR: '提交内容未通过校验，请检查后重试。',
   INTERNAL_ERROR: '服务端处理失败，请稍后重试。',
 }
 

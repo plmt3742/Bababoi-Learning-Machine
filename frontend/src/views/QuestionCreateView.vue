@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
 import PageHeader from '../components/common/PageHeader.vue'
 import DraftRestoreBar from '../components/common/DraftRestoreBar.vue'
+import ErrorState from '../components/common/ErrorState.vue'
+import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
 import ImageIntakeFlow from '../components/question/image/ImageIntakeFlow.vue'
 import BlankEditor from '../components/question/editor/BlankEditor.vue'
 import ChoiceEditor from '../components/question/editor/ChoiceEditor.vue'
 import QuestionPreview from '../components/question/editor/QuestionPreview.vue'
 import QuestionTypeSelector from '../components/question/editor/QuestionTypeSelector.vue'
-import { createQuestion } from '../api/questions'
+import { createQuestion, getQuestion, updateQuestion } from '../api/questions'
 import { normalizeApiError } from '../api/errors'
 import {
   createDefaultChoiceOptions,
@@ -28,13 +30,22 @@ import type { QuestionDraftContent } from '../utils/draft'
 import { useQuestionDraft } from '../composables/useQuestionDraft'
 import { useAuthStore } from '../stores/auth'
 import { questionTypeLabel } from '../utils/question'
-import type { QuestionCreate, QuestionType } from '../api/types'
+import type {
+  Question,
+  QuestionBlank,
+  QuestionCreate,
+  QuestionDetail,
+  QuestionOption,
+  QuestionType,
+  QuestionUpdate,
+} from '../api/types'
 
 const MAX_CONTENT_LENGTH = 5000
 const MAX_TAGS = 10
 const SUBJECTS = ['高等数学', '线性代数', '概率论与数理统计', '大学物理']
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
@@ -50,6 +61,10 @@ const structureErrorRef = ref<HTMLElement | null>(null)
 const continueDraftButton = ref<HTMLButtonElement | null>(null)
 const conflictPanelRef = ref<HTMLElement | null>(null)
 const restoreBarRef = ref<InstanceType<typeof DraftRestoreBar> | null>(null)
+const editingQuestion = ref<QuestionDetail | null>(null)
+const editLoading = ref(false)
+const editLoadError = ref('')
+const editLoadErrorCode = ref('')
 
 const FIELD_FOCUS_ORDER = [
   'subject',
@@ -60,11 +75,28 @@ const FIELD_FOCUS_ORDER = [
   'explanation_md',
 ] as const
 
-const pageDescription = computed(() =>
-  intakeMode.value === 'text'
-    ? '先记录题目原文和答案，保存后 AI 会在后台补全考点分析并生成相似题。'
-    : '上传或拍摄图片，确认裁剪后逐条核对 AI 提取的题目；保存后自动创建分析任务。',
-)
+const pageDescription = computed(() => {
+  if (editingQuestion.value) {
+    return '修改题干、答案、解析、题型与标签；保存后会更新原题，不会自动重新分析。'
+  }
+  if (intakeMode.value === 'text') {
+    return '先记录题目原文和答案，保存后 AI 会在后台补全考点分析并生成相似题。'
+  }
+  return '上传或拍摄图片，确认裁剪后逐条核对 AI 提取的题目；保存后自动创建分析任务。'
+})
+
+const pageTitle = computed(() => (editingQuestion.value ? '编辑错题' : '录入错题'))
+
+const editingId = computed<number | null>(() => {
+  if (route.name !== 'question-edit') return null
+  const raw = route.params.id
+  const value = Array.isArray(raw) ? raw[0] : raw
+  if (!value) return null
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 && String(parsed) === value ? parsed : null
+})
+
+const isEditing = computed(() => editingId.value !== null)
 
 const form = reactive({
   subject: '',
@@ -115,7 +147,7 @@ const {
   }),
   userId: () => auth.user?.id ?? null,
   applyContent: applyDraftContent,
-  enabled: () => intakeMode.value === 'text',
+  enabled: () => !isEditing.value && intakeMode.value === 'text',
 })
 
 const draftStatusText = computed(() => {
@@ -203,9 +235,85 @@ function applyDraftContent(content: QuestionDraftContent): void {
 
 function resolveCorrectLabel(content: QuestionDraftContent): string {
   if (content.choice_correct_label) return content.choice_correct_label
+  return correctLabelFromAnswer(content.answer_md)
+}
 
-  const match = /^选\s*([A-F])/i.exec(content.answer_md.trim())
+function correctLabelFromAnswer(answer: string): string {
+  const match = /^选\s*([A-F])/i.exec(answer.trim())
   return match ? match[1].toUpperCase() : ''
+}
+
+function optionsToDrafts(options: QuestionOption[] | null): ReturnType<typeof createDefaultChoiceOptions> {
+  if (!options || options.length === 0) return createDefaultChoiceOptions()
+  return options.map((option) => ({ content_md: option.content_md }))
+}
+
+function blanksToDrafts(blanks: QuestionBlank[] | null): BlankAnswerDraft[] {
+  return (blanks ?? []).map((blank) => ({ answer_md: blank.answer_md }))
+}
+
+async function loadEditingQuestion(): Promise<void> {
+  const id = editingId.value
+  if (id === null) {
+    editLoadError.value = '错题编号不正确'
+    return
+  }
+
+  editLoading.value = true
+  editLoadError.value = ''
+  editLoadErrorCode.value = ''
+
+  try {
+    const detail = await getQuestion(id)
+    editingQuestion.value = detail
+    form.subject = detail.subject
+    form.chapter = detail.chapter ?? ''
+    form.question_type = detail.question_type
+    form.content_md = detail.content_md
+    form.answer_md = detail.answer_md ?? ''
+    form.explanation_md = detail.explanation_md ?? ''
+    form.tags = detail.tags.map((tag) => tag.name)
+    form.options = optionsToDrafts(detail.options)
+    form.blanks = blanksToDrafts(detail.blanks)
+    choiceCorrectLabel.value = correctLabelFromAnswer(detail.answer_md ?? '')
+    editMode.value = true
+    intakeMode.value = 'text'
+  } catch (cause) {
+    const apiError = normalizeApiError(cause)
+    editLoadError.value = apiError.message
+    editLoadErrorCode.value = apiError.code
+  } finally {
+    editLoading.value = false
+  }
+}
+
+function buildStructuralPayload(): Pick<QuestionUpdate, 'question_type' | 'options' | 'blanks'> {
+  return {
+    question_type: form.question_type,
+    options: form.question_type === 'choice' ? toChoiceOptions(form.options) : null,
+    blanks: form.question_type === 'blank' ? toBlankAnswers(form.blanks) : null,
+  }
+}
+
+function structureChanged(): boolean {
+  const original = editingQuestion.value
+  if (!original) return false
+  const payload = buildStructuralPayload()
+  return (
+    payload.question_type !== original.question_type ||
+    JSON.stringify(payload.options ?? null) !== JSON.stringify(original.options ?? null) ||
+    JSON.stringify(payload.blanks ?? null) !== JSON.stringify(original.blanks ?? null)
+  )
+}
+
+function structureSaved(updated: Question | null): boolean {
+  if (!updated) return false
+  const payload = buildStructuralPayload()
+  return (
+    payload.question_type === updated.question_type &&
+    JSON.stringify(payload.options ?? null) === JSON.stringify(updated.options ?? null) &&
+    JSON.stringify(payload.blanks ?? null) === JSON.stringify(updated.blanks ?? null)
+  )
 }
 
 function fieldHasError(field: string): boolean {
@@ -279,7 +387,7 @@ watch(
 
 const rules: Record<string, FieldRule[]> = {
   subject: [{ required: true, message: '请选择学科' }],
-  chapter: [{ maxLength: 100, message: '章节不能超过 100 个字符' }],
+  chapter: [{ maxLength: 64, message: '章节不能超过 64 个字符' }],
   content_md: [
     {
       validator: (value, callback) => {
@@ -359,36 +467,57 @@ async function handleSubmit(): Promise<void> {
 
   submitting.value = true
   errorMessage.value = ''
-  prepareDraftSubmit()
+  if (!isEditing.value) prepareDraftSubmit()
 
   try {
-    const payload: QuestionCreate = {
+    const base = {
       subject: form.subject,
       chapter: form.chapter.trim() || null,
-      source_type: 'text',
-      question_type: form.question_type,
       content_md: form.content_md.trim(),
       answer_md: form.answer_md.trim() || null,
       explanation_md: form.explanation_md.trim() || null,
       tags: normalizedTags(),
     }
 
-    if (form.question_type === 'choice') {
-      payload.options = toChoiceOptions(form.options)
-    } else if (form.question_type === 'blank') {
-      payload.blanks = toBlankAnswers(form.blanks)
+    if (isEditing.value) {
+      const id = editingId.value
+      if (id === null) throw new Error('错题编号不正确')
+
+      const updated = await updateQuestion(id, {
+        ...base,
+        ...buildStructuralPayload(),
+      })
+
+      if (structureChanged() && !structureSaved(updated)) {
+        throw new Error('后端尚未支持题型结构编辑（BE-025），本次题型/选项/空位改动未保存。')
+      }
+
+      Message.success('修改已保存')
+      await router.push(`/questions/${updated.id}`)
+    } else {
+      const payload: QuestionCreate = {
+        ...base,
+        source_type: 'text',
+        question_type: form.question_type,
+      }
+
+      if (form.question_type === 'choice') {
+        payload.options = toChoiceOptions(form.options)
+      } else if (form.question_type === 'blank') {
+        payload.blanks = toBlankAnswers(form.blanks)
+      }
+
+      const result = await createQuestion(payload)
+      await clearDraftAfterSubmit()
+
+      Message.success({
+        content: `已保存，AI 分析任务已入队（#${result.task_id}）`,
+        duration: 3500,
+      })
+      await router.push(`/questions/${result.question.id}`)
     }
-
-    const result = await createQuestion(payload)
-    await clearDraftAfterSubmit()
-
-    Message.success({
-      content: `已保存，AI 分析任务已入队（#${result.task_id}）`,
-      duration: 3500,
-    })
-    await router.push(`/questions/${result.question.id}`)
   } catch (cause) {
-    cancelDraftSubmit()
+    if (!isEditing.value) cancelDraftSubmit()
     errorMessage.value = normalizeApiError(cause).message
   } finally {
     submitting.value = false
@@ -447,15 +576,37 @@ watch(
 )
 
 function handleCancel(): void {
+  if (isEditing.value && editingId.value !== null) {
+    void router.push(`/questions/${editingId.value}`)
+    return
+  }
   void router.push('/questions')
 }
+
+onMounted(() => {
+  if (isEditing.value) void loadEditingQuestion()
+})
 </script>
 
 <template>
   <div class="page">
-    <PageHeader eyebrow="New entry" title="录入错题" :description="pageDescription" />
+    <PageHeader
+      :eyebrow="isEditing ? 'Edit entry' : 'New entry'"
+      :title="pageTitle"
+      :description="pageDescription"
+    />
 
-    <div class="intake-switch" role="group" aria-label="录入方式">
+    <LoadingSkeleton v-if="editLoading" variant="detail" label="正在加载错题" />
+    <ErrorState
+      v-else-if="editLoadError"
+      title="错题加载失败"
+      :message="editLoadError"
+      :code="editLoadErrorCode"
+      @retry="loadEditingQuestion"
+    />
+
+    <template v-else>
+      <div v-if="!isEditing" class="intake-switch" role="group" aria-label="录入方式">
       <button
         class="intake-switch__option"
         type="button"
@@ -479,7 +630,7 @@ function handleCancel(): void {
     </div>
 
     <DraftRestoreBar
-      v-if="draftCandidate && draftCandidateVisible && intakeMode === 'text'"
+      v-if="!isEditing && draftCandidate && draftCandidateVisible && intakeMode === 'text'"
       ref="restoreBarRef"
       :updated-at="draftCandidate.updatedAt"
       :source="draftCandidate.source"
@@ -489,7 +640,7 @@ function handleCancel(): void {
     />
 
     <section
-      v-if="draftConflict && intakeMode === 'text'"
+      v-if="!isEditing && draftConflict && intakeMode === 'text'"
       ref="conflictPanelRef"
       class="draft-conflict"
       role="alert"
@@ -524,7 +675,7 @@ function handleCancel(): void {
       </div>
     </section>
 
-    <div v-if="intakeMode === 'text'" class="draft-status">
+    <div v-if="!isEditing && intakeMode === 'text'" class="draft-status">
       <span
         class="draft-status__dot"
         :class="`draft-status__dot--${draftStatusTone}`"
@@ -788,7 +939,7 @@ function handleCancel(): void {
                 <a-input
                   v-model="form.chapter"
                   placeholder="例如：导数与极值"
-                  :max-length="100"
+                  :max-length="64"
                   :input-attrs="{
                     id: 'chapter-input',
                     'aria-invalid': fieldHasError('chapter') ? 'true' : undefined,
@@ -822,7 +973,17 @@ function handleCancel(): void {
 
           <section class="panel panel--pad" aria-labelledby="after-heading">
             <h2 id="after-heading" class="panel__title">保存后会发生什么</h2>
-            <ol class="save-steps">
+            <ol v-if="isEditing" class="save-steps">
+              <li>
+                <span class="save-steps__num" aria-hidden="true">1</span>
+                <span>原题、答案、解析、题型结构与标签会立即更新。</span>
+              </li>
+              <li>
+                <span class="save-steps__num" aria-hidden="true">2</span>
+                <span>不会自动重新分析；如需更新 AI 分析，请在详情页发起。</span>
+              </li>
+            </ol>
+            <ol v-else class="save-steps">
               <li>
                 <span class="save-steps__num" aria-hidden="true">1</span>
                 <span>错题立即保存到你的错题本。</span>
@@ -841,7 +1002,13 @@ function handleCancel(): void {
       </a-form>
 
       <div class="sticky-actions" role="region" aria-label="录入操作">
-        <p>保存后将自动创建分析任务，可在任务中心查看进度。</p>
+        <p>
+          {{
+            isEditing
+              ? '保存后会更新原题；如需重新分析，请在详情页发起。'
+              : '保存后将自动创建分析任务，可在任务中心查看进度。'
+          }}
+        </p>
         <div class="sticky-actions__buttons">
           <button
             class="btn btn--outline"
@@ -859,7 +1026,7 @@ function handleCancel(): void {
             @click="handleSubmit"
           >
             <IconCheck aria-hidden="true" />
-            保存并分析
+            {{ isEditing ? '保存修改' : '保存并分析' }}
           </button>
         </div>
       </div>
@@ -873,6 +1040,7 @@ function handleCancel(): void {
       @update:subject="form.subject = $event"
       @switch-to-text="intakeMode = 'text'"
     />
+    </template>
   </div>
 </template>
 

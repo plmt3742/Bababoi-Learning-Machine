@@ -48,6 +48,12 @@ const router = createRouter({
           meta: { title: '错题详情', navKey: 'questions', requiresAuth: true },
         },
         {
+          path: 'questions/:id/edit',
+          name: 'question-edit',
+          component: () => import('../views/QuestionCreateView.vue'),
+          meta: { title: '编辑错题', navKey: 'questions', requiresAuth: true },
+        },
+        {
           path: 'practice/:id?',
           name: 'practice',
           component: () => import('../views/PracticeView.vue'),

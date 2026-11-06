@@ -8,7 +8,7 @@
 import type { QuestionBlank, QuestionOption } from '../api/types'
 
 export const MIN_CHOICE_OPTIONS = 2
-export const MAX_CHOICE_OPTIONS = 6
+export const MAX_CHOICE_OPTIONS = 24
 export const MAX_BLANK_MARKERS = 20
 export const MAX_OPTION_CONTENT_LENGTH = 5000
 export const MAX_ANSWER_CONTENT_LENGTH = 5000

@@ -49,10 +49,8 @@
 | 文件 | 内容 | 状态 |
 |---|---|---|
 | [product/README.md](product/README.md) | 设计产出索引与当前状态 | 有效 |
-| [product/PRD.md](product/PRD.md) | 完整产品契约：范围/交互/验收（从 `docs/prd` 分支合并，修订 v0.9） | 待合并 |
-| [product/PRD-v0.8-reference.md](product/PRD-v0.8-reference.md) | PRD v0.8 归档参考；不构成契约 | 归档 |
-| [product/开源项目调研.md](product/开源项目调研.md) | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
 | [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 速览（大学理科、闭环、P0/P1/P2、指标） | 已定稿 |
+| [product/开源项目调研.md](product/开源项目调研.md) | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
 | [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构、sitemap、3 条核心流程、AI 状态机 | 已定稿 |
 | [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面；示例+要点已填） | 部分完成 |
 | [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单 + 状态矩阵 | 已定稿 |
@@ -74,7 +72,9 @@
 | [adr/ADR-003-image-input-vision.md](adr/ADR-003-image-input-vision.md) | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted |
 | [adr/ADR-004-image-text-extraction.md](adr/ADR-004-image-text-extraction.md) | 图片录入：用户裁剪 + 文本提取 + 多题条目 | Accepted |
 | [adr/ADR-005-admin-console.md](adr/ADR-005-admin-console.md) | 独立 admin 管理端（P1 内部运维台） | Accepted |
+| [adr/ADR-006-three-segment-generation.md](adr/ADR-006-three-segment-generation.md) | 生成链路改为「三段并发，每段 1 道」 | Accepted |
 | [adr/ADR-007-user-ai-key.md](adr/ADR-007-user-ai-key.md) | 用户自带 AI API Key（BYOK）设置 | Accepted |
+| [adr/ADR-008-generated-type-consistency-toggle.md](adr/ADR-008-generated-type-consistency-toggle.md) | 生成题题型一致性改为用户设置开关 | Accepted |
 
 ## 状态图例
 

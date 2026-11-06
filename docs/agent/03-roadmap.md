@@ -147,10 +147,10 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 文档体系 | DONE | `docs/agent/`（含 12/13）、`docs/product/` 01–08、`docs/adr/`（含 ADR-004）；PRD v0.8 已归档为参考 |
+| 文档体系 | DONE | `docs/agent/`（含 12/13）、`docs/product/` 01–08、`docs/adr/`（含 ADR-004） |
 | 根级 AGENTS.md | DONE | agent 入口 |
 | 关键决策 | DONE | 大学理科优先（通用后续）、Python 3.13、DeepSeek `deepseek-flash` 多模态、图片 v2（裁剪 + 多题文本提取）、数据库 schema 归人机 |
-| 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；2026-11-06 全量 Calm Academic 视觉定稿并落到前端；03 页面规范待按 8 页填全；PRD v0.9 待合并；可用性测试待做 |
+| 产品设计 | DOING | 01 PRD-lite、02 IA/流程、04 tokens、06 草稿双写、07 8 页线框、08 交互地图已完成；2026-11-06 全量 Calm Academic 视觉定稿并落到前端；03 页面规范待按 8 页填全；可用性测试待做 |
 | 设计原型 | DONE（视觉定稿） | `calm-academic/index.html` 四屏为最终视觉基准，前端已按原型覆写；仓库内 `docs/product/drafts/` 仍是旧框题线框，待归档/更新 |
 | 前端视觉 | DONE（PR #19/#21/#23~#25/#28~#30/#34/#35 已合） | AppShell/列表/录入/详情/任务中心/登录/占位/404 按 Calm 覆写；练习/统计/三题型/图片录入/多题条目/草稿/三段并发/首页/个人设置已补齐；1366/375 验证通过 |
 | API 契约 v0 | DOING | `05-architecture.md` v0.4 草案（图片 v2/队列/草稿/题型/掌握状态）；`12-backend-alignment.md` 已对齐，待两人逐节确认后冻结 |

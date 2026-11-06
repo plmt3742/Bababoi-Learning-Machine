@@ -38,6 +38,7 @@ ADR = Architecture Decision Record（架构决策记录）。用来记录**不�
 | ADR-005 | 独立 admin 管理端（P1 内部运维台） | Accepted | 2026-11-06 |
 | ADR-006 | 生成链路改为「三段并发，每段 1 道」 | Accepted | 2026-11-06 |
 | ADR-007 | 用户自带 AI API Key（BYOK）设置 | Accepted | 2026-11-06 |
+| ADR-008 | 生成题题型一致性改为用户设置开关 | Accepted | 2026-11-07 |
 
 ## 写 ADR 的最小结构
 
