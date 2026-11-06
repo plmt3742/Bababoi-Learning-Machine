@@ -402,7 +402,7 @@ erDiagram
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/questions` | 创建错题；`{content_md, answer_md?, explanation_md?, subject, chapter?, question_type, options?, blanks?, tags?: string[], image_path?, source_type?}`；`content_md` ≤5000（§5.2）；保存后自动入队 analysis；返回 `{question, task_id}` |
-| GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt`；`q` 的搜索范围 = 题干 + 知识点标签名（PRD 5.2.3），大小写不敏感 |
+| GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt`；列表项含 `image_path`（错题本要显示原图/缩略图只能靠它，逐条再请求详情不算实现）；`q` 的搜索范围 = 题干 + 知识点标签名（PRD 5.2.3），大小写不敏感 |
 | GET | `/questions/{id}` | 详情；含 `tags`、`analysis`、`tasks`、`generated_questions`（可选 `include=generated`） |
 | PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`（分析可编辑写回）/`mastery_status`（v0.3.2 确认单 B-5：掌握状态由前端自评后 PATCH，后端不做自动流转） |
 | DELETE | `/questions/{id}` | 软删除；204 |
@@ -765,6 +765,37 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - 原题答案/解析不在提取阶段返回；用户确认后由分析任务补全。
 
 **为什么不做独立 OCR**：独立 OCR（Tesseract/PaddleOCR）对公式、图表、手写体支持有限，还要维护图像预处理/版面分析；DeepSeek `deepseek-flash` 能同时读文字和公式，链路更短。代价是依赖供应商、按图片 token 计费、延迟更高；用“可编辑结果 + 文本兜底”控制风险。
+
+**分步形态（BE-024：11-07 只冻结契约，代码未实现）**
+
+把一次多模态调用拆成两跳，是为了让"转录"和"结构化"各自选思考档位。依据是四张真教材页实测：
+**转录**开思考在 2/4 张上多认出被页边裁掉的末题（p3 4→5 条、p4 3→4 条），另外 2 张无差异；
+**结构化**开与不开结果逐字一致（条数/题型/选项数/字数全同），只多花 4–5 倍时间。
+
+形状（对外仍是同一个端点、同一次 HTTP，前端字段一个不加不减）：
+
+```
+POST /questions/from-image
+  ├─ 第 1 跳  图 → {chapter, questions:[{index, content_md}]}
+  │            thinking=adaptive · max_tokens ≥16000 · prompt_version=vision_text_v1
+  └─ 第 2 跳  纯文本 → 现有 ExtractedQuestion 形状（question_type/options/blanks/初判三项）
+               thinking=disabled · prompt_version=vision_structure_v1
+  → 题型判据仍只有 validate_type_payload 一份；第 2 跳的输出照旧过 validate_extraction，
+    结构不自洽就整条降成文本——§7.0 上面的口径不因拆步而改变
+```
+
+三条硬约束，实现时不能丢：
+
+1. **`chapter` 只能由第 1 跳给**：页眉不是题目，第 2 跳只看文字永远看不到它。第 1 跳出参必须带它，
+   否则 FE-026 的章节预填会静默失效（和 `image_path` 那次同一种病）。
+2. **第 2 跳要把空位统一改写成 `___`**：实测模型转录真图时空位写的是 `\underline{\qquad}`，
+   `count_blanks` 数出来是 0，填空题会因"空位数≠答案数"被降级。
+3. **`ai_call_logs` 一次识图写两行**，`prompt_version` 分别是 `vision_text_v1` / `vision_structure_v1`；
+   读成本与延迟统计时要按"一次识图 = 两行"，别把两行当成两次识图。
+
+代价与前置：识图墙钟从 1.4–3.9s 变成 **17–60s**，所以 `RECOGNIZE_CLIENT_TIMEOUT_S` 要从 90 提到 ≥180，
+且前端要加分段 loading（17 号 §四 + PR #41 的清单第 3 条）。**这两件没就位之前不要上线**——
+用户看到的不是慢，是卡死。
 
 ### 7.1 分析
 
@@ -1136,4 +1167,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-06 | v0.6.2 | `from-image` 每题补上 **`subject`/`chapter`/`difficulty` 初判**，对齐 FE-026 已写好的预填消费代码（层级与可空性按 `ExtractedImageQuestion` 逐字核对过：条目级、三项皆可空）。`chapter` 只照抄图上真实标题、`difficulty` 展示用不覆盖 analysis 正式值、坏值降级 null；实拍 14 条填充率 subject 14/14、chapter 10/14、difficulty 4/14，代价 +0.5s / +15% token | 人机 |
 | 2026-11-07 | v0.6.3 | **识图口径改成「文字从严、结构从宽」**：`validate_extraction` 不再把半套 `options`/`blanks` 交给用户，结构不自洽（选项<2、空位数≠答案数、空位答案为空、解答题带选项）时**整条降级成纯文本**（`question_type=solve`、两项清空）+ `incomplete` + 一句"已按文本题返回，请在编辑器里补结构"；判据仍只有 `validate_type_payload` 一份，新增 `_zh_structure_problem` 只翻译文案（Pydantic 的 `List should have at least 2 items`、`Value error, ` 前缀不该出现在卡片上）。实测三张实拍 14 条：**文字到手 14/14**，模型报成选择/填空的 6 条里 4 条保住结构、2 条降级（都来自密页 C 的填空——根因是教材页不印答案，所以填空在识图这步注定结构残缺，提示词第 6 条同步改成"答案不在图上就留空、不要自己解"）。另按 17 号对齐清单 §三 规则 1 在 `extract_from_image` 里**写死 subject 优先级**：请求带了就逐条覆写，不靠提示词的概率保证；§7.0 里"`subject` 不构成出参"那句被 v0.6.2 作废，一并改掉。ADR-004 §6 的"结构化成功率 <90%"复审条件按旧口径已触发（12/14），处置记在 ADR-004 §6.1；前端那份对齐清单入 `docs/agent/17-image-intake-alignment.md` 当真相源 | 人机 |
 | 2026-11-07 | v0.6.4 | `incomplete` 的判据从"正文有没有字面 `[不清]`"改成**"条目带任何 `warnings` 就是 true"**，并把顶层 `warnings` 里点得到第几条的那句**下沉到条目**（按 `index` 匹配，不按列表下标——丢过坏条目之后下标会前移并挂错题，测试真复现过）。动因是四张真图实测：模型把"第 5 题公式被截断"写进 warnings 却不打 `[不清]`，半截题干带着 `incomplete=false` 进前端，而 §四-4 让前端只看标志位。同批实测数据（thinking 三档 × 四张真图、分步 step1/step2、吞吐 180–244 tok/s、`thinking.type` 还有 `adaptive` 档）先记在 §6.8 与本行，链路拆分本身未实现 | 人机 / agent |
+| 2026-11-07 | v0.6.5 | 按前端《今晚收尾建议单》落地两条 + 否证一条：**(a) `image_path` 真落库**——`question_service.create` 建 `Question` 时补上这一行，之前 schema 收了、service 没列，图片错题建得出来但原图关联静默丢失（05 §5.2「多题共用同一 `image_path`」的分组能力因此一直不存在），新增断言测试覆盖"多题共用 / 详情回读 / 不带就是 null 不串值"；**(b) BE-024 分步形态只冻结契约**，§7.0 新增形状图 + 三条硬约束（`chapter` 只能第 1 跳给、第 2 跳要把空位改写成 `___`、日志一次识图两行）与前置（超时 ≥180 + 前端 loading），代码不动；**(c) 否证建议单 ⑤**——它说 #8 内容"已被 #26/#37 覆盖"，实测 `06-file-tree.md` 的后端树停在 BE-003 时代（`services/` 只列 `auth_service`，`ai/` 整包、`image_service`/`extraction_service`/`task_worker`、两个迁移、`static/`、`scripts/` 全无），#8 那部分**根本没进 main**，所以顺手把 06 同步到实际结构（AGENTS.md 的硬性规则这几天没被执行）。`backend/README.md` 的"仍待实现"去掉 BE-021/BE-014 的过期项。164 passed | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

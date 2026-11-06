@@ -33,24 +33,35 @@ BababoiLearningMachine/
 │   └── e2e/
 ├── admin/                         # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
 │   └── README.md                  # 规划与范围；业务代码待 ADM-002+
-├── backend/                       # 按 origin/main 实际结构
-│   ├── README.md                  # 状态过期，issue #11 修
-│   ├── pyproject.toml             # uv + ruff + pytest（BE-001）
+├── backend/                       # 按 2026-11-07 实际结构（BE-001~021 落地后）
+│   ├── README.md                  # 状态与待办
+│   ├── pyproject.toml             # uv + ruff + pytest；BE-014 起含 pillow / python-multipart
 │   ├── uv.lock
-│   ├── .env.example
+│   ├── .env.example               # 键名以 app/core/config.py 为准
+│   ├── start-dev.bat              # 一键起本地：默认 mock，带 `real` 参数读 .env 的 Key
 │   ├── alembic.ini
-│   ├── alembic/versions/7d155a41e345_initial_schema.py
+│   ├── alembic/versions/
+│   │   ├── 7d155a41e345_initial_schema.py
+│   │   └── 3f9c1a7e5b24_generated_slot_and_task_difficulty.py   # ADR-006 两列 + 历史格位回填
+│   ├── static/test-console.html   # 本地测试台：登录/录错题/分析/三段生成/练习/识图上传
+│   ├── scripts/
+│   │   ├── spike_llm.py                    # 真模型连通性与输出质量（不进 CI）
+│   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── core/                  # config/security/errors/observability
-│   │   ├── db/                    # base/session
-│   │   ├── models/                # user/question/generation/records/draft
-│   │   ├── schemas/               # auth/question
-│   │   ├── api/v1/                # health/auth/deps
-│   │   └── services/              # auth_service
-│   ├── fixtures/.gitkeep
-│   ├── scripts/.gitkeep
-│   └── tests/                     # health/auth/models/migrations/question_schema
+│   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
+│   │   ├── core/                  # config / security / errors / observability
+│   │   ├── db/                    # base / session
+│   │   ├── models/                # user / question / generation / records / draft
+│   │   ├── schemas/               # auth / question / image / practice
+│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images
+│   │   ├── services/              # auth_service / question_service / task_service / task_worker
+│   │   │                          # / practice_service + image_service / extraction_service / ai_log
+│   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors
+│   │   └── utils/                 # client_ip（反代后取真实来源 IP）
+│   ├── fixtures/                  # 目前为空；识图实拍样本在 _scratch/images/（不入库）
+│   └── tests/                     # ai / auth / client_ip / health / images_api / migrations /
+│                                  # models / practice_api / question_schema / questions_api /
+│                                  # tasks + conftest
 ├── contracts/
 │   ├── README.md
 │   ├── openapi/README.md          # openapi.json 待 BE-009 导出
