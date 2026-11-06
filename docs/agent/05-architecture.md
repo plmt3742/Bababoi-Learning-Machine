@@ -1,16 +1,17 @@
 ---
 owner: 人机 / 霹雳马桶
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 status: draft
 read_when: 写前后端代码前；改 API/数据模型前；联调前
 ---
 
 # 05 · 架构与契约
 
-> 状态：**v0.5 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.6.6 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
-> 本文负责 **API / 数据模型 / 技术栈**；PRD 负责 **范围 / 交互 / 验收**。跨域变更两边同时升版本。
+> 本文负责 **API / 数据模型 / 技术栈**；`01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 负责 **范围 / 交互 / 验收**。跨域变更两边同时升版本。
 > 数据库 schema 最终由 **人机** 确认；本文第 5 节是前后端联调所需的最小草案，人机可直接改字段，但需同步 API/前端类型。
 
 ## 0. 速览（给评审/新 agent）
@@ -404,7 +405,7 @@ erDiagram
 | POST | `/questions` | 创建错题；`{content_md, answer_md?, explanation_md?, subject, chapter?, question_type, options?, blanks?, tags?: string[], image_path?, source_type?}`；`content_md` ≤5000（§5.2）；保存后自动入队 analysis；返回 `{question, task_id}` |
 | GET | `/questions` | 列表；`?page&page_size&subject&tag&mastery_status&q&sort=created_at_desc`；返回 `excerpt`；列表项含 `image_path`（错题本要显示原图/缩略图只能靠它，逐条再请求详情不算实现）；`q` 的搜索范围 = 题干 + 知识点标签名（PRD 5.2.3），大小写不敏感 |
 | GET | `/questions/{id}` | 详情；含 `tags`、`analysis`、`tasks`、`generated_questions`（可选 `include=generated`） |
-| PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`（分析可编辑写回）/`mastery_status`（v0.3.2 确认单 B-5：掌握状态由前端自评后 PATCH，后端不做自动流转） |
+| PATCH | `/questions/{id}` | 更新题干/答案/解析/学科/标签/`analysis`/`mastery_status`；**BE-025 起支持 `question_type`/`options`/`blanks` 完整三题型编辑**（当前前端已按契约实现，后端 PATCH 待扩展） |
 | DELETE | `/questions/{id}` | 软删除；204 |
 | POST | `/questions/{id}/analyze` | 重新分析，入队 `analysis` 任务；返回 `task_id` |
 | POST | `/questions/{id}/generate` | 生题入队（ADR-006 三段并发）。请求可省：整组 = 排 3 段，难度默认 `easy/medium/hard` 递增，可传 `difficulties`（长度 3）覆盖；单段 = 传 `target_index`（1–3）+ 可选 `difficulty`。返回 `{"tasks":[{"task_id","target_index","difficulty"}]}`，**不再返回单个 `task_id`**。整组重生成**入队即软删旧组**（`deleted_at`），每段成功只写自己那一格；旧题的 `practice_records` 保留 |
@@ -488,14 +489,14 @@ erDiagram
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/stats/overview` | `{question_count, practice_count, accuracy, weak_tags: [...]}` |
-| GET | `/stats/trends?days=30` | `[{date, practice_count, accuracy}]` |
-| GET | `/stats/weak-points?limit=5` | `[{tag_id, name, wrong_count, practice_count, accuracy}]` |
+| GET | `/stats/overview` | `{total_questions, total_generated_questions, total_practice_records, accuracy, mastered_count, reviewing_count, unmastered_count, weak_knowledge_points, recent_trend, updated_at}` |
+| GET | `/stats/trends?days=30` | `[{date, practice_count, correct_count}]`（可选；前端当前用 `overview.recent_trend`） |
+| GET | `/stats/weak-points?limit=5` | `[{name, wrong_count, total_count, accuracy}]`（可选；前端当前用 `overview.weak_knowledge_points`） |
 | GET | `/tags?type=` | 标签列表 |
 
 统计口径：
 
-- `accuracy = 正确练习数 / 总练习数`；无练习时为 `null`，前端显示“暂无数据”。
+- `accuracy = 正确练习数 / 总练习数`；无练习时返回 `0`，前端按 0 显示（不再使用 `null`）。
 - 薄弱知识点：按标签聚合，`wrong_count` 降序，其次 `accuracy` 升序；至少 1 次练习才纳入。
 - 趋势按 `Asia/Shanghai` 日期分组；在 Python 里把 UTC 转 +8 后聚合，避免 MySQL 时区表问题。
 
@@ -565,7 +566,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`（前端裁剪后上传）；**201** 返回 `{image_path, url, width, height}`。服务端按字节嗅格式 → EXIF 转正 → 剥元数据 → 压到长边 ≤2000px JPEG（q85，体积退让到 ≤5MB）；返回的 width/height 是**落盘那份的实际尺寸**，前端按它占位防跳版 |
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
-| POST | `/questions/from-image` | `{image_path, subject?}` → `{image_path, questions:[...], warnings}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在，422 `AI_INVALID_IMAGE`，504 `AI_TIMEOUT` |
+| POST | `/questions/from-image` | `{image_path, subject?}` → `{image_path, questions:[...], warnings}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 90s（BE-024 两步落地后 ≥180s）→ 504 `AI_TIMEOUT` |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
 | POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选 P0 上限 3 道 |
 
@@ -702,7 +703,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
   **4 条结构自洽保住、2 条降级成文本**（都来自密页 C 的填空）。
   ADR-004 §6 那条"结构化成功率 <90% 就复审"以旧口径算是**已经触发**（12/14=86%），
   处置写进 ADR-004，不在这里只留个数。
-- 超时：识图 **90s**（`RECOGNIZE_CLIENT_TIMEOUT_S`）同步等待，**超时不自动重试**（用户能立刻重传或改用文本录入）。⚠️ 14 号 §5-4 写的是 120s，但前端等待上限是 90s：服务端跑到 120s 只会让用户先看到前端超时、后台还在烧完这一次调用，所以按 90s 收口；要放宽就两边一起改。**关思考后实拍整页 2.4–3.9s**，90s 是 20 倍以上余量；开着思考是 12.9–37.6s，余量 2.4–7 倍。
+- 超时：识图当前 **90s**（`RECOGNIZE_CLIENT_TIMEOUT_S`）同步等待，**超时不自动重试**（用户能立刻重传或改用文本录入）。BE-024 两步落地后前后端一起提到 **≥180s**；⚠️ 14 号 §5-4 写的是 120s，但前端等待上限必须与后端一致，不能只改一边。**关思考后实拍整页 2.4–3.9s**；两步形态 17–60s。
 - 输出上限：识图 `max_tokens=8000`。关思考后整页最多 861 输出 token（余量 89%）；
   如果哪天把 `VISION_THINKING=true` 打开，同一页要 4145–12742 token，**会重新出现顶格截断**——
   所以截断这条错误路径要留着：`finish_reason=length` → 直接判坏输出**且不重试**（同参数再跑只会再截断一次），文案给可执行动作"这张图题目太多，请裁成几次再上传"。
@@ -717,6 +718,10 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 | GET | `/settings/ai` | 返回 `{configured, provider, base_url, model, api_key_masked, updated_at}`；不返回原始 Key |
 | PUT | `/settings/ai` | body `{provider, base_url?, model, api_key}`；返回 masked；`api_key` ≥8 |
 | DELETE | `/settings/ai` | 删除用户配置，回退系统 Key；204 |
+| GET | `/settings/preferences` | `{enforce_same_question_type, updated_at}`；默认 `true` |
+| PUT | `/settings/preferences` | body `{enforce_same_question_type}`；返回同上 |
+
+- `enforce_same_question_type` 按用户持久化，默认 `true`；生成链路读取该偏好：开启时题型不一致重试 1 次后 `AI_INVALID_OUTPUT`，关闭时允许换题型（BE-026）。
 
 - `provider`: `deepseek` | `openai_compatible`；`openai_compatible` 的 `base_url` 必须 https 且建议 host 白名单（防 SSRF）。
 - 新表 `user_ai_settings`：`user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4`、`created_at`、`updated_at`；加密密钥从 `SETTINGS_ENCRYPTION_KEY` 读取。
@@ -766,7 +771,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 **为什么不做独立 OCR**：独立 OCR（Tesseract/PaddleOCR）对公式、图表、手写体支持有限，还要维护图像预处理/版面分析；DeepSeek `deepseek-flash` 能同时读文字和公式，链路更短。代价是依赖供应商、按图片 token 计费、延迟更高；用“可编辑结果 + 文本兜底”控制风险。
 
-**分步形态（BE-024：11-07 只冻结契约，代码未实现）**
+**分步形态（BE-024：本期采用，代码待实现）**
 
 把一次多模态调用拆成两跳，是为了让"转录"和"结构化"各自选思考档位。依据是四张真教材页实测：
 **转录**开思考在 2/4 张上多认出被页边裁掉的末题（p3 4→5 条、p4 3→4 条），另外 2 张无差异；
@@ -1167,5 +1172,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-06 | v0.6.2 | `from-image` 每题补上 **`subject`/`chapter`/`difficulty` 初判**，对齐 FE-026 已写好的预填消费代码（层级与可空性按 `ExtractedImageQuestion` 逐字核对过：条目级、三项皆可空）。`chapter` 只照抄图上真实标题、`difficulty` 展示用不覆盖 analysis 正式值、坏值降级 null；实拍 14 条填充率 subject 14/14、chapter 10/14、difficulty 4/14，代价 +0.5s / +15% token | 人机 |
 | 2026-11-07 | v0.6.3 | **识图口径改成「文字从严、结构从宽」**：`validate_extraction` 不再把半套 `options`/`blanks` 交给用户，结构不自洽（选项<2、空位数≠答案数、空位答案为空、解答题带选项）时**整条降级成纯文本**（`question_type=solve`、两项清空）+ `incomplete` + 一句"已按文本题返回，请在编辑器里补结构"；判据仍只有 `validate_type_payload` 一份，新增 `_zh_structure_problem` 只翻译文案（Pydantic 的 `List should have at least 2 items`、`Value error, ` 前缀不该出现在卡片上）。实测三张实拍 14 条：**文字到手 14/14**，模型报成选择/填空的 6 条里 4 条保住结构、2 条降级（都来自密页 C 的填空——根因是教材页不印答案，所以填空在识图这步注定结构残缺，提示词第 6 条同步改成"答案不在图上就留空、不要自己解"）。另按 17 号对齐清单 §三 规则 1 在 `extract_from_image` 里**写死 subject 优先级**：请求带了就逐条覆写，不靠提示词的概率保证；§7.0 里"`subject` 不构成出参"那句被 v0.6.2 作废，一并改掉。ADR-004 §6 的"结构化成功率 <90%"复审条件按旧口径已触发（12/14），处置记在 ADR-004 §6.1；前端那份对齐清单入 `docs/agent/17-image-intake-alignment.md` 当真相源 | 人机 |
 | 2026-11-07 | v0.6.4 | `incomplete` 的判据从"正文有没有字面 `[不清]`"改成**"条目带任何 `warnings` 就是 true"**，并把顶层 `warnings` 里点得到第几条的那句**下沉到条目**（按 `index` 匹配，不按列表下标——丢过坏条目之后下标会前移并挂错题，测试真复现过）。动因是四张真图实测：模型把"第 5 题公式被截断"写进 warnings 却不打 `[不清]`，半截题干带着 `incomplete=false` 进前端，而 §四-4 让前端只看标志位。同批实测数据（thinking 三档 × 四张真图、分步 step1/step2、吞吐 180–244 tok/s、`thinking.type` 还有 `adaptive` 档）先记在 §6.8 与本行，链路拆分本身未实现 | 人机 / agent |
-| 2026-11-07 | v0.6.5 | 按前端《今晚收尾建议单》落地两条 + 否证一条：**(a) `image_path` 真落库**——`question_service.create` 建 `Question` 时补上这一行，之前 schema 收了、service 没列，图片错题建得出来但原图关联静默丢失（05 §5.2「多题共用同一 `image_path`」的分组能力因此一直不存在），新增断言测试覆盖"多题共用 / 详情回读 / 不带就是 null 不串值"；**(b) BE-024 分步形态只冻结契约**，§7.0 新增形状图 + 三条硬约束（`chapter` 只能第 1 跳给、第 2 跳要把空位改写成 `___`、日志一次识图两行）与前置（超时 ≥180 + 前端 loading），代码不动；**(c) 否证建议单 ⑤**——它说 #8 内容"已被 #26/#37 覆盖"，实测 `06-file-tree.md` 的后端树停在 BE-003 时代（`services/` 只列 `auth_service`，`ai/` 整包、`image_service`/`extraction_service`/`task_worker`、两个迁移、`static/`、`scripts/` 全无），#8 那部分**根本没进 main**，所以顺手把 06 同步到实际结构（AGENTS.md 的硬性规则这几天没被执行）。`backend/README.md` 的"仍待实现"去掉 BE-021/BE-014 的过期项。164 passed | 人机 / agent |
+| 2026-11-07 | v0.6.5 | `image_path` 真落库并透出到 `QuestionListItem`；BE-024 分步形态冻结契约（形状 + 三条硬约束 + 超时 ≥180 前置）；06 后端树同步实际结构；164 passed | 人机 / agent |
+| 2026-11-07 | v0.6.6 | FE-027 收口：`/settings/preferences` + `enforce_same_question_type`（默认 true，按用户持久化）；PATCH 支持完整三题型（BE-025）；统计改 rich shape、无记录 `accuracy=0`；BE-024 两步识图本期采用（超时 ≥180s，前端 loading 已接）；删除旧 PRD 归档与 `PRD.md` 引用 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

@@ -9,7 +9,13 @@ import {
   IconPoweroff,
 } from '@arco-design/web-vue/es/icon'
 import PageHeader from '../components/common/PageHeader.vue'
-import { deleteAiSettings, getAiSettings, saveAiSettings } from '../api/settings'
+import {
+  deleteAiSettings,
+  getAiSettings,
+  getPreferences,
+  saveAiSettings,
+  savePreferences,
+} from '../api/settings'
 import { normalizeApiError } from '../api/errors'
 import { useAuthStore } from '../stores/auth'
 import type { AiProvider, AiSettings } from '../api/types'
@@ -44,6 +50,12 @@ const deleting = ref(false)
 const showKey = ref(false)
 const confirmDelete = ref(false)
 const feedback = ref<{ tone: 'success' | 'danger'; text: string } | null>(null)
+const enforceSameType = ref(true)
+const preferenceLoading = ref(true)
+const preferenceSaving = ref(false)
+const preferenceError = ref('')
+const preferenceFeedback = ref('')
+const preferenceUpdatedAt = ref<string | null>(null)
 const errors = reactive(emptyAiSettingsErrors())
 const form = reactive<{
   provider: AiProvider
@@ -67,6 +79,7 @@ const accountCreatedText = computed(() => formatSettingsTime(user.value?.created
 const configured = computed(() => settings.value?.configured === true)
 const maskedKey = computed(() => settings.value?.api_key_masked ?? '')
 const updatedText = computed(() => formatSettingsTime(settings.value?.updated_at ?? null))
+const preferenceUpdatedText = computed(() => formatSettingsTime(preferenceUpdatedAt.value))
 
 const aiMeta = computed(() => {
   const current = settings.value
@@ -148,6 +161,52 @@ async function loadSettings(): Promise<void> {
 function retryLoad(): void {
   if (loading.value) return
   void loadSettings()
+}
+
+async function loadPreferences(): Promise<void> {
+  preferenceLoading.value = true
+  preferenceError.value = ''
+  preferenceFeedback.value = ''
+
+  try {
+    const preferences = await getPreferences()
+    enforceSameType.value = preferences.enforce_same_question_type
+    preferenceUpdatedAt.value = preferences.updated_at
+  } catch (cause) {
+    preferenceError.value = errorText(cause)
+  } finally {
+    preferenceLoading.value = false
+  }
+}
+
+function retryPreferences(): void {
+  if (preferenceLoading.value) return
+  void loadPreferences()
+}
+
+async function handlePreferenceChange(value: unknown): Promise<void> {
+  const next = value === true
+  if (preferenceSaving.value || next === enforceSameType.value) return
+
+  const previous = enforceSameType.value
+  enforceSameType.value = next
+  preferenceSaving.value = true
+  preferenceError.value = ''
+  preferenceFeedback.value = ''
+
+  try {
+    const saved = await savePreferences({ enforce_same_question_type: next })
+    enforceSameType.value = saved.enforce_same_question_type
+    preferenceUpdatedAt.value = saved.updated_at
+    preferenceFeedback.value = saved.enforce_same_question_type
+      ? '已开启：生成题必须与原题同题型。'
+      : '已关闭：允许生成题换题型。'
+  } catch (cause) {
+    enforceSameType.value = previous
+    preferenceError.value = errorText(cause)
+  } finally {
+    preferenceSaving.value = false
+  }
 }
 
 async function handleSave(): Promise<void> {
@@ -233,6 +292,7 @@ function handleLogout(): void {
 
 onMounted(() => {
   void loadSettings()
+  void loadPreferences()
 })
 
 onBeforeUnmount(() => {
@@ -246,8 +306,56 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="Settings"
       title="个人设置"
-      description="管理账号信息，并登记 AI 服务使用的个人 API Key。个人 Key 只提交到服务端，前端不保存完整值。"
+      description="管理账号信息、生成偏好，并登记 AI 服务使用的个人 API Key。个人 Key 只提交到服务端，前端不保存完整值。"
     />
+
+    <section class="panel preference-panel" aria-labelledby="preference-title">
+      <header class="panel__head">
+        <h2 id="preference-title">生成设置</h2>
+        <span class="panel__head-hint">Generation</span>
+      </header>
+
+      <div class="panel__body preference-body">
+        <div class="preference-row">
+          <div class="preference-copy">
+            <p class="preference-title">相似题题型必须与原题一致</p>
+            <p class="hint preference-hint">
+              开启时，生成题必须保持原题题型（选择题 / 填空题 / 解答题）；不一致会重试一次，仍不一致则生成失败。关闭后允许 AI
+              根据知识点换题型。
+            </p>
+            <p v-if="preferenceUpdatedText" class="hint preference-hint">
+              最近更新：{{ preferenceUpdatedText }}
+            </p>
+          </div>
+          <a-checkbox
+            :model-value="enforceSameType"
+            :disabled="preferenceLoading || preferenceSaving || Boolean(preferenceError)"
+            @update:model-value="handlePreferenceChange"
+          >
+            {{ enforceSameType ? '已开启' : '已关闭' }}
+          </a-checkbox>
+        </div>
+
+        <p v-if="preferenceLoading" class="hint preference-status" role="status">
+          正在读取生成偏好…
+        </p>
+        <div v-else-if="preferenceError" class="settings-alert settings-alert--danger" role="alert">
+          <span class="settings-alert__mark" aria-hidden="true"></span>
+          <div class="settings-alert__body">
+            <p>生成偏好读取失败：{{ preferenceError }}</p>
+            <button class="btn btn--outline btn--sm" type="button" @click="retryPreferences">
+              重试
+            </button>
+          </div>
+        </div>
+        <p v-else-if="preferenceSaving" class="hint preference-status" role="status">
+          正在保存生成偏好…
+        </p>
+        <p v-else-if="preferenceFeedback" class="preference-feedback" role="status">
+          {{ preferenceFeedback }}
+        </p>
+      </div>
+    </section>
 
     <div class="settings-grid">
       <section class="panel account-panel" aria-labelledby="account-title">
@@ -582,6 +690,49 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.preference-panel {
+  margin-bottom: var(--space-5);
+}
+
+.preference-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.preference-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.preference-copy {
+  min-width: 0;
+}
+
+.preference-title {
+  color: var(--color-text-1);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-weight: 650;
+}
+
+.preference-hint {
+  margin-top: 4px;
+  text-wrap: pretty;
+}
+
+.preference-status,
+.preference-feedback {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.preference-feedback {
+  color: var(--color-success-text);
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
@@ -895,6 +1046,11 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .preference-row {
+    flex-direction: column;
+    gap: var(--space-3);
   }
 }
 

@@ -9,7 +9,7 @@
 import type { Draft, QuestionType } from '../api/types'
 
 export const MAX_DRAFT_TAGS = 10
-export const MAX_DRAFT_OPTIONS = 6
+export const MAX_DRAFT_OPTIONS = 24
 export const MAX_DRAFT_BLANKS = 20
 
 export interface DraftChoiceOption {

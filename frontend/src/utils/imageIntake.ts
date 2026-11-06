@@ -25,6 +25,7 @@ export interface ImageItemDraft {
   key: string
   sourceIndex: number
   content_md: string
+  original_content_md: string
   question_type: QuestionType
   subject: string
   chapter: string
@@ -47,7 +48,7 @@ export interface SavedImageQuestion {
 
 export interface GeneratedImageTask {
   questionId: number
-  taskId: number
+  taskIds: number[]
 }
 
 const CIRCLED_NUMBERS = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
@@ -73,6 +74,7 @@ export function createImageItemDrafts(result: ImageExtractionResult): ImageItemD
     key: `image-item-${question.index}-${position}`,
     sourceIndex: question.index,
     content_md: question.content_md,
+    original_content_md: question.content_md,
     question_type: question.question_type,
     subject: question.subject?.trim() ?? '',
     chapter: question.chapter?.trim() ?? '',
@@ -83,10 +85,18 @@ export function createImageItemDrafts(result: ImageExtractionResult): ImageItemD
     has_figure: question.has_figure,
     warnings: [...question.warnings],
     incomplete: question.incomplete === true,
-    selected: true,
+    selected: question.incomplete !== true,
     saveError: '',
     savedQuestion: null,
   }))
+}
+
+export function isImageItemEdited(item: ImageItemDraft): boolean {
+  return item.content_md !== item.original_content_md
+}
+
+export function canSelectImageItem(item: ImageItemDraft): boolean {
+  return !item.incomplete || isImageItemEdited(item)
 }
 
 export function ensureItemStructure(item: ImageItemDraft): void {

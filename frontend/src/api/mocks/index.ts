@@ -15,6 +15,7 @@ import type {
   ImageUploadResult,
   LoginPayload,
   MasteryStatus,
+  PreferenceSettings,
   PracticeRecord,
   PracticeRecordCreate,
   Question,
@@ -351,6 +352,10 @@ function toAiSettings(config: MockAiConfig | undefined): AiSettings {
 
 function isAiProvider(value: unknown): value is AiProvider {
   return value === 'deepseek' || value === 'openai_compatible'
+}
+
+function defaultPreferences(): PreferenceSettings {
+  return { enforce_same_question_type: true, updated_at: null }
 }
 
 function isHttpsUrl(value: string): boolean {
@@ -738,7 +743,7 @@ function scheduleTaskProgress(task: Task, state: MockState, question?: Question)
     ) {
       task.status = 'failed'
       task.finished_at = nowIso()
-      task.error_code = 'VALIDATION_FAILED'
+      task.error_code = 'AI_INVALID_OUTPUT'
       task.error_message = '该段生成结果未通过校验（Mock 首次失败，重试可通过）。'
       question.updated_at = nowIso()
       return
@@ -809,6 +814,7 @@ export function setupMocks(): void {
   const state = createMockState()
   // Dev-only in-memory store: a real backend encrypts this key at rest and never returns it.
   const aiConfigs = new Map<number, MockAiConfig>()
+  const preferences = new Map<number, PreferenceSettings>()
 
   for (const task of state.tasks) {
     if (task.status === 'queued' || task.status === 'running') {
@@ -934,6 +940,30 @@ export function setupMocks(): void {
     return [204, null]
   })
 
+  adapter.onGet('/settings/preferences').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    return [200, preferences.get(user.id) ?? defaultPreferences()]
+  })
+
+  adapter.onPut('/settings/preferences').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    const body = readBody<Record<string, unknown>>(config)
+    if (!body || typeof body.enforce_same_question_type !== 'boolean') {
+      return apiError(400, 'VALIDATION_ERROR', 'enforce_same_question_type 必须是布尔值')
+    }
+
+    const record: PreferenceSettings = {
+      enforce_same_question_type: body.enforce_same_question_type,
+      updated_at: nowIso(),
+    }
+    preferences.set(user.id, record)
+    return [200, record]
+  })
+
   adapter.onPost('/uploads/images').reply(async (config) => {
     if (!authorizedUser(config, state)) return unauthorized()
 
@@ -1010,6 +1040,7 @@ export function setupMocks(): void {
           blanks: null,
           has_figure: true,
           warnings: ['含图，暂只提取文字'],
+          incomplete: true,
         },
       ],
       warnings: [],
@@ -1149,6 +1180,25 @@ export function setupMocks(): void {
     if (body.answer_md === null) question.answer_md = null
     if (typeof body.explanation_md === 'string') question.explanation_md = body.explanation_md
     if (body.explanation_md === null) question.explanation_md = null
+
+    if (body.question_type !== undefined) {
+      if (!isQuestionType(body.question_type)) {
+        return apiError(400, 'VALIDATION_ERROR', '题型格式不正确')
+      }
+      question.question_type = body.question_type
+    }
+    if (body.options !== undefined) {
+      if (body.options !== null && !Array.isArray(body.options)) {
+        return apiError(400, 'VALIDATION_ERROR', '选项格式不正确')
+      }
+      question.options = body.options === null ? null : (body.options as QuestionOption[])
+    }
+    if (body.blanks !== undefined) {
+      if (body.blanks !== null && !Array.isArray(body.blanks)) {
+        return apiError(400, 'VALIDATION_ERROR', '空位格式不正确')
+      }
+      question.blanks = body.blanks === null ? null : (body.blanks as QuestionBlank[])
+    }
 
     if (isMasteryStatus(body.mastery_status)) question.mastery_status = body.mastery_status
 

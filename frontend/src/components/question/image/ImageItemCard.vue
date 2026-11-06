@@ -5,8 +5,10 @@ import BlankEditor from '../editor/BlankEditor.vue'
 import ChoiceEditor from '../editor/ChoiceEditor.vue'
 import QuestionTypeSelector from '../editor/QuestionTypeSelector.vue'
 import {
+  canSelectImageItem,
   circledIndex,
   ensureItemStructure,
+  isImageItemEdited,
   MAX_IMAGE_CONTENT_LENGTH,
   validateImageItem,
 } from '../../../utils/imageIntake'
@@ -88,7 +90,11 @@ watch(
         <span v-if="item.has_figure" class="tag tag--reviewing">含图 · 仅文字</span>
 
         <div class="item-head__actions">
-          <a-checkbox :model-value="item.selected" @update:model-value="handleSelected">
+          <a-checkbox
+            :model-value="item.selected"
+            :disabled="!canSelectImageItem(item)"
+            @update:model-value="handleSelected"
+          >
             保存这道题
           </a-checkbox>
           <button
@@ -102,6 +108,10 @@ watch(
           </button>
         </div>
       </div>
+
+      <p v-if="item.incomplete && !isImageItemEdited(item)" class="item-lock-hint">
+        信息不完整：请先核对并编辑题干，之后才能勾选保存。
+      </p>
 
       <div v-if="item.warnings.length" class="item-warnings">
         <span v-for="warning in item.warnings" :key="warning" class="tag tag--draft">
@@ -136,7 +146,7 @@ watch(
         <label class="field-label" :for="`image-chapter-${item.key}`">章节（可选）</label>
         <a-input
           :model-value="item.chapter"
-          :max-length="100"
+          :max-length="64"
           :input-attrs="{ id: `image-chapter-${item.key}` }"
           placeholder="AI 初判章节，可修改"
           allow-clear
@@ -240,6 +250,17 @@ watch(
   white-space: normal;
   line-height: 18px;
   text-wrap: pretty;
+}
+
+.item-lock-hint {
+  margin-top: var(--space-2);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
 }
 
 .item-field {

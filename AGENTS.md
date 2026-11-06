@@ -49,7 +49,7 @@
 
 1. 代码与 OpenAPI 实际输出（实现细节）
 2. `docs/agent/05-architecture.md`（API / 数据模型 / 技术栈）
-3. PRD（范围 / 交互 / 验收；合并后的 `docs/product/PRD.md` 为准，当前在 `docs/prd` 分支）
+3. 产品范围 / 交互 / 验收：`docs/product/01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md`
 4. `docs/agent/01-project.md`、`02-goals.md`（摘要与目标）
 5. `docs/agent/03-roadmap.md`、`04-todos.md`（进度与任务）
 6. 其他文档

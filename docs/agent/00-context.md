@@ -62,15 +62,16 @@ AI 分析（知识点、题型、错误原因）
 
 > 今天是 11.6，距离 M0 截止只有 1 天。设计阶段必须“够用就停”，不要追求完整 PRD；前端视觉已定稿，剩余以 review/合并和缺口补齐为主。
 
-## 当前实际状态（2026-11-06）
+## 当前实际状态（2026-11-07）
 
-- `origin/main @ 7ee6029`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013（#23）、FE-014（#24）、FE-020（#25）、FE-023（#28）、FE-016/021（#29）、FE-018（#30）、首页（#34）、个人设置/BYOK（#35）等已合并
-- 后端待处理：BE-014 图片文本提取（open issue #13）、BE-020 用户 AI Key（#32）、BE-018 草稿、BE-013 统计、BE-008 种子、BE-009 OpenAPI、OPS；#8 docs 需关闭或缩成 backend README
-- 前端：FE-001~024 全部页面已合（含首页/个人设置）；剩余 FE-017 的 768/键盘细节与真接口联调
+- `origin/main @ 2c645dc`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、BE-021/#39（三段并发 + ADR-006）、BE-014/#42（图片识图）、FE-013~026（#23~#35、#49）、测试控制台 #50 已合并
+- 后端待处理：BE-013 统计（#45）、BE-018 草稿（#46）、BE-020 BYOK（#32）、BE-025 三题型 PATCH（#43）、BE-026 题型开关（#44）、BE-024 两步识图（#47）、BE-008/009/OPS（#48）；#8 docs 需关闭或重做
+- 前端：FE-001~026 已合；FE-027 收口（题目编辑 / 设置开关 / 18 号识图口径 / Vitest / PRD 清理）进行中
 - 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
-- `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
-- CI：`.github/workflows/ci.yml` 已存在；frontend job 已跑真实 lint/typecheck/build
-- 图片录入正式决策已变更：不再 AI 框题，改为用户裁剪 + 图片转文本 + 多题条目（见 Q-013 / ADR-004）
+- 范围/交互/验收以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
+- CI：`.github/workflows/ci.yml` 已存在；frontend job 跑 lint/typecheck/build，FE-027 起加 `pnpm test`
+- 图片录入：用户裁剪 + 图片转文本 + 多题条目（ADR-004）；识图三项初判可空，空结果 200 + `questions[]`
+- 题型一致性：新用户级开关 `enforce_same_question_type`，默认开启，按用户后端持久化（ADR-008 / BE-026）
 
 ## 当前阶段：M0
 
@@ -125,5 +126,5 @@ AI 分析（知识点、题型、错误原因）
 2. **后端 BE-018 草稿 / BE-013 统计 / BE-020 BYOK**：前端 FE-018/FE-014/FE-024 已按 mock 完成
 3. **后端 ADR-006 三段并发**：新 PR base=main；`tasks[]`、`target_index`/`difficulty`、按格替换、单段重试；前端 FE-023 已兼容旧 `task_id`
 4. **前端 FE-017**：768px 与完整键盘细节；之后统一做真接口联调
-5. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
+5. `03-page-specs.md` 按 8 个页面填全；范围/交互/验收以 01/02/03 为准；完成 DS-006 可用性测试
 6. `main` 分支保护：Require PR + 1 approval + CI + no bypass；每天更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`

@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 status: active
 read_when: 新建文件/目录前；review 目录结构时；agent 不确定文件该放哪时
 ---
@@ -9,7 +9,7 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
-> 2026-11-06 更新：`frontend/` 已完成 FE-001~024 页面（含首页/个人设置/练习/统计/图片录入/多题条目/草稿/三段并发）。`components/` 新增 `home/`、`practice/`、`stats/`、`ai/GenerationSegments`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。新增 `admin/` 占位（ADR-005，P1）；BYOK 见 ADR-007（P1）。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
+> 2026-11-07 更新：`frontend/` 已完成 FE-001~026；FE-027 新增题目编辑（复用 `views/QuestionCreateView.vue` 的 `/questions/:id/edit`）、设置页生成偏好、图片 `incomplete` 拦截、`vitest.config.ts` 与 `tests/*.test.ts`。`components/` 新增 `home/`、`practice/`、`stats/`、`ai/GenerationSegments`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。新增 `admin/` 占位（ADR-005，P1）；BYOK 见 ADR-007（P1）；题型一致性开关见 ADR-008。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
 >
 > 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
 
@@ -102,8 +102,7 @@ BababoiLearningMachine/
     ├── learning/                   # 本地学习笔记（gitignore，不上传）
     └── product/
         ├── README.md
-        ├── PRD-v0.8-reference.md   # 归档参考，不构成契约
-        ├── 开源项目调研.md
+                ├── 开源项目调研.md
         ├── 01-prd-lite.md
         ├── 02-ia-and-flows.md
         ├── 03-page-specs.md

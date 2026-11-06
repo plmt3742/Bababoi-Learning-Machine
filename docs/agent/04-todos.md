@@ -33,7 +33,7 @@ ID:
 
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
-> 当前同步（2026-11-06，origin/main @ 3747bd1）：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）已合；前端 FE-001~024 全部页面已合（#16~#21/#23~#25/#28~#30/#34/#35，交接文档 #37）；剩余 FE-017 的 768/键盘细节与真接口联调。后端在做的：BE-021 三段并发（ADR-006，base=main 新 PR）、BE-014 图片文本提取。管理端 ADR-005/P1，BYOK ADR-007/P1，均不进入 11.29 演示。
+> 当前同步（2026-11-07）：main 已合 #39（BE-021 三段并发 + ADR-006）、#42（BE-014 图片识图）、#49（FE-026 纯前端）、#50（测试控制台）；#38 已关闭并由 #49 替代。FE-027 正在做：题目编辑、题型开关、18 号识图口径、Vitest、PRD 清理。后端 follow-up：#43 BE-025 三题型 PATCH、#44 BE-026 生成偏好、#45 BE-013 统计、#46 BE-018 草稿、#32 BE-020 BYOK、#47 BE-024 两步识图、#48 seed/OpenAPI/staging。
 
 ### 1.1 设计（霹雳马桶 + 人机共同主导，我想抓住风的影子评审）
 
@@ -60,9 +60,9 @@ ID:
 | SH-005 | ADR-001/002/003 | 霹雳马桶 | P1 | SH-001 | 技术栈、MVP 范围、识图方案三份 ADR，链接到文档 | DONE |
 | SH-006 | M0 验收 + 产品评审同步 | 两人 | P0 | 所有 M0 | 逐项过 `03-roadmap.md` M0 退出检查；下周计划明确 | TODO |
 | SH-007 | 风险登记册首次评审 | 两人 | P1 | 无 | `09-risks.md` 每条有负责人/缓解措施/触发信号 | TODO |
-| SH-017 | 合并 PRD v0.9 + 删除 `docs/prd` | 两人 | P0 | SH-001 | PRD/原型/调研归档到 `docs/product/`；按 11.5 决策修订；确认无遗漏后再删远端分支 | DOING |
+| SH-017 | 关闭旧 PRD 任务 | 两人 | P1 | SH-001 | 范围/交互/验收以 01-prd-lite + 02-ia-and-flows + 03-page-specs 为准 | DEFERRED |
 
-> 2026-11-05 状态说明：SH-001 的 v0.3 草案与 `12-backend-alignment.md` 已完成，待两人逐节确认后冻结；SH-004 的 Issue/PR 模板已建，GitHub 看板待建；SH-005 三份 ADR 已建（ADR-002 仍为 Proposed）；SH-017 的 PRD v0.8 已归档，PRD v0.9 合并与远端分支删除待做。
+> 2026-11-05 状态说明：SH-001 的 v0.3 草案与 `12-backend-alignment.md` 已完成，待两人逐节确认后冻结；SH-004 的 Issue/PR 模板已建，GitHub 看板待建；SH-005 三份 ADR 已建（ADR-002 仍为 Proposed）；SH-017 的旧 PRD 已删除，不再维护独立 PRD。
 
 ### 1.3 前端（霹雳马桶）
 
@@ -126,7 +126,19 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | FE-024 | 个人设置页 + AI API Key UI | 霹雳马桶 | P1 | 无 | `/settings`；账号信息 + AI 设置；masked 回显；密码输入/显示切换；不写 localStorage/Pinia | DONE（PR #35；mock 先行，等 BE-020） |
-| BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | TODO |
+| BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | TODO（Issue #32） |
+
+### 1.8 FE-027 收口（2026-11-07）
+
+| ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
+|---|---|---|---|---|---|---|
+| BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；`validate_type_payload`；迁移/测试；Issue #43 | TODO |
+| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `GET/PUT /settings/preferences`；默认 `true`；按用户持久化；生成链路按偏好执行硬/软校验；Issue #44 | TODO |
+| FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DOING |
+| FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DOING |
+| FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DOING |
+| FE-030 | 前端 Vitest 单元测试 | 霹雳马桶 | P0 | FE-001 | 覆盖 API 归一化、错误码、草稿、图片映射、统计、设置；`pnpm test` 可跑并接入 CI | DOING |
+| FE-031 | PRD 清理与文档同步 | 霹雳马桶 | P1 | 无 | 删除 PRD-v0.8 归档；移除 PRD.md 描述；05/04/README 同步 | DOING |
 
 ## 2. M1：纵向切片（11.8–11.14）
 
@@ -134,11 +146,11 @@ ID:
 |---|---|---|---|---|---|---|
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
 | BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（前端意见单 §三） | TODO |
-| BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 实测依据（四张真图 × thinking 三档，11-07）：转录开思考 15.0–67.6s、输出 2750–12792 token，p4 在 8000 上限下**正文被思考挤成 0 字符**；结构化开不开**结果逐字一致**且只要 2.3–4.2s。拆法：step1 只出文字（必须带 `chapter`——页眉只有看图那步拿得到）→ step2 纯文本结构化（空位统一改写成 `___`，否则 `\underline{\qquad}` 让 `count_blanks` 数出 0）。两步在后端串成一次 HTTP，前端契约不变。代价：识图墙钟 3s→17–60s，`RECOGNIZE_CLIENT_TIMEOUT_S` 90→≥180、step1 `max_tokens`→≥16000，`ai_call_logs` 每次识图两行、`prompt_version` 拆两个 | TODO（M1；11-08 冻结前不动链路） |
+| BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 本期采用（Issue #47）：转录开思考、结构化关思考；一次 HTTP；`chapter` 只能第 1 跳给；空位统一 `___`；`ai_call_logs` 两行；超时 ≥180s；前端 loading 已接 | DOING（后端待实现） |
 | BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |
-| BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT /drafts/me`；每账号 1 份；防抖覆盖；测试 | TODO |
+| BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT /drafts/me`；每账号 1 份；防抖覆盖；测试 | TODO（Issue #46） |
 | FE-007 | 录入页（文本） | 霹雳马桶 | P0 | FE-004/006 | 题干/答案/学科/标签；校验；提交；loading/错误 | DONE（PR #18） |
 | FE-008 | 列表/详情页 | 霹雳马桶 | P0 | FE-004/006 | 分页、筛选、搜索、详情、空状态、删除确认 | DONE（PR #18） |
 | FE-009 | AI 生成 UI | 霹雳马桶 | P0 | FE-007/008/BE-007 | `GET /tasks` 轮询进度、3 张题卡、重试/取消、错误提示 | DONE（PR #19） |
@@ -153,12 +165,12 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
-| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
-| BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | 进行中（PR A：uploads + from-image + `vision_extract_v2`，base 叠在三段分支上；BE-014 前置的删列与探针脚本走 PR B）。口径按 05 v0.6.3：**识图交付"文本题目条目"**，结构不自洽的整条降级成纯文本 + warning，结构化交给 FE-020 编辑器；每题另带 `subject`/`chapter`/`difficulty` 初判，且**请求带了 `subject` 就逐条覆写**（17 号对齐清单 §三 规则 1）；v0.6.4 起 `incomplete` 认"条目带 warning"、顶层点得到第几条的说明下沉到条目（05 §7.0） |
+| BE-013 | 统计接口 | 人机 | P1 | BE-012 | rich shape：total_*、mastery counts、weak_knowledge_points、recent_trend；无记录 accuracy=0 | TODO（Issue #45） |
+| BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | DONE（PR #42 已合；`subject/chapter/difficulty` 可空；空结果 200 + `questions[]`；`image_path` 落库并透出列表） |
 | BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | 「重排该段」已由 `POST /questions/{id}/generate` + `target_index` 覆盖（ADR-006）；剩下是 `/generated-questions/{id}/regenerate` 与质量反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
 | BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；并发位与重试窗口由 BE-021 调整） |
-| BE-021 | 三段并发生成改造（ADR-006） | 人机 | P0 | BE-006/007/019 | `/generate` 返回 `tasks[]`（整组 3 段 / 单段 `target_index`+`difficulty`）；`generated_questions.target_index` + `generation_task.difficulty` 迁移；按格替换；一段失败不牵连其余；`TASK_MAX_CONCURRENCY=6`；requeue 前判 90s；`generate_v2` prompt；ADR-006 | 进行中（base=main 新 PR；前端 FE-023 #28 已兼容） |
+| BE-021 | 三段并发生成改造（ADR-006） | 人机 | P0 | BE-006/007/019 | `/generate` 返回 `tasks[]`（整组 3 段 / 单段 `target_index`+`difficulty`）；`generated_questions.target_index` + `generation_task.difficulty` 迁移；按格替换；一段失败不牵连其余；`TASK_MAX_CONCURRENCY=6`；requeue 前判 90s；`generate_v2` prompt；ADR-006 | DONE（PR #39 已合；题型一致性改由 BE-026 用户开关控制） |
 | FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | DONE（PR #23；mock 先行，待联调） |
 | FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | DONE（PR #24；mock 先行，待 BE-013） |
 | FE-015 | 搜索/筛选/标签 | 霹雳马桶 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | DONE（PR #18） |

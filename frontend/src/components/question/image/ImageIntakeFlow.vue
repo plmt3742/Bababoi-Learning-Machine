@@ -21,6 +21,7 @@ import {
 } from '../../../utils/image'
 import type { PreparedImage } from '../../../utils/image'
 import {
+  canSelectImageItem,
   createImageItemDrafts,
   firstDetectedSubject,
   MAX_GENERATE_SELECTION,
@@ -77,6 +78,8 @@ const cropVisible = ref(false)
 const cropSource = ref<File | null>(null)
 const detectedSubject = ref('')
 const subjectAutoFilled = ref(false)
+const extractPhase = ref<'reading' | 'structuring'>('reading')
+let extractPhaseTimer: ReturnType<typeof setTimeout> | null = null
 
 const busy = computed(
   () =>
@@ -85,7 +88,9 @@ const busy = computed(
 
 const selectedCount = computed(() => items.value.filter((item) => item.selected).length)
 const allSelected = computed(
-  () => items.value.length > 0 && items.value.every((item) => item.selected),
+  () =>
+    items.value.length > 0 &&
+    items.value.every((item) => !canSelectImageItem(item) || item.selected),
 )
 const extractionWarnings = computed(() => extractResult.value?.warnings ?? [])
 const detectedSubjectHint = computed(() => {
@@ -98,7 +103,11 @@ const detectedSubjectHint = computed(() => {
 const statusText = computed(() => {
   if (status.value === 'compressing') return '正在压缩图片…'
   if (status.value === 'uploading') return '正在上传裁剪后的图片…'
-  if (status.value === 'extracting') return '正在提取题目，通常需要几秒…'
+  if (status.value === 'extracting') {
+    return extractPhase.value === 'structuring'
+      ? '正在拆题，整页密排可能需要更久…'
+      : '正在认字，通常需要几秒…'
+  }
   return ''
 })
 
@@ -108,7 +117,23 @@ function revokePreview(): void {
   previewUrl.value = ''
 }
 
+function clearExtractPhaseTimer(): void {
+  if (extractPhaseTimer !== null) {
+    clearTimeout(extractPhaseTimer)
+    extractPhaseTimer = null
+  }
+}
+
+function startExtractPhaseTimer(): void {
+  clearExtractPhaseTimer()
+  extractPhase.value = 'reading'
+  extractPhaseTimer = setTimeout(() => {
+    extractPhase.value = 'structuring'
+  }, 8000)
+}
+
 function resetSession(): void {
+  clearExtractPhaseTimer()
   revokePreview()
   preparedImage.value = null
   uploadedPath.value = ''
@@ -215,6 +240,7 @@ async function runExtraction(): Promise<void> {
 
   status.value = 'extracting'
   flowError.value = ''
+  startExtractPhaseTimer()
 
   try {
     const result = await extractQuestions(uploadedPath.value, props.subject)
@@ -245,6 +271,8 @@ async function runExtraction(): Promise<void> {
   } catch (cause) {
     flowError.value = normalizeApiError(cause).message
     status.value = 'error'
+  } finally {
+    clearExtractPhaseTimer()
   }
 }
 
@@ -277,7 +305,10 @@ function handleSubject(value: unknown): void {
 
 function handleAllSelected(value: unknown): void {
   const selected = value === true
-  items.value = items.value.map((item) => ({ ...item, selected }))
+  items.value = items.value.map((item) => ({
+    ...item,
+    selected: selected && canSelectImageItem(item),
+  }))
 }
 
 function handleItemUpdate(next: ImageItemDraft): void {
@@ -296,6 +327,13 @@ async function handleSave(): Promise<void> {
   const targets = items.value.filter((item) => item.selected)
   if (targets.length === 0) {
     Message.warning('请至少勾选一道题')
+    return
+  }
+
+  const blocked = targets.find((item) => item.incomplete && !canSelectImageItem(item))
+  if (blocked) {
+    const position = items.value.findIndex((item) => item.key === blocked.key) + 1
+    Message.error(`第 ${position} 道题信息不完整，请先编辑题干再勾选保存`)
     return
   }
 
@@ -395,9 +433,11 @@ async function handleGenerate(questionIds: number[]): Promise<void> {
   for (const questionId of pending) {
     try {
       const result = await generateQuestions(questionId)
-      const firstTask = result.tasks[0]
-      if (!firstTask) throw new Error('生成任务未返回 task_id')
-      created.push({ questionId, taskId: firstTask.task_id })
+      if (result.tasks.length === 0) throw new Error('生成任务未返回 task_id')
+      created.push({
+        questionId,
+        taskIds: result.tasks.map((task) => task.task_id),
+      })
     } catch (cause) {
       failures.push(`#${questionId} ${normalizeApiError(cause).message}`)
     }
@@ -408,7 +448,8 @@ async function handleGenerate(questionIds: number[]): Promise<void> {
   }
   generating.value = false
 
-  if (created.length > 0) Message.success(`已创建 ${created.length} 个生成任务`)
+  const createdTaskCount = created.reduce((count, task) => count + task.taskIds.length, 0)
+  if (createdTaskCount > 0) Message.success(`已创建 ${createdTaskCount} 个生成任务`)
   if (failures.length > 0) generateError.value = `部分题目生成失败：${failures.join('；')}`
 }
 
@@ -421,6 +462,7 @@ function goTasks(): void {
 }
 
 onBeforeUnmount(() => {
+  clearExtractPhaseTimer()
   revokePreview()
 })
 </script>

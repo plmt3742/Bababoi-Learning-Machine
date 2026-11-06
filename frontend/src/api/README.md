@@ -9,12 +9,13 @@ api/
 ├── client.ts        # Axios 实例、baseURL、token、401、错误归一化
 ├── auth.ts          # /auth/*
 ├── questions.ts     # /questions/*
-├── generated.ts     # /generated-questions/*
 ├── practice.ts      # /practice-records
 ├── stats.ts         # /stats/*
+├── settings.ts      # /settings/ai、/settings/preferences
 ├── uploads.ts       # /uploads/*、/questions/from-image
+├── drafts.ts        # /drafts/me
 ├── types.ts         # 由 contracts/openapi 生成（或手写对照）
-└── mocks/           # MSW / Vite mock
+└── mocks/           # axios-mock-adapter（仅 dev）
 ```
 
 ## 规则

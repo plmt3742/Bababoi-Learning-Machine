@@ -66,6 +66,8 @@ export interface Analysis {
   knowledge_points: string[]
   error_reasons: string[]
   solution_summary: string
+  answer_md?: string | null
+  explanation_md?: string | null
 }
 
 export interface Question {
@@ -97,6 +99,7 @@ export interface QuestionListItem {
   excerpt: string
   mastery_status: MasteryStatus
   tags: QuestionTag[]
+  image_path?: string | null
   created_at: string
 }
 
@@ -123,6 +126,9 @@ export interface QuestionUpdate {
   mastery_status?: MasteryStatus
   tags?: string[]
   analysis?: Analysis | null
+  question_type?: QuestionType
+  options?: QuestionOption[] | null
+  blanks?: QuestionBlank[] | null
 }
 
 export interface QuestionCreateResult {
@@ -249,8 +255,8 @@ export interface StatsOverview {
   total_questions: number
   total_generated_questions: number
   total_practice_records: number
-  /** Correct practice ratio across all records, in the 0–1 range. */
-  accuracy: number
+  /** Correct practice ratio across all records, in the 0–1 range; null when unknown. */
+  accuracy: number | null
   mastered_count: number
   reviewing_count: number
   unmastered_count: number
@@ -353,4 +359,18 @@ export interface AiSettingsUpdate {
   base_url?: string | null
   model: string
   api_key: string
+}
+
+/* ---------------------------------------------------------------------------
+ * Personal settings · generation preferences (BE-026)
+ * GET/PUT /settings/preferences; default enforce_same_question_type = true.
+ * ------------------------------------------------------------------------- */
+
+export interface PreferenceSettings {
+  enforce_same_question_type: boolean
+  updated_at: string | null
+}
+
+export interface PreferenceSettingsUpdate {
+  enforce_same_question_type: boolean
 }
