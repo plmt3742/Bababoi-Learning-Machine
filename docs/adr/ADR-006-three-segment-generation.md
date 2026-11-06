@@ -4,7 +4,7 @@
 - 日期：2026-11-06
 - 决策人：霹雳马桶、人机
 - 相关任务：BE-007、BE-015、BE-021、FE-009、FE-023
-- 相关文档：`docs/agent/05-architecture.md`（§6.4/§7.2/§7.3/§8）、`docs/agent/14-generation-three-segments-reply.md`、`docs/agent/15-backend-sync-20261106.md`、`docs/product/01-prd-lite.md`（FR-5）
+- 相关文档：`docs/agent/05-architecture.md`（§6.4/§7.2/§7.3/§8）、`docs/agent/14-generation-three-segments-reply.md`、`docs/agent/15-backend-sync-20261106.md`、`docs/product/01-prd-lite.md`（FR-5）、`docs/agent/16-three-segments-frontend-review.md`（前端意见单 + 后端逐条处置）
 - 前序讨论：人机《待确认单 · 生成链路改三段并发》（2026-11-05，含实测数据），前端《生成接口变更单》《生成提示词单》
 
 ## 1. 背景
@@ -29,7 +29,7 @@ BE-007 的初版是**一次 LLM 调用出 3 道题**（`{"questions": [...]}`，
 | 替换 | 整组重生成：**入队即软删旧组**，前端出 3 张骨架卡，每段成功只写自己那一格；单段重生成只换自己那格 |
 | 失败隔离 | 一段失败不影响其余两段；该段可单独 retry（自动 requeue 1 次，手动 retry 不限次） |
 | 题型 | **软约束**：首选与原题一致，允许换题型，照常入库，**不新增 `TYPE_MISMATCH`** |
-| 校验 | 每段 1 题；**与原题、与同组其它格都只拒「归一化后逐字相同」**，不套 0.9（14 号 D3 原写「与原题 <0.9 保留」，拆段后实测把它改掉了，见 §3.1） |
+| 校验 | 每段 1 题；**与原题、与同组其它格都只拒「归一化后逐字相同」**，不套 0.9（14 号 D3 原写「与原题 <0.9 保留」，拆段后实测把它改掉了，见 §3.1）。归一化覆盖空白/全半角标点/`$`与`\\(\\)`/`\\left`-`\\right` 等排版宏，**不覆盖** `\\ln` 与 `\\log_e` 这类语义等价写法（§4 的遗留项） |
 | 并发 | `TASK_MAX_CONCURRENCY` 默认 6（原 2） |
 | 重试窗口 | requeue 前判 `now - started_at > 90s` 则不再排，直接 failed |
 | prompt 版本 | `generate_v1` → `generate_v2`（输出形状变了，必须计版） |
@@ -80,6 +80,11 @@ BE-007 的初版是**一次 LLM 调用出 3 道题**（`{"questions": [...]}`，
 - **成本 1.38×**：同样一道错题的巩固成本上升三分之一，`ai_call_logs` 要按段记 token，估算吞吐时不能再用旧的单次成本。
 - **任务中心一次生题出 3 行**：列表必须折叠成「生题 2/3」，否则连续录 10 题会有 30 行。
 - **三段并发写同一组时的查重有竞态**：校验只比"其它格已落库的题干"，两段同时在跑时互相看不到，仍可能出逐字相同的题。MVP 接受（14 号 §2.1-3），不上锁、不引入唯一索引。
+- **同组两格可能出同一个函数式**：端到端实录里出现过第 1 格 `设函数 $f(x)=2x-a\ln x$…讨论单调性` 与
+  第 3 格同一函数式只多挂一个小问 —— 归一化后不完全相同，所以入库了。这是把"换汤不换药"从
+  判死换成放行的直接代价（反过来，同一次跑里第 2 格吐了与第 1 格**逐字相同**的题干，被拦下并 requeue 成功，
+  说明这条判据仍然有牙）。要真解决得比公式结构，记 P1 **BE-022 同组公式结构去重**，且只做 warnings 提示不判死
+  （前端意见单 §三：误判的代价是用户看到"三题里有一题不能用"）。
 - **入队即软删旧组**：整组重生成期间用户看不到旧题，产品已确认接受；但这也意味着**误点一次生成就把旧组推入历史**，靠软删留痕兜底。
 - 三段各自占用并发位，`TASK_MAX_CONCURRENCY=2` 会让第 3 段干等一整轮，所以默认提到 6。
 
@@ -97,7 +102,8 @@ BE-007 的初版是**一次 LLM 调用出 3 道题**（`{"questions": [...]}`，
 
 - `questions.generated_questions` 加列 `target_index INT NULL`；`generation_task` 加列 `difficulty VARCHAR(16) NULL`。迁移 `3f9c1a7e5b24` 两条都加，downgrade 可逆。
 - 新增索引 `ix_generated_parent_slot (parent_question_id, target_index)`，详情页与按格替换按它取数。
-- `POST /questions/{id}/generate` 响应形状变更（破坏性，前端 FE-023 #28 已做双向兼容）；`GET /tasks` 的 `TaskOut` 多 `difficulty`，`GeneratedQuestionOut` 多 `target_index`。
+- 同一笔迁移**给历史活跃行回填 `target_index`=1/2/3**（按 `parent_question_id, created_at, id`，就是旧版一次 3 道的插入顺序；软删行与超出 3 条的留 NULL）。用逐行 UPDATE 而不是相关子查询：MySQL 8 禁止 UPDATE 的表同时出现在子查询里（error 1093）。upgrade、downgrade、以及 downgrade 后老数据仍读得到，都实测跑过。
+- `POST /questions/{id}/generate` 响应形状变更（破坏性，前端 FE-023 #28 已做双向兼容）；**后端只发 `tasks`，从未双发顶层 `task_id`**，FE-023 那条兜底分支可以直接删（前端意见单 §五）。`GET /tasks` 的 `TaskOut` 多 `difficulty`，`GeneratedQuestionOut` 多 `target_index`。
 - 错误码零新增：段失败仍用 `AI_TIMEOUT` / `AI_PROVIDER_ERROR` / `AI_INVALID_OUTPUT` / `INTERNAL_ERROR`。
 
 ## 7. 复审条件

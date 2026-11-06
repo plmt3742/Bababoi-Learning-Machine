@@ -133,6 +133,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
+| BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（前端意见单 §三） | TODO |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | TODO |
 | BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT /drafts/me`；每账号 1 份；防抖覆盖；测试 | TODO |
