@@ -8,8 +8,8 @@ read_when: 后端对接、三段并发/图片/草稿/统计联调、PR 合并状
 # 15 · 后端对接同步（2026-11-06）
 
 > 对象：人机
-> 基线：`main @ 90d5d77`（#6/#5/#9 已合）
-> 前端已完成：#19/#21/#23/#24/#25；正在做 FE-016/021、FE-023，随后 FE-018
+> 基线：`main @ bb28535`（#6/#5/#9 已合）
+> 前端已完成：#19/#21/#23~#25/#28~#30（FE-013/014/016/018/020/021/023）
 > 本文可直接发给后端；详细三段并发口径见 [14-generation-three-segments-reply.md](14-generation-three-segments-reply.md)
 
 ## 1. 先确认：上一轮阻塞已清零
@@ -52,11 +52,11 @@ read_when: 后端对接、三段并发/图片/草稿/统计联调、PR 合并状
 | 校验 | 每段 1 题；与原题相似度 <0.9；三题彼此只拒“归一化后完全相同”，不套 0.9 |
 | 错误码 | 不新增 `TYPE_MISMATCH`；段失败沿用 AI_* / INTERNAL_ERROR |
 
-前端 FE-023 正在按这个形状做，并且兼容旧的单 `task_id` 返回，所以你什么时候合都不会把现有详情页打挂。
+前端 FE-023 已按这个形状合入（#28），兼容旧的单 `task_id` 返回，所以你什么时候合都不会把现有详情页打挂。字段名如需调整，请在开三段 PR 前说。
 
 ### P0：BE-014 图片文本提取
 
-前端 FE-016/021 正在做，mock 先行；请按 14 号文档 §5 和 05 v0.4 实现：
+前端 FE-016/021 已合（#29），mock 先行；请按 14 号文档 §5 和 05 v0.4 实现：
 
 - `POST /uploads/images`：JPEG/PNG/WebP；服务端校验/压缩/去 EXIF；返回 `{image_path,url,width,height}`。
 - `POST /questions/from-image`：返回 `{image_path, questions:[{index,content_md,question_type,options,blanks,has_figure,warnings,incomplete?}], warnings}`；不返回 bbox/candidates。
@@ -105,11 +105,11 @@ updated_at
 | FE-013 练习页 | ✅ #23 已合（mock 先行，等真接口联调） |
 | FE-014 统计 | ✅ #24 已合（mock 先行，等 BE-013） |
 | FE-020 三题型编辑器 | ✅ #25 已合 |
-| FE-016/021 图片录入 + 多题条目 | 进行中，mock `/uploads/images` + `/questions/from-image` |
-| FE-023 三段并发 UI | 进行中，兼容旧 `task_id` |
-| FE-018 草稿/可访问性 | 待 FE-016/021/023 完成后做 |
+| FE-016/021 图片录入 + 多题条目 | ✅ #29 已合（mock `/uploads/images` + `/questions/from-image`；等 BE-014） |
+| FE-023 三段并发 UI | ✅ #28 已合（兼容旧 `task_id`；等 ADR-006 真接口） |
+| FE-018 草稿/可访问性 | ✅ #30 已合（服务端草稿 BE-018 尚缺，当前 mock） |
 
 ## 6. 需要你确认的两件事
 
-1. **三段并发响应**：`{tasks:[{task_id,target_index,difficulty}]}` 是否最终定稿？如果字段名要改，请在开 PR 前说，前端 FE-023 还没合。
+1. **三段并发响应**：`{tasks:[{task_id,target_index,difficulty}]}` 是否最终定稿？前端 FE-023 已合（#28）并兼容旧 `task_id`；如果字段名要改，请在开三段 PR 前说。
 2. **from-image 的 `incomplete`**：是否接受在 `questions[]` 里加 `incomplete: boolean` + `warnings: string[]`？前端会把残缺条目标出来让用户决定。
