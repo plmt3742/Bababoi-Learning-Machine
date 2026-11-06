@@ -338,6 +338,9 @@ class QuestionListItem(BaseModel):
     excerpt: str
     mastery_status: str
     tags: list[TagOut]
+    # 错题本要显示原图/缩略图只能靠这一项：详情里有、列表里没有的话，
+    # 前端要么逐条再请求一次详情，要么干脆不显示（实测就是这么丢的）
+    image_path: str | None
     created_at: datetime
 
     @classmethod
@@ -350,6 +353,7 @@ class QuestionListItem(BaseModel):
             excerpt=make_excerpt(question.content_md),
             mastery_status=question.mastery_status,
             tags=[TagOut.model_validate(t) for t in question.tags],
+            image_path=question.image_path,
             created_at=question.created_at,
         )
 

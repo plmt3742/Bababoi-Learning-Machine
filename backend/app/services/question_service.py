@@ -81,6 +81,10 @@ def create(
         question_type=data.question_type,
         options=to_storage(data.options),
         blanks=to_storage(data.blanks),
+        # 05 §6.4 的 `image_path?` 与 §5.2 的「多题共用同一 image_path」靠这一行落地。
+        # 之前 schema 收了、这里没列，于是图片错题建得出来但原图关联丢了——
+        # 事后回补只能扫 uploads 目录猜，而文件名是内容寻址的、认不出是谁的哪一页。
+        image_path=data.image_path,
     )
     session.add(question)
     session.flush()
