@@ -140,6 +140,8 @@ export interface GeneratedQuestion {
   options: QuestionOption[] | null
   blanks: QuestionBlank[] | null
   difficulty: Difficulty | null
+  /** FE-023: 1/2/3 for the three-segment generation; null/absent for legacy rows. */
+  target_index?: GenerationTargetIndex | null
   model: string | null
   prompt_version: string | null
   validation_status: ValidationStatus
@@ -154,6 +156,10 @@ export interface Task {
   target_index: number | null
   retry_index: number
   error_code: string | null
+  /** FE-023: backend may surface a human-readable failure reason alongside the code. */
+  error_message?: string | null
+  /** FE-023: difficulty assigned to this generation segment. */
+  difficulty?: Difficulty | null
   created_at: string
   started_at: string | null
   finished_at: string | null
@@ -261,4 +267,28 @@ export interface ApiErrorDetail {
 
 export interface ApiErrorResponse {
   detail: ApiErrorDetail
+}
+
+/* -------------------------------------------------------------------------
+ * FE-023 · three-segment concurrent generation (ADR-006)
+ * Legacy `{ task_id }` responses stay supported via the API normalizer.
+ * ---------------------------------------------------------------------- */
+
+export type GenerationTargetIndex = 1 | 2 | 3
+
+export interface GenerateQuestionsPayload {
+  /** Whole-group generation: one task per difficulty. */
+  difficulties?: Difficulty[]
+  /** Single-segment regeneration. */
+  difficulty?: Difficulty
+}
+
+export interface GenerateTaskRef {
+  task_id: number
+  target_index: GenerationTargetIndex | null
+  difficulty: Difficulty | null
+}
+
+export interface GenerateTasksResponse {
+  tasks: GenerateTaskRef[]
 }

@@ -9,6 +9,7 @@ import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
 import MarkdownRenderer from '../components/common/MarkdownRenderer.vue'
 import GenerationProgress from '../components/ai/GenerationProgress.vue'
+import GenerationSegments from '../components/ai/GenerationSegments.vue'
 import AnalysisCard from '../components/question/AnalysisCard.vue'
 import GeneratedQuestionCard from '../components/question/GeneratedQuestionCard.vue'
 import { generateQuestions, getQuestion, removeQuestion } from '../api/questions'
@@ -17,6 +18,7 @@ import { normalizeApiError } from '../api/errors'
 import type { QuestionDetail, Task } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
 import { hasActiveTasks, latestTask } from '../utils/task'
+import { isSegmentTask, summarizeSegments } from '../utils/segments'
 import { formatDateTime, masteryStatusLabel, questionTypeLabel } from '../utils/question'
 
 const route = useRoute()
@@ -34,8 +36,10 @@ const deleting = ref(false)
 const submittingGeneration = ref(false)
 const refreshing = ref(false)
 const generationRequested = ref(false)
+const generationMode = ref<'legacy' | 'segments'>('legacy')
 const actionError = ref('')
 const retryingTaskId = ref<number | null>(null)
+const refreshQueued = ref(false)
 
 const handledDoneTaskIds = new Set<number>()
 let knownQuizTaskId = 0
@@ -90,7 +94,16 @@ const hasExplanation = computed(() => Boolean(question.value?.explanation_md?.tr
 const blanks = computed(() => question.value?.blanks ?? [])
 const hasAnswerContent = computed(() => hasAnswer.value || blanks.value.length > 0)
 const hasAnyQa = computed(() => hasAnswerContent.value || hasExplanation.value)
-const generatedCount = computed(() => question.value?.generated_questions.length ?? 0)
+const sortedGeneratedQuestions = computed(() => {
+  const items = question.value?.generated_questions ?? []
+  const hasTargetIndex = items.some(
+    (item) => item.target_index !== null && item.target_index !== undefined,
+  )
+  if (!hasTargetIndex) return items
+
+  return [...items].sort((left, right) => (left.target_index ?? 99) - (right.target_index ?? 99))
+})
+const generatedCount = computed(() => sortedGeneratedQuestions.value.length)
 const allGeneratedValid = computed(() => {
   const items = question.value?.generated_questions ?? []
   return items.length > 0 && items.every((item) => item.validation_status === 'valid')
@@ -98,7 +111,10 @@ const allGeneratedValid = computed(() => {
 const analysisReady = computed(() => Boolean(question.value?.analysis))
 
 const analysisTask = computed(() => latestTask(liveTasks.value, 'analysis'))
-const quizTask = computed(() => latestTask(liveTasks.value, 'quiz'))
+const legacyTasks = computed(() => liveTasks.value.filter((task) => !isSegmentTask(task)))
+const legacyQuizTask = computed(() => latestTask(legacyTasks.value, 'quiz'))
+const segmentSummary = computed(() => summarizeSegments(liveTasks.value))
+const segmentActive = computed(() => segmentSummary.value.activeCount > 0)
 
 const analysisPending = computed(
   () =>
@@ -108,9 +124,10 @@ const analysisPending = computed(
 const analysisFailed = computed(
   () => !analysisReady.value && analysisTask.value?.status === 'failed',
 )
-const quizActive = computed(
-  () => quizTask.value?.status === 'queued' || quizTask.value?.status === 'running',
-)
+const quizActive = computed(() => {
+  if (generationMode.value === 'segments') return segmentActive.value
+  return legacyQuizTask.value?.status === 'queued' || legacyQuizTask.value?.status === 'running'
+})
 const generationBusy = computed(() => quizActive.value || generationRequested.value)
 
 const analysisTaskLabel = computed(() => {
@@ -131,6 +148,9 @@ const analysisTaskLabel = computed(() => {
 
 const generatedEmptyHint = computed(() => {
   if (generationBusy.value) return '相似题正在生成，完成后会自动出现在这里。'
+  if (generationMode.value === 'segments' && segmentSummary.value.failedCount > 0) {
+    return '部分相似题生成失败，可在右侧处理进度中单独重试失败段。'
+  }
   if (analysisPending.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
   if (analysisFailed.value) return '分析任务未成功完成，处理后可生成相似题。'
   if (!analysisReady.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
@@ -151,7 +171,9 @@ async function loadQuestion(): Promise<void> {
   handledDoneTaskIds.clear()
   knownQuizTaskId = 0
   generationRequested.value = false
+  generationMode.value = 'legacy'
   retryingTaskId.value = null
+  refreshQueued.value = false
 
   if (id === null) {
     loading.value = false
@@ -173,6 +195,7 @@ async function loadQuestion(): Promise<void> {
     if (token !== loadToken) return
 
     question.value = detail
+    generationMode.value = detail.tasks.some(isSegmentTask) ? 'segments' : 'legacy'
     setPollingTasks(detail.tasks)
     rememberLatestQuizTask(detail.tasks)
     for (const task of detail.tasks) {
@@ -199,14 +222,22 @@ async function loadQuestion(): Promise<void> {
 
 async function refreshQuestion(options: { silent?: boolean } = {}): Promise<void> {
   const current = question.value
-  if (!current || refreshing.value) return
+  if (!current) return
+  if (refreshing.value) {
+    refreshQueued.value = true
+    return
+  }
 
+  const token = loadToken
   refreshing.value = true
   if (!options.silent) actionError.value = ''
 
   try {
     const detail = await getQuestion(current.id, { includeGenerated: true })
+    if (token !== loadToken) return
+
     question.value = detail
+    if (detail.tasks.some(isSegmentTask)) generationMode.value = 'segments'
     generationRequested.value = false
     rememberLatestQuizTask(detail.tasks)
 
@@ -214,9 +245,15 @@ async function refreshQuestion(options: { silent?: boolean } = {}): Promise<void
       if (task.status === 'done') handledDoneTaskIds.add(task.id)
     }
   } catch (cause) {
-    actionError.value = normalizeApiError(cause).message
+    if (token === loadToken) actionError.value = normalizeApiError(cause).message
   } finally {
     refreshing.value = false
+    if (token !== loadToken) {
+      refreshQueued.value = false
+    } else if (refreshQueued.value) {
+      refreshQueued.value = false
+      void refreshQuestion({ silent: true })
+    }
   }
 }
 
@@ -229,10 +266,18 @@ async function handleGenerate(): Promise<void> {
 
   try {
     const result = await generateQuestions(current.id)
+    const hasSegmentTargets = result.tasks.some((task) => task.target_index !== null)
+
+    generationMode.value = hasSegmentTargets ? 'segments' : 'legacy'
     generationRequested.value = true
+    if (hasSegmentTargets) current.generated_questions = []
     startTaskPolling()
+
+    const legacyTask = result.tasks[0]
     Message.success({
-      content: `已提交生成任务（#${result.task_id}），完成后会自动展示相似题。`,
+      content: hasSegmentTargets
+        ? `已提交 ${result.tasks.length} 个并发生成任务，完成后会自动展示相似题。`
+        : `已提交生成任务（#${legacyTask.task_id}），完成后会自动展示相似题。`,
       duration: 4000,
     })
   } catch (cause) {
@@ -501,10 +546,10 @@ onBeforeUnmount(() => {
 
             <div v-if="generatedCount > 0" class="gen-list">
               <GeneratedQuestionCard
-                v-for="(item, index) in question.generated_questions"
+                v-for="(item, index) in sortedGeneratedQuestions"
                 :key="item.id"
                 :question="item"
-                :index="index + 1"
+                :index="item.target_index ?? index + 1"
               />
             </div>
 
@@ -516,8 +561,29 @@ onBeforeUnmount(() => {
         </div>
 
         <aside class="detail-aside" aria-label="处理进度">
-          <GenerationProgress
+          <GenerationSegments
+            v-if="generationMode === 'segments'"
             :tasks="liveTasks"
+            :polling="isPolling"
+            :loading="tasksLoading"
+            :timed-out="pollingTimedOut"
+            :stopped="pollingStopped"
+            :error-message="pollingError?.message ?? ''"
+            :error-code="pollingError?.code ?? ''"
+            :generated-count="generatedCount"
+            :analysis-ready="analysisReady"
+            :generation-requested="generationRequested"
+            :retrying-task-id="retryingTaskId"
+            @retry="handleRetryTask"
+            @stop="stopTaskPolling"
+            @refresh="handleRefreshTasks"
+            @generate="handleGenerate"
+            @practice="goPractice"
+          />
+
+          <GenerationProgress
+            v-else
+            :tasks="legacyTasks"
             :polling="isPolling"
             :loading="tasksLoading"
             :timed-out="pollingTimedOut"

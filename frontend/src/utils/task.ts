@@ -58,6 +58,10 @@ export function taskErrorMessage(code: string | null): string {
   return TASK_ERROR_MESSAGES[code] ?? `任务失败（${code}），请重试。`
 }
 
+export function taskFailureMessage(task: Pick<Task, 'error_code' | 'error_message'>): string {
+  return task.error_message?.trim() || taskErrorMessage(task.error_code)
+}
+
 /** Latest task for a stage, ordered by id so it also works with unsorted task lists. */
 export function latestTask(tasks: Task[], stage: TaskStage): Task | null {
   let latest: Task | null = null
