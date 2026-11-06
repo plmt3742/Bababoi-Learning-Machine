@@ -200,6 +200,8 @@ def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
     assert degraded["blanks"] is None and degraded["options"] is None
     assert any("空位" in w and "文本题" in w for w in degraded["warnings"])
     assert figure["has_figure"] is True and any("含图" in w for w in figure["warnings"])
+    # 带 warning 就必须带 incomplete：前端确认步骤只看标志位（17 号 §四-4）
+    assert figure["incomplete"] is True
     # 提取阶段不返回答案/解析：那是 analysis 的事，两处都出就会抢真源
     assert "answer_md" not in solve and "explanation_md" not in solve
     # 17 号对齐清单 §三 规则 1：请求带了 subject 就一律用请求值，模型猜的（mock 第 2 条写"线性代数"）被覆盖
