@@ -72,6 +72,7 @@
 | [adr/ADR-003-image-input-vision.md](adr/ADR-003-image-input-vision.md) | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted |
 | [adr/ADR-004-image-text-extraction.md](adr/ADR-004-image-text-extraction.md) | 图片录入：用户裁剪 + 文本提取 + 多题条目 | Accepted |
 | [adr/ADR-005-admin-console.md](adr/ADR-005-admin-console.md) | 独立 admin 管理端（P1 内部运维台） | Accepted |
+| [adr/ADR-007-user-ai-key.md](adr/ADR-007-user-ai-key.md) | 用户自带 AI API Key（BYOK）设置 | Accepted |
 
 ## 状态图例
 
