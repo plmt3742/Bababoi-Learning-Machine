@@ -1,4 +1,4 @@
-import { IconBook, IconEdit, IconList, IconPen } from '@arco-design/web-vue/es/icon'
+import { IconBook, IconEdit, IconList, IconPen, IconSettings } from '@arco-design/web-vue/es/icon'
 import type { Component } from 'vue'
 
 export interface NavigationItem {
@@ -21,4 +21,9 @@ export const mobileNavigation: NavigationItem[] = [
   { key: 'create', label: '录入', to: '/questions/new', icon: IconEdit },
   { key: 'tasks', label: '任务', to: '/tasks', icon: IconList },
   { key: 'practice', label: '练习', to: '/practice', icon: IconPen },
+]
+
+/** Account dropdown entries; kept out of the primary appbar nav. */
+export const accountNavigation: NavigationItem[] = [
+  { key: 'settings', label: '个人设置', to: '/settings', icon: IconSettings },
 ]

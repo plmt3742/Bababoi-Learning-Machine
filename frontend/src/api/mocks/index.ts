@@ -2,6 +2,8 @@ import MockAdapter from 'axios-mock-adapter'
 import type { AxiosRequestConfig } from 'axios'
 import apiClient from '../client'
 import type {
+  AiProvider,
+  AiSettings,
   Analysis,
   AuthResponse,
   Difficulty,
@@ -39,6 +41,8 @@ const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
 const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
 const TREND_DAY_COUNT = 7
 const WEAK_POINT_LIMIT = 5
+const DEFAULT_AI_MODEL = 'deepseek-flash'
+const MIN_API_KEY_LENGTH = 8
 
 let mockImageSequence = 1
 
@@ -72,6 +76,14 @@ interface GeneratedTemplate {
   difficulty: Difficulty
   options?: QuestionOption[]
   blanks?: QuestionBlank[]
+}
+
+interface MockAiConfig {
+  provider: AiProvider
+  base_url: string | null
+  model: string
+  api_key: string
+  updated_at: string
 }
 
 const GENERATED_QUIZ_TEMPLATES: Record<number, GeneratedTemplate[]> = {
@@ -306,6 +318,46 @@ function authResponse(user: MockUser): AuthResponse {
     access_token: issueToken(user),
     token_type: 'bearer',
     user: toPublicUser(user),
+  }
+}
+
+function maskApiKey(raw: string): string {
+  const key = raw.trim()
+  const prefix = key.startsWith('sk-') ? 'sk-' : ''
+  return `${prefix}****${key.slice(-4)}`
+}
+
+function toAiSettings(config: MockAiConfig | undefined): AiSettings {
+  if (!config) {
+    return {
+      configured: false,
+      provider: 'deepseek',
+      base_url: null,
+      model: DEFAULT_AI_MODEL,
+      api_key_masked: null,
+      updated_at: null,
+    }
+  }
+
+  return {
+    configured: true,
+    provider: config.provider,
+    base_url: config.base_url,
+    model: config.model,
+    api_key_masked: maskApiKey(config.api_key),
+    updated_at: config.updated_at,
+  }
+}
+
+function isAiProvider(value: unknown): value is AiProvider {
+  return value === 'deepseek' || value === 'openai_compatible'
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
   }
 }
 
@@ -755,6 +807,8 @@ export function setupMocks(): void {
   if (adapter) return
 
   const state = createMockState()
+  // Dev-only in-memory store: a real backend encrypts this key at rest and never returns it.
+  const aiConfigs = new Map<number, MockAiConfig>()
 
   for (const task of state.tasks) {
     if (task.status === 'queued' || task.status === 'running') {
@@ -818,6 +872,66 @@ export function setupMocks(): void {
     if (!user) return unauthorized()
 
     return [200, toPublicUser(user)]
+  })
+
+  adapter.onGet('/settings/ai').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    return [200, toAiSettings(aiConfigs.get(user.id))]
+  })
+
+  adapter.onPut('/settings/ai').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    const body = readBody<Record<string, unknown>>(config)
+    if (!body) return apiError(400, 'VALIDATION_ERROR', '请求体格式不正确')
+    if (!isAiProvider(body.provider)) {
+      return apiError(400, 'VALIDATION_ERROR', '请选择有效的 API 提供方')
+    }
+
+    const provider = body.provider
+    const model = typeof body.model === 'string' ? body.model.trim() : ''
+    if (!model) return apiError(400, 'VALIDATION_ERROR', '请填写模型名称')
+
+    const apiKey = typeof body.api_key === 'string' ? body.api_key.trim() : ''
+    if (apiKey.length < MIN_API_KEY_LENGTH) {
+      return apiError(400, 'VALIDATION_ERROR', `API Key 至少 ${MIN_API_KEY_LENGTH} 个字符`)
+    }
+
+    const rawBaseUrl = body.base_url
+    if (rawBaseUrl !== undefined && rawBaseUrl !== null && typeof rawBaseUrl !== 'string') {
+      return apiError(400, 'VALIDATION_ERROR', 'Base URL 格式不正确')
+    }
+    const baseUrl = typeof rawBaseUrl === 'string' ? rawBaseUrl.trim() : ''
+    if (baseUrl) {
+      if (provider !== 'openai_compatible') {
+        return apiError(400, 'VALIDATION_ERROR', '自定义 Base URL 仅适用于 OpenAI 兼容模式')
+      }
+      if (!isHttpsUrl(baseUrl)) {
+        return apiError(400, 'VALIDATION_ERROR', 'Base URL 必须是 https:// 地址')
+      }
+    }
+
+    const record: MockAiConfig = {
+      provider,
+      base_url: baseUrl || null,
+      model,
+      api_key: apiKey,
+      updated_at: nowIso(),
+    }
+    aiConfigs.set(user.id, record)
+
+    return [200, toAiSettings(record)]
+  })
+
+  adapter.onDelete('/settings/ai').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    aiConfigs.delete(user.id)
+    return [204, null]
   })
 
   adapter.onPost('/uploads/images').reply(async (config) => {

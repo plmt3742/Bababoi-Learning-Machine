@@ -324,3 +324,27 @@ export interface GenerateTaskRef {
 export interface GenerateTasksResponse {
   tasks: GenerateTaskRef[]
 }
+
+/* ---------------------------------------------------------------------------
+ * Personal settings · BYOK (P1; backend stores keys encrypted at rest)
+ * GET/PUT /settings/ai return AiSettings; the raw key is never returned.
+ * ------------------------------------------------------------------------- */
+
+export type AiProvider = 'deepseek' | 'openai_compatible'
+
+export interface AiSettings {
+  configured: boolean
+  provider: AiProvider
+  base_url: string | null
+  model: string
+  /** Server-side mask only, e.g. `sk-****abcd`; never the full key. */
+  api_key_masked: string | null
+  updated_at: string | null
+}
+
+export interface AiSettingsUpdate {
+  provider: AiProvider
+  base_url?: string | null
+  model: string
+  api_key: string
+}

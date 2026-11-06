@@ -60,6 +60,12 @@ const router = createRouter({
           meta: { title: '统计', navKey: 'stats', requiresAuth: true },
         },
         {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('../views/SettingsView.vue'),
+          meta: { title: '设置', requiresAuth: true },
+        },
+        {
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: () => import('../views/NotFoundView.vue'),
