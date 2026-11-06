@@ -34,11 +34,13 @@ def _timeout_for(operation: str) -> int:
 
 # 采样参数按操作分档。生成温度定 0.3 而不是 05 §7.3 原先写的 0.7：
 # 实测 0.3 下三段并发的三题相似度只有 0.535–0.622（0.7 的 batch 是 0.907–0.950），
-# 既稳又不雷同。max_tokens 8000 是给 hard 档留的——实测含参 hard 段一次输出 7089 token，
-# 卡 4000 会把 JSON 截断成解析失败。
+# 既稳又不雷同。
+# quiz 的 max_tokens：一段只出 1 道，但实测单段输出到过 3589 / 3450 token
+# （含参 solve 带小问 + 长解析），4000 只剩 10% 余量。max_tokens 是上限不是配额，
+# 按实际输出计费，所以给 6000 换"不被截断成解析失败"，不额外花钱。
 SAMPLING = {
     OPERATION_ANALYSIS: {"temperature": 0.2, "max_tokens": 4000},
-    OPERATION_QUIZ: {"temperature": 0.3, "max_tokens": 8000},
+    OPERATION_QUIZ: {"temperature": 0.3, "max_tokens": 6000},
 }
 
 
@@ -58,16 +60,30 @@ class LLMClient(Protocol):
 
 
 class MockLLMClient:
-    """settings.llm_mock=True 时使用。输出按 operation 从 _MOCK_OUTPUTS 取。"""
+    """settings.llm_mock=True 时使用。输出按 operation 从 _MOCK_OUTPUTS 取。
+
+    quiz 是单段出题（ADR-006），Mock 也从提示词里读难度档来选输出——否则三段
+    拿到同一份 mock 题，"按格替换""与同组查重"这些逻辑在 mock 模式下永远跑不到。
+    """
 
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
+        if operation == OPERATION_QUIZ:
+            text = _mock_quiz_text(messages)
+        else:
+            text = _MOCK_OUTPUTS[operation]
         return LLMResponse(
-            text=_MOCK_OUTPUTS[operation],
+            text=text,
             model="mock",
             prompt_tokens=0,
             completion_tokens=0,
             latency_ms=0,
         )
+
+
+def _mock_quiz_text(messages: list[dict]) -> str:
+    user = messages[-1]["content"] if messages else ""
+    difficulty = next((d for d in ("easy", "medium", "hard") if f"难度档：{d}" in user), "medium")
+    return json.dumps(_MOCK_QUIZ_SEGMENTS[difficulty], ensure_ascii=False)
 
 
 class DeepSeekClient:
@@ -131,38 +147,36 @@ _MOCK_ANALYSIS = {
     "solution_summary": "求导，令导数为 0 求驻点，列表判断两侧符号得极值。",
 }
 
-_MOCK_QUIZ = {
-    "questions": [
-        {
-            "question_type": "solve",
-            "content_md": "按导数与极值的方法，求函数 $g(x)=x^3-3x$ 的单调区间。",
-            "answer_md": "增区间 $(-\\infty,-1)\\cup(1,+\\infty)$，减区间 $(-1,1)$。",
-            "explanation_md": "求导得 $g'(x)=3x^2-3$，解 $g'(x)>0$ 与 $g'(x)<0$ 即得。",
-            "difficulty": "medium",
-        },
-        {
-            "question_type": "blank",
-            "content_md": "函数 $g(x)=x^3-3x$ 的极大值为 ___。",
-            "answer_md": "$2$",
-            "explanation_md": "驻点 $x=-1$ 处 $g(-1)=2$，两侧符号由正变负，为极大值。",
-            "blanks": [{"index": 1, "answer_md": "$2$"}],
-            "difficulty": "easy",
-        },
-        {
-            "question_type": "choice",
-            "content_md": "$g(x)=x^3-3x$ 的极小值点是（  ）。",
-            "answer_md": "选 A",
-            "explanation_md": "$g'(x)=0$ 得 $x=\\pm1$；$x=1$ 两侧先负后正，为极小值点。",
-            "options": [
-                {"label": "A", "content_md": "$x=1$"},
-                {"label": "B", "content_md": "$x=-1$"},
-            ],
-            "difficulty": "easy",
-        },
-    ]
+# 一段一题：三个难度档各给一份合法输出（必须能过 ai/validator 的单段校验）。
+_MOCK_QUIZ_SEGMENTS: dict[str, dict] = {
+    "easy": {
+        "question_type": "blank",
+        "content_md": "曲线 $y=2x^3-6x$ 在 $x=1$ 处的切线斜率为 ___。",
+        "answer_md": "$0$",
+        "explanation_md": "求导得 $y'=6x^2-6$，代入 $x=1$ 即得斜率 $0$。",
+        "blanks": [{"index": 1, "answer_md": "$0$"}],
+        "difficulty": "easy",
+    },
+    "medium": {
+        "question_type": "solve",
+        "content_md": "求函数 $g(x)=x^3-3x$ 的单调区间与极值。",
+        "answer_md": "增区间 $(-\\infty,-1)$ 与 $(1,+\\infty)$，减区间 $(-1,1)$；极大值 $2$，极小值 $-2$。",
+        "explanation_md": "求导得 $g'(x)=3x^2-3$，解 $g'(x)>0$ 与 $g'(x)<0$ 即得单调区间与极值。",
+        "difficulty": "medium",
+    },
+    "hard": {
+        "question_type": "choice",
+        "content_md": "若函数 $p(x)=x^3-3a x$ 在 $x=2$ 处取得极小值，则实数 $a$ 的值为（  ）。",
+        "answer_md": "选 A",
+        "explanation_md": "$p'(x)=3x^2-3a$，由 $p'(2)=0$ 得 $a=4$；两侧符号由负变正，确为极小值。",
+        "options": [
+            {"label": "A", "content_md": "$a=4$"},
+            {"label": "B", "content_md": "$a=2$"},
+        ],
+        "difficulty": "hard",
+    },
 }
 
 _MOCK_OUTPUTS: dict[str, str] = {
     OPERATION_ANALYSIS: json.dumps(_MOCK_ANALYSIS, ensure_ascii=False),
-    OPERATION_QUIZ: json.dumps(_MOCK_QUIZ, ensure_ascii=False),
 }

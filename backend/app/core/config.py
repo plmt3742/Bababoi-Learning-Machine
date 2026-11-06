@@ -38,8 +38,13 @@ class Settings(BaseSettings):
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
     recognize_client_timeout_s: int = 90  # 前端等待上限
     task_hard_timeout_s: int = 120  # 单任务服务端硬超时
-    task_max_concurrency: int = 2  # 🔵 待用 RPM/TPM 实测核定
+    # ADR-006：一次生题排 3 段，2 个并发位会让第 3 段干等一轮；实测 3 段同瞬间并发无 429，
+    # 所以默认给 6（两段满速）。生产仍要看 RPM/TPM 监控再调。
+    task_max_concurrency: int = 6
     task_retry_limit: int = 1
+    # 自动重排队的时间上限：一段跑了 90s 还没出结果，再排一次只会让用户更久看不到终态，
+    # 直接置 failed 让前端出"重试"卡（14 号 D8）。
+    task_requeue_deadline_s: int = 90
     task_workers_enabled: bool = True  # API 测试里关掉，worker 单测直接调同步函数
 
     # 图片（12号 §5；上传兜底 10MB，落库前压到 5MB/2000px）

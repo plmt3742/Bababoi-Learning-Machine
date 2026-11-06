@@ -30,12 +30,29 @@ _IMAGE_DEPENDENCY = re.compile(r"如[图中下上]|见下?图|照图")
 
 
 def _normalize_for_compare(text: str) -> str:
-    """去掉空白与常见标点后再比，避免「只是排版不同」被当成同一道题。"""
-    return re.sub(r"[\s，。；：、（）(){}\[\]$\\*_-]", "", text.lower())
+    """去掉空白、全角/半角标点、LaTeX 定界符与排版宏后再比。
+
+    这条归一化就是「逐字相同」判据的全部强度：判据唯一的价值是拦真抄题，
+    而抄题最容易躲的方式就是换排版（多敲空格、`（`→`(`、`\\left(`→`(`、加 `\\\\,`）。
+    所以排版层差异一律先抹平，再判是否同一句（前端意见单 §二）。
+    没覆盖的：`\\ln x` vs `\\log_e x` 这类语义等价写法——那需要公式解析，
+    归 P1「同组公式结构去重」，不在这里假装做到了。
+    """
+    for macro in ("\\left", "\\right", "\\displaystyle"):
+        text = text.replace(macro, "")
+    # \dfrac/\tfrac 换成 \frac：只剥样式前缀，别把 frac 这个词一起吃掉
+    for macro in ("\\dfrac", "\\tfrac"):
+        text = text.replace(macro, "\\frac")
+    return re.sub(r"[\s，。；：、,;（）(){}\[\]$\\*_-]", "", text.lower())
 
 
 def similarity(a: str, b: str) -> float:
-    """归一化后的相似度 0–1（05 §7.2 第 3 条的判据）。"""
+    """归一化后的相似度 0–1。
+
+    现在**不是**入库判据（0.9 那条在单段模式下被实测否证，见 `validate_segment`），
+    留着是因为 `backend/scripts/measure_segment_similarity.py` 靠它复现那组数据，
+    前端可以自己跑、不用信我的转述。删掉它等于把证据链一起删了。
+    """
     return SequenceMatcher(None, _normalize_for_compare(a), _normalize_for_compare(b)).ratio()
 
 
@@ -136,34 +153,39 @@ def validate_analysis(raw: dict) -> AnalysisResult:
     return AnalysisResult.model_validate(raw)
 
 
-def validate_quiz(
+def validate_segment(
     raw: dict,
-    expected_count: int = 3,
+    *,
+    difficulty: str | None = None,
     original_content_md: str | None = None,
-) -> list[GeneratedQuestionSpec]:
-    """05 §7.2 的六道校验：恰好 N 题、非空（由 schema 的 min_length 保证）、
-    不与原题高度重复（归一化相似度 <0.9）、不依赖图片、LaTeX 成对、长度限制。
+    sibling_content_mds: tuple[str, ...] = (),
+) -> GeneratedQuestionSpec:
+    """校验**一段**的输出（ADR-006：一次调用只出 1 道题）。
 
-    `original_content_md` 由 worker 用 partial 注入；不传就跳过与原题的比对。
+    05 §7.2 的校验项：形状非空（schema 保证）、不依赖图片、LaTeX 成对、题干 ≤3000，
+    以及"不许是抄来的"——原题和其它格用的是**同一条**判据：归一化后逐字相同才判死。
 
-    三题彼此只拒「归一化后完全相同」，**不套用 0.9**——这条是我一开始自己加的，
-    真模型 4 轮实测：含参解答题三题彼此相似度 0.846–0.966（模板一样、只有函数式不同），
-    按 0.9 拦会把连续两轮合法输出判死、任务直接 failed；
-    而与原题的相似度最高才 0.833，说明 05 那个 0.9 阈值本来就是冲着「抄原题」设计的。
+    为什么与原题也不再套 0.9（14 号 D3 原本写「与原题相似度 <0.9 保留」，这条以实测改）：
+    含参单调性讨论这类题的句子是固定模板，换函数族照样贴着原题写，相似度天然卡在 0.9 上下。
+    真模型 2 轮 ×3 段实测（同题 `f(x)=x-a\\ln x`）：
+    - 判死 4/9 与 3/9，而被判死的输出是 `$f(x)=x^2-a\\ln x$`、`$f(x)=ax-2\\sqrt x$`、
+      `$f(x)=x+\\frac{a}{x}$`、`$f(x)=x-ae^x$` —— **都是换了考查结构的新题，不是抄题**；
+    - 18 段里**没有一段真的逐字抄过原题**，0.9 阈值拦到的全是正常输出；
+    - 合法新题最高 0.967、真抄会更高，两个分布重叠，任何 0.9–0.97 的阈值都分不开。
+    所以数值阈值在这里没有鉴别力：改成逐字相同才拒，与同组其它格的判据统一。
+    「同模板换数字」现在是可接受的出题，产品若要禁止，得比"公式结构差异"而不是比字符相似度。
+
+    `difficulty`：模型自己标的档位一律改写成这一格请求的档位。详情页三张卡的难度徽章是
+    "格子"的属性，让用户点第 3 格（hard）却拿到一张标 easy 的卡，比模型标错更难解释。
     """
-    if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
-        raise ValueError('输出必须是 {"questions": [...]}')
-    questions = raw["questions"]
-    if len(questions) != expected_count:
-        raise ValueError(f"应生成 {expected_count} 道题，实际 {len(questions)} 道")
-    specs = [GeneratedQuestionSpec.model_validate(item) for item in questions]
-
-    seen: list[str] = []
-    for index, spec in enumerate(specs, start=1):
-        normalized = _normalize_for_compare(spec.content_md)
-        if normalized in seen:
-            raise ValueError(f"第 {index} 题与前面生成的题目完全相同")
-        seen.append(normalized)
-        if original_content_md and similarity(spec.content_md, original_content_md) >= 0.9:
-            raise ValueError(f"第 {index} 题与原题高度重复，换个数值或情境重出")
-    return specs
+    if not isinstance(raw, dict):
+        raise ValueError("一段输出必须是一个 JSON 对象")
+    spec = GeneratedQuestionSpec.model_validate(raw)
+    if difficulty is not None:
+        spec.difficulty = difficulty
+    normalized = _normalize_for_compare(spec.content_md)
+    if normalized in {_normalize_for_compare(other) for other in sibling_content_mds}:
+        raise ValueError("这一段与同组其它段完全相同，换个数值或情境重出")
+    if original_content_md and normalized == _normalize_for_compare(original_content_md):
+        raise ValueError("这一段与原题逐字相同，换个数值或情境重出")
+    return spec

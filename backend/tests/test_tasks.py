@@ -1,14 +1,19 @@
-"""任务队列与生成链路测试（BE-006/007）。
+"""任务队列与生成链路测试（BE-006/007 + ADR-006 三段并发）。
 
 worker 不起真线程：直接调同步函数（claim / execute），用 FakeClient 替身控制输出。
 """
 from __future__ import annotations
 
+import json
+from datetime import timedelta
+
 import pytest
 from sqlalchemy import select
 
 from app.ai.client import MockLLMClient
-from app.models import AiCallLog, GenerationTask, Question
+from app.core.config import settings
+from app.db.base import utcnow
+from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
 from app.services import task_worker
 from tests.conftest import auth_headers, register_user
 
@@ -31,6 +36,23 @@ def _create_question(client, token: str, payload: dict | None = None) -> dict:
     resp = client.post("/api/v1/questions", json=body, headers=auth_headers(token))
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def _generate(client, token: str, qid: int, **body) -> list[dict]:
+    """生题入队，返回 tasks[]（14 号 D1：不再有单个 task_id）。"""
+    resp = client.post(
+        f"/api/v1/questions/{qid}/generate", json=body, headers=auth_headers(token)
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()["tasks"]
+
+
+def _generated_rows(db, qid: int, alive_only: bool = True) -> list[GeneratedQuestion]:
+    with db() as s:
+        stmt = select(GeneratedQuestion).where(GeneratedQuestion.parent_question_id == qid)
+        if alive_only:
+            stmt = stmt.where(GeneratedQuestion.deleted_at.is_(None))
+        return list(s.scalars(stmt.order_by(GeneratedQuestion.target_index)))
 
 
 def test_create_question_already_enqueues_analysis_task(client, db) -> None:
@@ -66,28 +88,147 @@ def test_worker_executes_analysis_and_writes_back(client, db, fake_llm) -> None:
         assert log.prompt_version == "analyze_v1"
 
 
-def test_worker_executes_quiz_and_inserts_exactly_three(client, db, fake_llm) -> None:
+def test_generate_enqueues_three_segments(client, db) -> None:
+    """ADR-006：点一次"生成 3 道同类题"= 排 3 段任务，各带自己的格位与难度档。"""
     token = register_user(client)["access_token"]
-    question = _create_question(client, token)["question"]
+    qid = _create_question(client, token)["question"]["id"]
 
+    tasks = _generate(client, token, qid)
+    assert [(t["target_index"], t["difficulty"]) for t in tasks] == [
+        (1, "easy"), (2, "medium"), (3, "hard")
+    ]
+    assert len({t["task_id"] for t in tasks}) == 3
+    with db() as s:
+        rows = list(s.scalars(select(GenerationTask).where(GenerationTask.stage == "quiz")))
+        assert all(r.target_index and r.difficulty for r in rows)
+
+
+def test_difficulties_can_be_overridden_per_segment(client, db) -> None:
+    """14 号 Q1：接口收 difficulties（自定义档位，允许三段同档），UI 暂时不接。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    tasks = _generate(client, token, qid, difficulties=["medium", "medium", "medium"])
+    assert [t["difficulty"] for t in tasks] == ["medium"] * 3
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"difficulty": "easy"},  # 整组只给一个档：语义不明，拒
+        {"difficulties": ["easy"]},  # 整组要给 3 个
+        {"target_index": 2, "difficulties": ["easy", "medium", "hard"]},  # 单段不该给列表
+        {"target_index": 4},  # 只有三段
+        {"difficulties": ["easy", "medium", "extreme"]},  # 档位不在码表里
+    ],
+)
+def test_generate_rejects_bad_request_shape(client, db, body) -> None:
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
     resp = client.post(
-        f"/api/v1/questions/{question['id']}/generate", headers=auth_headers(token)
+        f"/api/v1/questions/{qid}/generate", json=body, headers=auth_headers(token)
     )
-    assert resp.status_code == 200
-    task_id = resp.json()["task_id"]
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
 
-    task_worker.execute_task(db, task_id)
+
+def test_single_segment_enqueue_only_touches_that_slot(client, db) -> None:
+    """14 号 Q4：单段重排收 target_index + difficulty，不能顺手把另外两段也排上。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    tasks = _generate(client, token, qid, target_index=3, difficulty="hard")
+    assert len(tasks) == 1
+    assert (tasks[0]["target_index"], tasks[0]["difficulty"]) == (3, "hard")
+
+
+def test_three_segments_fill_three_slots_in_order(client, db, fake_llm) -> None:
+    """每段成功只写自己那一格；三段跑完详情页正好三张卡。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+
+    for task in _generate(client, token, qid):
+        task_worker.execute_task(db, task["task_id"])
 
     detail = client.get(
-        f"/api/v1/questions/{question['id']}?include=generated",
-        headers=auth_headers(token),
+        f"/api/v1/questions/{qid}?include=generated", headers=auth_headers(token)
     ).json()
-    assert len(detail["generated_questions"]) == 3
-    types = {g["question_type"] for g in detail["generated_questions"]}
-    assert types == {"solve", "blank", "choice"}
-    for generated in detail["generated_questions"]:
-        assert generated["model"] == "mock"
-        assert generated["prompt_version"] == "generate_v1"
+    cards = detail["generated_questions"]
+    assert [c["target_index"] for c in cards] == [1, 2, 3]
+    assert [c["difficulty"] for c in cards] == ["easy", "medium", "hard"]
+    assert [c["question_type"] for c in cards] == ["blank", "solve", "choice"]
+    for card in cards:
+        assert card["model"] == "mock"
+        assert card["prompt_version"] == "generate_v2"
+
+
+def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
+    """14 号 P11 / Q6：一段失败不影响其余两段，失败那格可以单独重试。"""
+
+    class OnlySlot3Broken:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def complete(self, operation, messages):
+            if "第 3 道" in messages[-1]["content"]:
+                from app.ai.errors import AIInvalidOutputError
+
+                raise AIInvalidOutputError("这一段输出烂了")
+            return self.inner.complete(operation, messages)
+
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    tasks = _generate(client, token, qid)
+    for task in tasks[:2]:
+        task_worker.execute_task(db, task["task_id"])
+
+    fake_llm["client"] = OnlySlot3Broken(MockLLMClient())
+    task_worker.execute_task(db, tasks[2]["task_id"])  # 第 3 段：失败 → requeue
+    task_worker.execute_task(db, tasks[2]["task_id"])  # 重试仍失败 → failed
+
+    with db() as s:
+        third = s.get(GenerationTask, tasks[2]["task_id"])
+        assert third.status == "failed"
+        assert third.target_index == 3 and third.difficulty == "hard"
+    alive = _generated_rows(db, qid)
+    assert [row.target_index for row in alive] == [1, 2]  # 前两段的成果没被牵连
+
+    # 单段重试：只补第 3 格
+    fake_llm["client"] = MockLLMClient()
+    resp = client.post(f"/api/v1/tasks/{tasks[2]['task_id']}/retry", headers=auth_headers(token))
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "queued"
+    task_worker.execute_task(db, tasks[2]["task_id"])
+    assert [row.target_index for row in _generated_rows(db, qid)] == [1, 2, 3]
+
+
+def test_group_regenerate_soft_deletes_old_group_on_enqueue(client, db, fake_llm) -> None:
+    """14 号 Q2-A：整组重生成入队即软删旧组（产品接受"生成中看不到旧组"）。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    for task in _generate(client, token, qid):
+        task_worker.execute_task(db, task["task_id"])
+    assert len(_generated_rows(db, qid)) == 3
+
+    _generate(client, token, qid)  # 只入队，一段都还没跑
+    assert _generated_rows(db, qid) == []
+    # 软删不物理删：practice_records 的外键还要指回这些行
+    assert len(_generated_rows(db, qid, alive_only=False)) == 3
+
+
+def test_single_segment_regenerate_keeps_other_slots(client, db, fake_llm) -> None:
+    """单段重生成不许删整组——那是另外两段刚写好的成果。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    for task in _generate(client, token, qid):
+        task_worker.execute_task(db, task["task_id"])
+
+    retry = _generate(client, token, qid, target_index=2, difficulty="medium")
+    task_worker.execute_task(db, retry[0]["task_id"])
+
+    alive = _generated_rows(db, qid)
+    assert [row.target_index for row in alive] == [1, 2, 3]
+    # 只有第 2 格留了历史行：替换发生在同一格内
+    history = [row for row in _generated_rows(db, qid, alive_only=False) if row.deleted_at]
+    assert [row.target_index for row in history] == [2]
 
 
 def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
@@ -121,15 +262,41 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
         assert task.error_message
 
 
-def test_manual_retry_requeues_failed_task(client, db, fake_llm) -> None:
+def test_requeue_stops_after_requeue_deadline(client, db, fake_llm) -> None:
+    """14 号 D8：跑了 90s 以上的段不再自动重排，直接终态，免得用户干等第二轮。"""
+    from app.ai.errors import AIInvalidOutputError
+
+    class BrokenClient:
+        def complete(self, operation, messages):
+            raise AIInvalidOutputError("超时了")
+
+    fake_llm["client"] = BrokenClient()
     token = register_user(client)["access_token"]
-    _create_question(client, token)["question"]
-    with db() as s:
-        task_id = s.scalar(select(GenerationTask.id))
-    task_worker.execute_task(db, task_id)  # BrokenClient 上一测试的替身已还原
+    qid = _create_question(client, token)["question"]["id"]
+    task_id = _generate(client, token, qid)[0]["task_id"]
 
     with db() as s:
-        assert s.get(GenerationTask, task_id).status == "done"  # mock 正常输出
+        task = s.get(GenerationTask, task_id)
+        task.status = "running"
+        task.started_at = utcnow() - timedelta(seconds=settings.task_requeue_deadline_s + 30)
+        s.commit()
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        task = s.get(GenerationTask, task_id)
+        assert task.status == "failed"
+        assert task.retry_index == 0  # 没排第二轮
+
+
+def test_manual_retry_requeues_failed_task(client, db, fake_llm) -> None:
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    task_id = _generate(client, token, qid)[0]["task_id"]
+    task_worker.execute_task(db, task_id)  # mock 正常输出
+
+    with db() as s:
+        assert s.get(GenerationTask, task_id).status == "done"
 
     # 手动把任务改成 failed 再 retry（模拟任务中心操作）
     with db() as s:
@@ -150,18 +317,14 @@ def test_manual_retry_requeues_failed_task(client, db, fake_llm) -> None:
     assert resp.status_code == 400
 
 
-def test_enqueue_reuses_active_task(client, db) -> None:
-    """12号 §3.3：同一 question+stage 只允许一个 active 任务。"""
+def test_enqueue_reuses_active_segment(client, db) -> None:
+    """12号 §3.3：同一格只允许一个 active 任务；重复点生成不会排成 6 段。"""
     token = register_user(client)["access_token"]
-    question = _create_question(client, token)["question"]
+    qid = _create_question(client, token)["question"]["id"]
 
-    first = client.post(
-        f"/api/v1/questions/{question['id']}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
-    second = client.post(
-        f"/api/v1/questions/{question['id']}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
-    assert first == second
+    first = _generate(client, token, qid)
+    second = _generate(client, token, qid)
+    assert [t["task_id"] for t in first] == [t["task_id"] for t in second]
 
 
 def test_task_list_filters_and_ownership(client, db) -> None:
@@ -212,51 +375,23 @@ class _ScriptedClient:
         )
 
 
-def test_second_generate_keeps_exactly_three_questions(client, db, fake_llm) -> None:
-    """重新生成整组是替换不是追加：详情页的「3 张题卡」不能变 6 张。"""
-    token = register_user(client)["access_token"]
-    qid = _create_question(client, token)["question"]["id"]
-    from app.models import GeneratedQuestion
-
-    for _ in range(2):
-        task_id = client.post(
-            f"/api/v1/questions/{qid}/generate", headers=auth_headers(token)
-        ).json()["task_id"]
-        task_worker.execute_task(db, task_id)
-
-    detail = client.get(
-        f"/api/v1/questions/{qid}?include=generated", headers=auth_headers(token)
-    ).json()
-    assert len(detail["generated_questions"]) == 3
-    with db() as s:
-        total = len(list(s.scalars(select(GeneratedQuestion))))
-        alive = len(list(s.scalars(select(GeneratedQuestion).where(GeneratedQuestion.deleted_at.is_(None)))))
-    assert (total, alive) == (6, 3)  # 旧组软删留痕，practice_records 的外键不悬空
+def _single(content_md: str, difficulty: str = "easy") -> str:
+    return json.dumps({
+        "question_type": "solve",
+        "content_md": content_md,
+        "answer_md": "略",
+        "explanation_md": "略",
+        "difficulty": difficulty,
+    }, ensure_ascii=False)
 
 
 def test_quiz_copying_original_question_is_rejected(client, db, fake_llm) -> None:
-    """原题题干要传进生成校验，否则「把原题抄一遍」这种输出能直接入库。"""
-    import json
-
+    """原题题干要传进段校验，否则「把原题抄一遍」这种输出能直接入库。"""
     token = register_user(client)["access_token"]
     body = _create_question(client, token)["question"]
-    copied = {
-        "questions": [
-            {
-                "question_type": "solve",
-                "content_md": body["content_md"],
-                "answer_md": "略",
-                "explanation_md": "略",
-                "difficulty": "easy",
-            }
-        ]
-        * 3
-    }
-    fake_llm["client"] = _ScriptedClient(json.dumps(copied, ensure_ascii=False))
+    fake_llm["client"] = _ScriptedClient(_single(body["content_md"]))
 
-    task_id = client.post(
-        f"/api/v1/questions/{body['id']}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
+    task_id = _generate(client, token, body["id"])[0]["task_id"]
     task_worker.execute_task(db, task_id)  # 第一次失败 → requeue
     task_worker.execute_task(db, task_id)  # 第二次仍失败 → failed
 
@@ -264,21 +399,39 @@ def test_quiz_copying_original_question_is_rejected(client, db, fake_llm) -> Non
         task = s.get(GenerationTask, task_id)
         assert task.status == "failed"
         assert task.error_code == "AI_INVALID_OUTPUT"
-        assert "原题高度重复" in task.error_message
+        assert "原题逐字相同" in task.error_message
+    assert _generated_rows(db, body["id"]) == []
+
+
+def test_segment_rejects_copy_of_a_sibling(client, db, fake_llm) -> None:
+    """ADR-006：同组其它段的题干也要参与查重——否则两段可以逐字相同（14 号 §2.1-3）。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    tasks = _generate(client, token, qid)
+    task_worker.execute_task(db, tasks[0]["task_id"])  # 第 1 格先落库
+    first_content = _generated_rows(db, qid)[0].content_md
+
+    fake_llm["client"] = _ScriptedClient(_single(first_content, "medium"))
+    task_worker.execute_task(db, tasks[1]["task_id"])
+    task_worker.execute_task(db, tasks[1]["task_id"])
+
+    with db() as s:
+        task = s.get(GenerationTask, tasks[1]["task_id"])
+        assert task.status == "failed"
+        assert "同组其它段完全相同" in task.error_message
+    assert [row.target_index for row in _generated_rows(db, qid)] == [1]  # 第 1 格不受影响
 
 
 def test_write_back_failure_does_not_leave_task_running(client, db, fake_llm, monkeypatch) -> None:
     """落库异常也得有终态——任务停在 running 会白占并发位，重启前没人再碰它。"""
     token = register_user(client)["access_token"]
     qid = _create_question(client, token)["question"]["id"]
-    task_id = client.post(
-        f"/api/v1/questions/{qid}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
+    task_id = _generate(client, token, qid)[0]["task_id"]
 
     def boom(*args, **kwargs):
         raise RuntimeError("库写不进去")
 
-    monkeypatch.setattr(task_worker, "_apply_quiz", boom)
+    monkeypatch.setattr(task_worker, "_apply_segment", boom)
     task_worker.execute_task(db, task_id)
 
     with db() as s:
@@ -296,17 +449,17 @@ def test_missing_task_uses_task_not_found(client, db) -> None:
     assert resp.json()["detail"]["code"] == "TASK_NOT_FOUND"
 
 
-def test_enqueue_dedupe_key_includes_target_index(client, db) -> None:
-    """整组任务（target_index=NULL）和单题任务（1/2/3）不能互相顶掉。"""
+def test_analysis_task_and_segment_do_not_dedupe_each_other(client, db) -> None:
+    """去重键是 question+stage+target_index：analysis（NULL）和三段互不顶掉。"""
     from app.services import task_service
 
     token = register_user(client)["access_token"]
     qid = _create_question(client, token)["question"]["id"]
     with db() as s:
-        group = task_service.enqueue(s, 1, qid, stage="quiz")
-        single = task_service.enqueue(s, 1, qid, stage="quiz", target_index=2)
-    assert group.id != single.id
-    assert single.target_index == 2
+        group = task_service.enqueue_generation(s, 1, qid)
+        analysis = task_service.enqueue(s, 1, qid, stage="analysis")
+    assert len(group) == 3
+    assert analysis.id not in {t.id for t in group}
 
 
 def test_invalid_output_keeps_raw_text_in_call_log(client, db, fake_llm) -> None:
@@ -315,9 +468,7 @@ def test_invalid_output_keeps_raw_text_in_call_log(client, db, fake_llm) -> None
     qid = _create_question(client, token)["question"]["id"]
     fake_llm["client"] = _ScriptedClient('{"questions": [{" nonsense": 1}]}')
 
-    task_id = client.post(
-        f"/api/v1/questions/{qid}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
+    task_id = _generate(client, token, qid)[0]["task_id"]
     task_worker.execute_task(db, task_id)
 
     with db() as s:
@@ -329,8 +480,6 @@ def test_invalid_output_keeps_raw_text_in_call_log(client, db, fake_llm) -> None
 
 def test_analysis_fills_missing_answer_but_never_overwrites(client, db, fake_llm) -> None:
     """05 §7.1：answer_md/explanation_md 走 questions 正字段，且只在原题为空时补。"""
-    from app.models import Question
-
     token = register_user(client)["access_token"]
 
     # 1) 原题没填答案 → 分析后补上
@@ -373,8 +522,6 @@ def test_analysis_fills_missing_answer_but_never_overwrites(client, db, fake_llm
 
 def test_analysis_merges_tags_instead_of_replacing_them(client, db, fake_llm) -> None:
     """AI 知识点是追加：用户手动打的标签不能被分析冲掉（#5 review 阻塞 2）。"""
-    from app.models import Question
-
     token = register_user(client)["access_token"]
     body = _create_question(client, token, {
         "subject": "高等数学",
@@ -391,20 +538,40 @@ def test_analysis_merges_tags_instead_of_replacing_them(client, db, fake_llm) ->
     assert {"极值", "单调性"} <= names  # AI 知识点已追加
 
 
-def test_task_out_exposes_error_message(client, db, fake_llm) -> None:
-    """任务中心要能显示失败原因，只有 error_code 就得让前端硬背码表。"""
+def test_generation_prompt_gets_knowledge_points_from_analysis(client, db, fake_llm) -> None:
+    """三段并发的"同知识点"靠分析结果喂进去：分析跑完再生成，提示词里要有知识点。"""
+    seen: list[str] = []
+
+    class SpyClient:
+        def complete(self, operation, messages):
+            seen.append(messages[-1]["content"])
+            return MockLLMClient().complete(operation, messages)
+
+    token = register_user(client)["access_token"]
+    body = _create_question(client, token)
+    task_worker.execute_task(db, body["task_id"])  # 先跑分析
+    fake_llm["client"] = SpyClient()
+    quiz_tasks = _generate(client, token, body["question"]["id"])
+    task_worker.execute_task(db, quiz_tasks[0]["task_id"])
+
+    assert "单调性" in seen[-1]  # 分析出的知识点进了生成提示词
+
+
+def test_task_out_exposes_slot_and_error_message(client, db, fake_llm) -> None:
+    """任务中心要能显示"生题 2/3"和失败原因（14 号 Q7 / #6 补的 error_message）。"""
     token = register_user(client)["access_token"]
     qid = _create_question(client, token)["question"]["id"]
-    task_id = client.post(
-        f"/api/v1/questions/{qid}/generate", headers=auth_headers(token)
-    ).json()["task_id"]
+    tasks = _generate(client, token, qid)
 
     with db() as s:
-        task = s.get(GenerationTask, task_id)
+        task = s.get(GenerationTask, tasks[1]["task_id"])
         task.status = "failed"
         task.error_code = "AI_INVALID_OUTPUT"
-        task.error_message = "第 2 题与原题高度重复"
+        task.error_message = "与原题高度重复"
         s.commit()
 
-    items = client.get("/api/v1/tasks", params={"question_id": qid}, headers=auth_headers(token)).json()["items"]
-    assert items[0]["error_message"] == "第 2 题与原题高度重复"
+    items = client.get(f"/api/v1/tasks?question_id={qid}", headers=auth_headers(token)).json()["items"]
+    quiz_items = {i["target_index"]: i for i in items if i["stage"] == "quiz"}
+    assert sorted(quiz_items) == [1, 2, 3]
+    assert quiz_items[2]["difficulty"] == "medium"
+    assert quiz_items[2]["error_message"] == "与原题高度重复"

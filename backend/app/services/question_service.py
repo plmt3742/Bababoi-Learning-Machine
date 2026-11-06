@@ -179,7 +179,11 @@ def list_tasks(session: Session, question_id: int) -> list[GenerationTask]:
 def list_generated(
     session: Session, user_id: int, question_id: int
 ) -> list[GeneratedQuestion]:
-    """某错题名下的相似题，旧→新（target_index 顺序由 created_at 天然保证）。"""
+    """某错题名下的相似题，按 ①②③ 格位排（ADR-006）。
+
+    用 coalesce 而不是 NULLS LAST：MySQL 8 不认 NULLS LAST 语法，而迁移前的老行
+    target_index 是 NULL，得排在三段之后、彼此仍按 created_at 走。
+    """
     return list(
         session.scalars(
             select(GeneratedQuestion)
@@ -188,7 +192,11 @@ def list_generated(
                 GeneratedQuestion.user_id == user_id,
                 GeneratedQuestion.deleted_at.is_(None),
             )
-            .order_by(GeneratedQuestion.created_at, GeneratedQuestion.id)
+            .order_by(
+                func.coalesce(GeneratedQuestion.target_index, 9999),
+                GeneratedQuestion.created_at,
+                GeneratedQuestion.id,
+            )
         )
     )
 

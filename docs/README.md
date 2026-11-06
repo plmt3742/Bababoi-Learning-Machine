@@ -41,6 +41,7 @@
 | [agent/13-backend-merge-audit.md](agent/13-backend-merge-audit.md) | 后端合并审查、未合并分支 review、CI 方案 | 合并审查 / 交接 |
 | [agent/14-generation-three-segments-reply.md](agent/14-generation-three-segments-reply.md) | 三段并发生成：Q1–Q7、PRD/05 改动、图片实测回复 | 三段并发 / 生成链路 |
 | [agent/15-backend-sync-20261106.md](agent/15-backend-sync-20261106.md) | 后端对接同步：已合 PR、下一步、接口确认 | 后端对接 / 联调 |
+| [agent/16-three-segments-frontend-review.md](agent/16-three-segments-frontend-review.md) | 三段并发前端意见单原文（判据/同函数式/#38 让位/迁移检查）+ 后端逐条处置 | 三段并发 / 生成链路 |
 
 ### 产品设计
 
@@ -103,6 +104,7 @@
 | 2026-11-04 | 确认大学理科、DeepSeek 多模态识图、数据库 schema 归人机；新增 ADR-003、11-agent-handoff、.gitignore | 霹雳马桶 / agent |
 | 2026-11-05 | 同步产品设计状态：01/02/04/06/07/08 已定稿，03 部分完成，原型可用；补充 12-backend-alignment | 霹雳马桶 / agent |
 | 2026-11-05 | 同步 origin/main：补 13-backend-merge-audit；新增 ADR-004 图片文本提取 v2；后端通知 issue #13 | 霹雳马桶 / agent |
+| 2026-11-06 | 新增 16-three-segments-frontend-review（前端意见单入库当真相源）与 ADR-006 三段并发；05 升 v0.5.1、04 补 BE-021/BE-022 | 人机 / agent |
 | 2026-11-06 | 同步前端进度：FE-009/019（PR #19）与全量 Calm Academic 视觉覆写（PR #21）已合入 main；旧 PR #20 关闭；更新 00/03/04/11 + 04 design system + 02/06/07 + frontend README | 霹雳马桶 / agent |
 | 2026-11-06 | 新增 ADR-005：独立 `admin/` 为 P1 内部运维台，不进入 11.29 演示；同步 01-project/06-file-tree/README/AGENTS | 霹雳马桶 / 人机 |
 | 2026-11-06 | 会话交接同步：main @ 7ee6029；前端 FE-001~024 页面完成；后端剩余 BE-014/BE-018/BE-013/BE-020/ADR-006；新增 ADR-007 BYOK | 霹雳马桶 / agent |

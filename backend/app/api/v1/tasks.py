@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.deps import get_current_user
 from app.db.session import get_session
 from app.models import User
-from app.schemas.question import TaskOut
+from app.schemas.question import GenerateRequest, TaskOut
 from app.services import task_service
 
 router = APIRouter(tags=["tasks"])
@@ -31,12 +31,29 @@ def analyze_question(
 @router.post("/questions/{question_id}/generate")
 def generate_question(
     question_id: int,
+    body: GenerateRequest | None = None,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict:
-    """生成 3 道同类题：入队 quiz 任务；worker 完成后写 generated_questions。"""
-    task = task_service.enqueue(session, user.id, question_id, stage="quiz")
-    return _task_id_response(task)
+    """生题入队（ADR-006）：整组排 3 段、单段重排 1 段，返回本次涉及的段。
+
+    请求体可整个省略（详情页那个"生成 3 道同类题"按钮就是这么点的），
+    省略 = 整组 + 默认递增难度。
+    """
+    params = body or GenerateRequest()
+    tasks = task_service.enqueue_generation(
+        session, user.id, question_id,
+        target_index=params.target_index,
+        difficulties=params.difficulties,
+        difficulty=params.difficulty,
+    )
+    # 14 号 D1 / Q3：不再返回单个 task_id，一次切净（前端 FE-023 #28 已按 tasks[] 兼容过）
+    return {
+        "tasks": [
+            {"task_id": task.id, "target_index": task.target_index, "difficulty": task.difficulty}
+            for task in tasks
+        ]
+    }
 
 
 @router.get("/tasks")

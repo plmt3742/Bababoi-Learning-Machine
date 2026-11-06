@@ -150,6 +150,10 @@ CONTENT_MD_MAX = 5000
 
 MasterStatus = Literal["unmastered", "reviewing", "mastered"]
 
+# ADR-006：三段并发的难度档。三段的默认递增档（easy/medium/hard）写在
+# services/task_service，这里只管"接口能收哪些值"。
+SegmentDifficulty = Literal["easy", "medium", "hard"]
+
 
 def validate_type_payload(
     question_type: str, content_md: str, options: list | None, blanks: list | None
@@ -266,12 +270,38 @@ class TaskOut(BaseModel):
     stage: str
     status: str
     target_index: int | None
+    difficulty: SegmentDifficulty | None  # ADR-006：这一段的难度档；analysis 任务为 None
     retry_index: int
     error_code: str | None
     error_message: str | None  # 任务中心要显示「为什么失败」，只有 code 前端得硬背码表
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class GenerateRequest(BaseModel):
+    """生题入队参数（14 号 D1/Q4）。
+
+    - 整组：不给 `target_index`，可给 3 个 `difficulties`；不给就按默认递增档
+    - 单段：给 `target_index`（1–3），可给单个 `difficulty`；不给按那一格的默认档
+    两个难度字段混用是给不出：整组只给 `difficulty` 会变成"三格同一个档"，
+    而 UI 上的自定义难度（P1）也应该是 3 个值，所以宁可直接拒掉。
+    """
+
+    target_index: int | None = Field(default=None, ge=1, le=3)
+    difficulty: SegmentDifficulty | None = None
+    difficulties: list[SegmentDifficulty] | None = None
+
+    @model_validator(mode="after")
+    def shape_matches_scope(self) -> GenerateRequest:
+        if self.target_index is None:
+            if self.difficulty is not None:
+                raise ValueError("整组生成请用 difficulties；difficulty 只在指定 target_index 时给")
+            if self.difficulties is not None and len(self.difficulties) != 3:
+                raise ValueError(f"difficulties 需要 3 个难度档，实际 {len(self.difficulties)} 个")
+        elif self.difficulties is not None:
+            raise ValueError("单段生成请用 difficulty；difficulties 只在整组时给")
+        return self
 
 
 class QuestionOut(BaseModel):
@@ -354,6 +384,8 @@ class GeneratedQuestionOut(BaseModel):
     options: list | None
     blanks: list | None
     difficulty: str | None
+    # ADR-006：①②③ 的格位。前端三张卡按它对齐，NULL 是迁移前的老数据
+    target_index: int | None
     model: str | None
     prompt_version: str | None
     validation_status: str
