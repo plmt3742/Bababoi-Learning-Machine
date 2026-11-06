@@ -134,7 +134,8 @@ ID:
 |---|---|---|---|---|---|---|
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
 | BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（前端意见单 §三） | TODO |
-| BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做 | 取消 |
+| BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 实测依据（四张真图 × thinking 三档，11-07）：转录开思考 15.0–67.6s、输出 2750–12792 token，p4 在 8000 上限下**正文被思考挤成 0 字符**；结构化开不开**结果逐字一致**且只要 2.3–4.2s。拆法：step1 只出文字（必须带 `chapter`——页眉只有看图那步拿得到）→ step2 纯文本结构化（空位统一改写成 `___`，否则 `\underline{\qquad}` 让 `count_blanks` 数出 0）。两步在后端串成一次 HTTP，前端契约不变。代价：识图墙钟 3s→17–60s，`RECOGNIZE_CLIENT_TIMEOUT_S` 90→≥180、step1 `max_tokens`→≥16000，`ai_call_logs` 每次识图两行、`prompt_version` 拆两个 | TODO（M1；11-08 冻结前不动链路） |
+| BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |
 | BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT /drafts/me`；每账号 1 份；防抖覆盖；测试 | TODO |
@@ -153,7 +154,7 @@ ID:
 |---|---|---|---|---|---|---|
 | BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
 | BE-013 | 统计接口 | 人机 | P1 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
-| BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | 进行中（PR A：uploads + from-image + `vision_extract_v2`，base 叠在三段分支上；BE-014 前置的删列与探针脚本走 PR B）。口径按 05 v0.6.3：**识图交付"文本题目条目"**，结构不自洽的整条降级成纯文本 + warning，结构化交给 FE-020 编辑器；每题另带 `subject`/`chapter`/`difficulty` 初判，且**请求带了 `subject` 就逐条覆写**（17 号对齐清单 §三 规则 1） |
+| BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | 进行中（PR A：uploads + from-image + `vision_extract_v2`，base 叠在三段分支上；BE-014 前置的删列与探针脚本走 PR B）。口径按 05 v0.6.3：**识图交付"文本题目条目"**，结构不自洽的整条降级成纯文本 + warning，结构化交给 FE-020 编辑器；每题另带 `subject`/`chapter`/`difficulty` 初判，且**请求带了 `subject` 就逐条覆写**（17 号对齐清单 §三 规则 1）；v0.6.4 起 `incomplete` 认"条目带 warning"、顶层点得到第几条的说明下沉到条目（05 §7.0） |
 | BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | 「重排该段」已由 `POST /questions/{id}/generate` + `target_index` 覆盖（ADR-006）；剩下是 `/generated-questions/{id}/regenerate` 与质量反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
 | BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；并发位与重试窗口由 BE-021 调整） |

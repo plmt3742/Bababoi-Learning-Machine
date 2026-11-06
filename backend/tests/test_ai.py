@@ -457,6 +457,43 @@ def test_extraction_degrades_inconsistent_structure_to_plain_text() -> None:
         assert "Value error" not in joined and "should have" not in joined, joined
 
 
+def test_extraction_flags_every_item_warning_as_incomplete() -> None:
+    """`incomplete` 认"这条有 warning"，不认字面 `[不清]`。
+
+    实测四张真图（11-07）：模型把"被截断/辨认不清"写进 warnings 却不打 `[不清]` 标记，
+    按老判据这条半截题干会带着 `incomplete=false` 进前端——而前端的确认步骤只看标志位
+    （17 号 §四-4），等于残缺题一路直通 `POST /questions`。
+    """
+    result = validator.validate_extraction(_extract_payload(
+        _item(1, "设 $X$ 的密度为 $f(x)$，求常数 $a$。（公式后半截在下一页）",
+              warnings=["题干下方公式被截断，无法辨认"]),
+        _item(2, "如图，在三角形 $ABC$ 中，$CD$ 是高，求 $CD$。", "solve", has_figure=True),
+        _item(3, "求 $f(x)=x^2$ 的极小值。"),
+    ))
+    truncated, figure, clean = result["questions"]
+    assert truncated.incomplete is True, "没打 [不清] 标记也算残缺"
+    assert truncated.question_type == "solve" and "截断" in " ".join(truncated.warnings)
+    assert figure.incomplete is True, "含图＝本阶段只拿到文字，属于待核对"
+    assert clean.incomplete is False and clean.warnings == []
+
+
+def test_extraction_sinks_locatable_top_warnings_onto_the_item() -> None:
+    """顶层那句点得到第几条，就下沉到那条并把 `incomplete` 顶起来。
+
+    实测四张真图的顶层说明 4/4 都是「第 5 题…」「第 1 条…」这种开头（11-07），
+    留在顶层就只有页面横幅看得见、卡片上没有，用户照样直接提交半截题干。
+    """
+    result = validator.validate_extraction({
+        "questions": [_item(1, "设 $X$ 的密度为 $f(x)$，求常数 $a$。"), _item(2, "求 $a$ 的值。")],
+        "warnings": ["第 2 题题干下方公式被图片下边缘截断", "整页光线偏暗"],
+    })
+    first, second = result["questions"]
+    assert second.incomplete is True, "下沉之后标志位要跟上"
+    assert any("截断" in w for w in second.warnings)
+    assert first.incomplete is False and first.warnings == []
+    assert result["warnings"] == ["整页光线偏暗"], "点不到具体条目的才留在顶层"
+
+
 def test_extraction_keeps_structure_when_it_is_self_consistent() -> None:
     """自洽就照原样给回：识图不是"只会给文本"，已经认全的选择/填空题没必要拆平。"""
     result = validator.validate_extraction(_extract_payload(

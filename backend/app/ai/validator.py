@@ -27,6 +27,10 @@ GENERATED_CONTENT_MD_MAX = 3000
 
 # 05 §7.2 第 4 条：生成题不能依赖图片
 _IMAGE_DEPENDENCY = re.compile(r"如[图中下上]|见下?图|照图")
+# 顶层说明里能定位到具体某一条的那句。实测四张真图 4/4 都写成「第5题题干被截断」
+# 「第1条仅能辨认到公式」这种开头——定位得到就下沉到条目，因为前端的确认步骤
+# 只看条目的 incomplete（17 号 §四-4），写在顶层就等于用户看不见。
+_TOP_ITEM_POINTER = re.compile(r"^第\s*(\d+)\s*(?:条|题|小问|个)")
 
 
 def _normalize_for_compare(text: str) -> str:
@@ -264,6 +268,9 @@ def validate_extraction(raw: dict) -> dict:
        **提交那一步**才被 `POST /questions` 的严格校验拒掉，而且拒的原因他看不见。
        结构化交还给 FE-020 的三题型编辑器，那里用户改得动。
 
+    **判据只有一条是硬的：条目带任何 `warnings` 就置 `incomplete=true`**——前端的确认步骤
+    看的是标志位而不是文案（17 号 §四-4），残缺只写在 warnings 里等于没告诉用户要核对。
+
     单条坏输出（连对象都不是）只丢那一条 + 顶层 warning，不拖垮整张图；
     图里没题返回 `questions=[]` + warning，**这不是错误**。
     LaTeX 定界符统一规范化（实测 `json_object` 模式下模型更爱吐 `\\(...\\)`），
@@ -317,7 +324,30 @@ def validate_extraction(raw: dict) -> dict:
             item.warnings.append(
                 f"{structure_problem}，已按文本题返回；需要选择题/填空题请在编辑器里补结构"
             )
+        if item.warnings:
+            # 残缺必须落到 `incomplete` 上，不能只留在 `warnings` 里：17 号 §四-4 让前端
+            # 「`incomplete=true` 的条目要用户补完才能提交」，那条确认步骤读的是标志位，
+            # 不是文案。实测四张真图（11-07）：模型把"被截断/辨认不清"写进 warnings，
+            # 却不打 `[不清]` 标记，于是半截题干带着 `incomplete=false` 进了前端。
+            item.incomplete = True
         items.append(item)
+
+    # 顶层那句只要点得到第几条，就搬到那一条上去（顺带把 incomplete 顶起来）。
+    # 实测模型常把"第 5 题被截断"写在顶层而不是条目的 warnings 里，留在顶层就变成
+    # 横幅上有、卡片上没有——用户照样会直接提交半截题干。
+    # 按 item.index（= 模型自己的编号）查而不是按列表下标：坏输出被丢掉之后列表会前移，
+    # 用列表下标会把"第 1 条题干为空，已跳过"挂到幸存下来的那道题上（测试里真复现过）。
+    by_index = {item.index: item for item in items}
+    kept: list[str] = []
+    for text in top_warnings:
+        match = _TOP_ITEM_POINTER.match(text.strip())
+        target = by_index.get(int(match.group(1))) if match else None
+        if target is not None:
+            target.warnings.append(text)
+            target.incomplete = True
+        else:
+            kept.append(text)
+    top_warnings = kept
 
     if not items and not top_warnings:
         top_warnings.append("没有从图片里辨认出题目")
