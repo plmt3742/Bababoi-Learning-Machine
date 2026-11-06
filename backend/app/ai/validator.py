@@ -140,11 +140,14 @@ def validate_quiz(
     raw: dict,
     expected_count: int = 3,
     original_content_md: str | None = None,
+    original_question_type: str | None = None,
 ) -> list[GeneratedQuestionSpec]:
-    """05 §7.2 的六道校验：恰好 N 题、非空（由 schema 的 min_length 保证）、
-    不与原题高度重复（归一化相似度 <0.9）、不依赖图片、LaTeX 成对、长度限制。
+    """05 §7.2 的七道校验：恰好 N 题、非空（由 schema 的 min_length 保证）、
+    题型与原题一致、不与原题高度重复（归一化相似度 <0.9）、不依赖图片、
+    LaTeX 成对、长度限制。
 
-    `original_content_md` 由 worker 用 partial 注入；不传就跳过与原题的比对。
+    `original_content_md` / `original_question_type` 由 worker 用 partial 注入；
+    不传就跳过与原题的比对。
 
     三题彼此只拒「归一化后完全相同」，**不套用 0.9**——这条是我一开始自己加的，
     真模型 4 轮实测：含参解答题三题彼此相似度 0.846–0.966（模板一样、只有函数式不同），
@@ -157,6 +160,19 @@ def validate_quiz(
     if len(questions) != expected_count:
         raise ValueError(f"应生成 {expected_count} 道题，实际 {len(questions)} 道")
     specs = [GeneratedQuestionSpec.model_validate(item) for item in questions]
+
+    if original_question_type is not None:
+        mismatched = [
+            index
+            for index, spec in enumerate(specs, start=1)
+            if spec.question_type != original_question_type
+        ]
+        if mismatched:
+            raise ValueError(
+                "生成题题型必须与原题一致"
+                f"（原题 {original_question_type}，第 {mismatched[0]} 题为 "
+                f"{specs[mismatched[0] - 1].question_type}）"
+            )
 
     seen: list[str] = []
     for index, spec in enumerate(specs, start=1):

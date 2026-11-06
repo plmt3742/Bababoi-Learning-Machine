@@ -13,7 +13,7 @@ from app.ai.client import OPERATION_ANALYSIS, OPERATION_QUIZ
 # generated_questions.prompt_version。以前是一个全局 "v0"，分析和生成共用一个号，
 # 改了生成的 prompt 会把分析的版本号也带上去，排查效果时分不开。
 PROMPT_VERSION_ANALYZE = "analyze_v1"
-PROMPT_VERSION_GENERATE = "generate_v1"
+PROMPT_VERSION_GENERATE = "generate_v2"
 
 
 def prompt_version(operation: str) -> str:
@@ -57,8 +57,8 @@ def quiz_messages(question: dict) -> list[dict]:
     system = (
         f"{_SYSTEM_COMMON}\n"
         "任务：仿照这道错题的考点与难度，生成恰好 3 道同知识点的新题，数值和情境必须与原题不同。"
-        "题型首选与原题一致（原题是选择题就出选择题）；若为了考查同一知识点确实不便用原题型表达，"
-        "允许换题型，但不要因此放弃出题或降低知识点一致性。"
+        "题型必须与原题完全一致（原题是选择题就出选择题，填空题就出填空题，解答题就出解答题）；"
+        "不得为了省事换成其他题型；如果原题型确实不便表达同一知识点，仍须保持原题型并调整情境。"
         '输出 JSON 形如 {"questions": [...]}，每道题包含：'
         "question_type（choice/blank/solve）、content_md（题干，Markdown + LaTeX）、"
         "answer_md（答案）、explanation_md（解析）、difficulty（easy/medium/hard）。"

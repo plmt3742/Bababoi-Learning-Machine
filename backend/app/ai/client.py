@@ -58,16 +58,35 @@ class LLMClient(Protocol):
 
 
 class MockLLMClient:
-    """settings.llm_mock=True 时使用。输出按 operation 从 _MOCK_OUTPUTS 取。"""
+    """settings.llm_mock=True 时使用。生成题按原题题型返回对应 mock 输出。"""
 
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
+        text = (
+            _mock_quiz_output(messages)
+            if operation == OPERATION_QUIZ
+            else _MOCK_OUTPUTS[operation]
+        )
         return LLMResponse(
-            text=_MOCK_OUTPUTS[operation],
+            text=text,
             model="mock",
             prompt_tokens=0,
             completion_tokens=0,
             latency_ms=0,
         )
+
+
+def _mock_quiz_output(messages: list[dict]) -> str:
+    """从 user 消息里的原题取题型，返回同题型的 3 道 mock 题（题型硬约束）。"""
+    question_type = "solve"
+    try:
+        user_content = messages[-1]["content"]
+        raw_question = user_content.split("<question>", 1)[1].split("</question>", 1)[0]
+        parsed = json.loads(raw_question)
+        if parsed.get("question_type") in _MOCK_QUIZ_BY_TYPE:
+            question_type = parsed["question_type"]
+    except (IndexError, KeyError, json.JSONDecodeError):
+        pass
+    return json.dumps(_MOCK_QUIZ_BY_TYPE[question_type], ensure_ascii=False)
 
 
 class DeepSeekClient:
@@ -131,7 +150,7 @@ _MOCK_ANALYSIS = {
     "solution_summary": "求导，令导数为 0 求驻点，列表判断两侧符号得极值。",
 }
 
-_MOCK_QUIZ = {
+_MOCK_QUIZ_SOLVE = {
     "questions": [
         {
             "question_type": "solve",
@@ -141,6 +160,25 @@ _MOCK_QUIZ = {
             "difficulty": "medium",
         },
         {
+            "question_type": "solve",
+            "content_md": "求函数 $h(x)=2x^3-3x^2-12x$ 的极值。",
+            "answer_md": "极大值 $h(-1)=7$，极小值 $h(2)=-20$。",
+            "explanation_md": "求导得 $h'(x)=6x^2-6x-12=6(x+1)(x-2)$，列表判断符号。",
+            "difficulty": "medium",
+        },
+        {
+            "question_type": "solve",
+            "content_md": "求函数 $p(x)=x^3-6x^2+9x$ 的极值。",
+            "answer_md": "极大值 $p(1)=4$，极小值 $p(3)=0$。",
+            "explanation_md": "求导得 $p'(x)=3x^2-12x+9=3(x-1)(x-3)$，列表判断符号。",
+            "difficulty": "medium",
+        },
+    ]
+}
+
+_MOCK_QUIZ_BLANK = {
+    "questions": [
+        {
             "question_type": "blank",
             "content_md": "函数 $g(x)=x^3-3x$ 的极大值为 ___。",
             "answer_md": "$2$",
@@ -148,6 +186,27 @@ _MOCK_QUIZ = {
             "blanks": [{"index": 1, "answer_md": "$2$"}],
             "difficulty": "easy",
         },
+        {
+            "question_type": "blank",
+            "content_md": "函数 $g(x)=x^3-3x$ 的极小值为 ___。",
+            "answer_md": "$-2$",
+            "explanation_md": "驻点 $x=1$ 处 $g(1)=-2$，两侧符号由负变正，为极小值。",
+            "blanks": [{"index": 1, "answer_md": "$-2$"}],
+            "difficulty": "easy",
+        },
+        {
+            "question_type": "blank",
+            "content_md": "函数 $g(x)=x^3-3x$ 的极小值点为 $x=$ ___。",
+            "answer_md": "$1$",
+            "explanation_md": "求导得 $g'(x)=3x^2-3$，令其为 0 得 $x=\\pm1$，判断符号变化即得。",
+            "blanks": [{"index": 1, "answer_md": "$1$"}],
+            "difficulty": "medium",
+        },
+    ]
+}
+
+_MOCK_QUIZ_CHOICE = {
+    "questions": [
         {
             "question_type": "choice",
             "content_md": "$g(x)=x^3-3x$ 的极小值点是（  ）。",
@@ -159,10 +218,47 @@ _MOCK_QUIZ = {
             ],
             "difficulty": "easy",
         },
+        {
+            "question_type": "choice",
+            "content_md": "$g(x)=x^3-3x$ 的极大值点是（  ）。",
+            "answer_md": "选 B",
+            "explanation_md": "$g'(x)=3x^2-3$；$x=-1$ 两侧先正后负，为极大值点。",
+            "options": [
+                {"label": "A", "content_md": "$x=1$"},
+                {"label": "B", "content_md": "$x=-1$"},
+            ],
+            "difficulty": "easy",
+        },
+        {
+            "question_type": "choice",
+            "content_md": "$g(x)=x^3-3x$ 的单调递增区间是（  ）。",
+            "answer_md": "选 A",
+            "explanation_md": "由 $g'(x)>0$ 得 $x<-1$ 或 $x>1$，即两个递增区间。",
+            "options": [
+                {"label": "A", "content_md": "$(-\\infty,-1)\\cup(1,+\\infty)$"},
+                {"label": "B", "content_md": "$(-1,1)$"},
+                {"label": "C", "content_md": "$(0,+\\infty)$"},
+            ],
+            "difficulty": "medium",
+        },
+    ]
+}
+
+_MOCK_QUIZ_BY_TYPE: dict[str, dict] = {
+    "solve": _MOCK_QUIZ_SOLVE,
+    "blank": _MOCK_QUIZ_BLANK,
+    "choice": _MOCK_QUIZ_CHOICE,
+}
+
+# 测试用混合题型样本（validator 的题型/结构规则覆盖三种题型）
+_MOCK_QUIZ = {
+    "questions": [
+        _MOCK_QUIZ_SOLVE["questions"][0],
+        _MOCK_QUIZ_BLANK["questions"][0],
+        _MOCK_QUIZ_CHOICE["questions"][0],
     ]
 }
 
 _MOCK_OUTPUTS: dict[str, str] = {
     OPERATION_ANALYSIS: json.dumps(_MOCK_ANALYSIS, ensure_ascii=False),
-    OPERATION_QUIZ: json.dumps(_MOCK_QUIZ, ensure_ascii=False),
 }

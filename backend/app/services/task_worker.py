@@ -150,7 +150,11 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
             custom_validate=(
                 None
                 if is_analysis
-                else partial(validator.validate_quiz, original_content_md=payload["content_md"])
+                else partial(
+                    validator.validate_quiz,
+                    original_content_md=payload["content_md"],
+                    original_question_type=payload["question_type"],
+                )
             ),
             retry_limit=0,
         )

@@ -122,6 +122,12 @@ def test_validator_rejects_wrong_question_count() -> None:
         validator.validate_quiz(two)
 
 
+def test_validator_rejects_type_mismatch_with_original() -> None:
+    """05 §7.2 第 3 条：生成题题型必须与原题完全一致（硬约束）。"""
+    with pytest.raises(ValueError, match="题型必须与原题一致"):
+        validator.validate_quiz(_MOCK_QUIZ, original_question_type="blank")
+
+
 def test_validator_rejects_bad_choice_labels() -> None:
     broken = json.loads(json.dumps(_MOCK_QUIZ, ensure_ascii=False))
     broken["questions"][2]["options"][1]["label"] = "C"  # 第二个选项不是 B
@@ -268,9 +274,9 @@ def test_validate_quiz_rejects_identical_questions_but_allows_same_template() ->
 
 
 def test_prompt_versions_are_per_operation() -> None:
-    """05 §7.3：analyze_v1 / generate_v1 各自计版，不再共用一个 v0。"""
+    """05 §7.3：analyze_v1 / generate_v2 各自计版，不再共用一个 v0。"""
     assert prompts.prompt_version(OPERATION_ANALYSIS) == "analyze_v1"
-    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v1"
+    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v2"
     with pytest.raises(ValueError):
         prompts.prompt_version("unknown_op")
 

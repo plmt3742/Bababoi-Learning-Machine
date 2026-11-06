@@ -84,10 +84,10 @@ def test_worker_executes_quiz_and_inserts_exactly_three(client, db, fake_llm) ->
     ).json()
     assert len(detail["generated_questions"]) == 3
     types = {g["question_type"] for g in detail["generated_questions"]}
-    assert types == {"solve", "blank", "choice"}
+    assert types == {"solve"}
     for generated in detail["generated_questions"]:
         assert generated["model"] == "mock"
-        assert generated["prompt_version"] == "generate_v1"
+        assert generated["prompt_version"] == "generate_v2"
 
 
 def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
