@@ -27,7 +27,7 @@ async function handleLogout(): Promise<void> {
 
 <template>
   <header class="appbar">
-    <RouterLink class="appbar__brand" to="/questions" aria-label="Bababoi 错题本">
+    <RouterLink class="appbar__brand" to="/" aria-label="Bababoi 首页">
       <BrandMark :size="20" />
       <span class="appbar__word">Bababoi</span>
       <span class="appbar__sep" aria-hidden="true" />
@@ -209,6 +209,31 @@ async function handleLogout(): Promise<void> {
   width: 14px;
   height: 14px;
   color: var(--color-text-3);
+}
+
+@media (max-width: 1023px) {
+  .appbar {
+    gap: var(--space-3);
+    padding: 0 var(--space-4);
+  }
+
+  .appbar__sep,
+  .appbar__brand small {
+    display: none;
+  }
+
+  .appbar__nav {
+    margin-left: 0;
+    gap: 0;
+  }
+
+  .appbar__nav a {
+    padding: 0 8px;
+  }
+
+  .user__name {
+    max-width: 96px;
+  }
 }
 
 @media (max-width: 767px) {

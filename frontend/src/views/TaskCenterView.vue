@@ -1060,7 +1060,7 @@ onMounted(() => {
   line-height: var(--text-sm-leading);
 }
 
-@media (max-width: 767px) {
+@media (max-width: 900px) {
   .task-toolbar {
     flex-direction: column;
     align-items: stretch;

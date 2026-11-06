@@ -287,6 +287,12 @@ export interface ExtractedImageQuestion {
   index: number
   content_md: string
   question_type: QuestionType
+  /** AI 初判学科；前端用于预填保存表单，用户可修改。 */
+  subject?: string | null
+  /** AI 初判章节；保存时随题目一起提交。 */
+  chapter?: string | null
+  /** AI 初判难度；当前只展示，分析任务会写入正式难度。 */
+  difficulty?: Difficulty | null
   options: QuestionOption[] | null
   blanks: QuestionBlank[] | null
   has_figure: boolean
