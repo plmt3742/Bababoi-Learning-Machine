@@ -54,6 +54,7 @@ const {
 const statusFilter = ref<StatusFilter>('all')
 const draft = ref<Draft | null>(null)
 const draftLoaded = ref(false)
+const draftLoading = ref(false)
 const draftError = ref('')
 const retryingTaskId = ref<number | null>(null)
 const manualRefreshing = ref(false)
@@ -283,13 +284,17 @@ function isSegmentRetrying(group: QuizSegmentGroup, index: GenerationTargetIndex
 }
 
 async function loadDraft(): Promise<void> {
+  if (draftLoading.value) return
+
   draftError.value = ''
+  draftLoading.value = true
 
   try {
     draft.value = await getDraft()
   } catch (cause) {
     draftError.value = normalizeApiError(cause).message
   } finally {
+    draftLoading.value = false
     draftLoaded.value = true
   }
 }
@@ -401,9 +406,17 @@ onMounted(() => {
         </span>
       </RouterLink>
 
-      <div v-if="draftError" class="draft-error" role="status">
+      <div v-if="draftError" class="draft-error" role="alert">
         <span>草稿加载失败：{{ draftError }}</span>
-        <button class="btn btn--quiet btn--sm" type="button" @click="loadDraft">重试</button>
+        <button
+          class="btn btn--quiet btn--sm"
+          type="button"
+          :disabled="draftLoading"
+          :aria-busy="draftLoading"
+          @click="loadDraft"
+        >
+          重试
+        </button>
       </div>
 
       <a-alert

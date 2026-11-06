@@ -118,6 +118,20 @@ kbd {
   border: 0;
 }
 
+/* Arco controls ship their own focus tint; keep a token outline for keyboards. */
+:root:root .arco-btn:focus-visible,
+:root:root .arco-input:focus-visible,
+:root:root .arco-textarea:focus-visible,
+:root:root .arco-select-view:focus-visible,
+:root:root .arco-select-view:focus-within,
+:root:root .arco-select-view-input:focus-visible,
+:root:root .arco-input-tag:focus-within,
+:root:root .arco-pagination-item:focus-visible,
+:root:root .arco-collapse-item-header:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* --------------------------------------------------------------------------
    Page furniture
    -------------------------------------------------------------------------- */
@@ -314,9 +328,22 @@ kbd {
 .input:focus,
 .select:focus,
 .textarea:focus {
-  outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+/* Mouse users get the tinted ring; keyboard users keep a real outline. */
+.input:focus:not(:focus-visible),
+.select:focus:not(:focus-visible),
+.textarea:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .textarea {
