@@ -6,6 +6,7 @@ import type { FieldRule, FormInstance } from '@arco-design/web-vue'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
 import '@arco-design/web-vue/es/message/style/css.js'
 import PageHeader from '../components/common/PageHeader.vue'
+import ImageIntakeFlow from '../components/question/image/ImageIntakeFlow.vue'
 import BlankEditor from '../components/question/editor/BlankEditor.vue'
 import ChoiceEditor from '../components/question/editor/ChoiceEditor.vue'
 import QuestionPreview from '../components/question/editor/QuestionPreview.vue'
@@ -32,9 +33,16 @@ const router = useRouter()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
 const editMode = ref(true)
+const intakeMode = ref<'text' | 'image'>('text')
 const errorMessage = ref('')
 const attemptedSubmit = ref(false)
 const choiceCorrectLabel = ref('')
+
+const pageDescription = computed(() =>
+  intakeMode.value === 'text'
+    ? '先记录题目原文和答案，保存后 AI 会在后台补全考点分析并生成相似题。'
+    : '上传或拍摄图片，确认裁剪后逐条核对 AI 提取的题目；保存后自动创建分析任务。',
+)
 
 const form = reactive({
   subject: '',
@@ -189,14 +197,33 @@ function handleCancel(): void {
 
 <template>
   <div class="page">
-    <PageHeader
-      eyebrow="New entry"
-      title="录入错题"
-      description="先记录题目原文和答案，保存后 AI 会在后台补全考点分析并生成相似题。"
-    />
+    <PageHeader eyebrow="New entry" title="录入错题" :description="pageDescription" />
+
+    <div class="intake-switch" role="group" aria-label="录入方式">
+      <button
+        class="intake-switch__option"
+        type="button"
+        :aria-pressed="intakeMode === 'text'"
+        :disabled="submitting"
+        @click="intakeMode = 'text'"
+      >
+        <span class="intake-switch__label">文本录入</span>
+        <span class="intake-switch__hint">粘贴或输入题目文字，使用三题型编辑器</span>
+      </button>
+      <button
+        class="intake-switch__option"
+        type="button"
+        :aria-pressed="intakeMode === 'image'"
+        :disabled="submitting"
+        @click="intakeMode = 'image'"
+      >
+        <span class="intake-switch__label">图片录入</span>
+        <span class="intake-switch__hint">拍照或上传图片，AI 提取后逐条确认</span>
+      </button>
+    </div>
 
     <a-alert
-      v-if="errorMessage"
+      v-if="errorMessage && intakeMode === 'text'"
       class="page__error"
       type="error"
       show-icon
@@ -206,47 +233,65 @@ function handleCancel(): void {
       {{ errorMessage }}
     </a-alert>
 
-    <a-form
-      ref="formRef"
-      class="editor-layout"
-      :model="form"
-      :rules="rules"
-      layout="vertical"
-      @submit="handleSubmit"
-    >
-      <div class="editor-main">
-        <section class="panel" aria-labelledby="stem-heading">
-          <div class="panel__head">
-            <h2 id="stem-heading">题干</h2>
-            <span class="req">必填</span>
-            <div class="seg" role="group" aria-label="题干显示模式">
-              <button type="button" :aria-pressed="editMode" @click="editMode = true">编辑</button>
-              <button type="button" :aria-pressed="!editMode" @click="editMode = false">
-                预览
-              </button>
-            </div>
-          </div>
-          <div class="panel__body">
-            <div v-show="editMode" class="stem-editor">
-              <label class="field-label" for="content-md">题目原文</label>
-              <a-form-item field="content_md" hide-label>
-                <a-textarea
-                  v-model="form.content_md"
-                  class="editor-area"
-                  placeholder="例如：求函数 $f(x)=x^3-3x+1$ 的极值。"
-                  :auto-size="{ minRows: 4, maxRows: 18 }"
-                  :max-length="MAX_CONTENT_LENGTH"
-                  :textarea-attrs="{ id: 'content-md' }"
-                  allow-clear
-                />
-              </a-form-item>
-              <div class="editor-meta">
-                <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
-                <span class="editor-meta__count">
-                  {{ form.content_md.length }} / {{ MAX_CONTENT_LENGTH }}
-                </span>
+    <div v-show="intakeMode === 'text'" class="mode-panel">
+      <a-form
+        ref="formRef"
+        class="editor-layout"
+        :model="form"
+        :rules="rules"
+        layout="vertical"
+        @submit="handleSubmit"
+      >
+        <div class="editor-main">
+          <section class="panel" aria-labelledby="stem-heading">
+            <div class="panel__head">
+              <h2 id="stem-heading">题干</h2>
+              <span class="req">必填</span>
+              <div class="seg" role="group" aria-label="题干显示模式">
+                <button type="button" :aria-pressed="editMode" @click="editMode = true">
+                  编辑
+                </button>
+                <button type="button" :aria-pressed="!editMode" @click="editMode = false">
+                  预览
+                </button>
               </div>
-              <div class="preview">
+            </div>
+            <div class="panel__body">
+              <div v-show="editMode" class="stem-editor">
+                <label class="field-label" for="content-md">题目原文</label>
+                <a-form-item field="content_md" hide-label>
+                  <a-textarea
+                    v-model="form.content_md"
+                    class="editor-area"
+                    placeholder="例如：求函数 $f(x)=x^3-3x+1$ 的极值。"
+                    :auto-size="{ minRows: 4, maxRows: 18 }"
+                    :max-length="MAX_CONTENT_LENGTH"
+                    :textarea-attrs="{ id: 'content-md' }"
+                    allow-clear
+                  />
+                </a-form-item>
+                <div class="editor-meta">
+                  <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
+                  <span class="editor-meta__count">
+                    {{ form.content_md.length }} / {{ MAX_CONTENT_LENGTH }}
+                  </span>
+                </div>
+                <div class="preview">
+                  <p class="preview__label">渲染预览</p>
+                  <div class="preview__body">
+                    <QuestionPreview
+                      v-if="form.content_md.trim()"
+                      :content="form.content_md"
+                      :question-type="form.question_type"
+                      :options="form.options"
+                      :correct-label="choiceCorrectLabel"
+                    />
+                    <p v-else class="preview__empty">输入题干后，这里会显示渲染结果。</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!editMode" class="preview preview--solo">
                 <p class="preview__label">渲染预览</p>
                 <div class="preview__body">
                   <QuestionPreview
@@ -256,191 +301,188 @@ function handleCancel(): void {
                     :options="form.options"
                     :correct-label="choiceCorrectLabel"
                   />
-                  <p v-else class="preview__empty">输入题干后，这里会显示渲染结果。</p>
+                  <p v-else class="preview__empty">还没有内容，切换到编辑模式输入题干。</p>
                 </div>
               </div>
             </div>
+          </section>
 
-            <div v-if="!editMode" class="preview preview--solo">
-              <p class="preview__label">渲染预览</p>
-              <div class="preview__body">
-                <QuestionPreview
-                  v-if="form.content_md.trim()"
-                  :content="form.content_md"
-                  :question-type="form.question_type"
-                  :options="form.options"
-                  :correct-label="choiceCorrectLabel"
-                />
-                <p v-else class="preview__empty">还没有内容，切换到编辑模式输入题干。</p>
+          <section class="panel" aria-labelledby="answer-heading">
+            <div class="panel__head">
+              <h2 id="answer-heading">答案与解析</h2>
+              <span class="tag">可选</span>
+              <p class="panel__head-hint">留空也可保存</p>
+            </div>
+            <div class="panel__body">
+              <div class="field">
+                <label class="field-label" for="answer-md">答案</label>
+                <a-form-item field="answer_md" hide-label>
+                  <a-input
+                    v-model="form.answer_md"
+                    placeholder="例如：极大值 $f(-1)=3$，极小值 $f(1)=-1$。"
+                    :max-length="MAX_CONTENT_LENGTH"
+                    :input-attrs="{ id: 'answer-md' }"
+                    allow-clear
+                  />
+                </a-form-item>
               </div>
-            </div>
-          </div>
-        </section>
 
-        <section class="panel" aria-labelledby="answer-heading">
-          <div class="panel__head">
-            <h2 id="answer-heading">答案与解析</h2>
-            <span class="tag">可选</span>
-            <p class="panel__head-hint">留空也可保存</p>
-          </div>
-          <div class="panel__body">
+              <div class="field">
+                <label class="field-label" for="explanation-md">解析</label>
+                <a-form-item field="explanation_md" hide-label>
+                  <a-textarea
+                    v-model="form.explanation_md"
+                    placeholder="写下你的解题过程，或留空等待 AI 补全。"
+                    :auto-size="{ minRows: 3, maxRows: 12 }"
+                    :max-length="MAX_CONTENT_LENGTH"
+                    :textarea-attrs="{ id: 'explanation-md' }"
+                    allow-clear
+                  />
+                </a-form-item>
+              </div>
+
+              <p class="hint">已填写的内容不会被 AI 覆盖；留空时，分析任务会补全考点与解题摘要。</p>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="structure-heading">
+            <div class="panel__head">
+              <h2 id="structure-heading">结构与题型</h2>
+              <span class="tag">{{ questionTypeLabel(form.question_type) }}</span>
+            </div>
+            <div class="panel__body">
+              <QuestionTypeSelector v-model="form.question_type" />
+              <p class="hint structure-hint">
+                切换题型会保留题干、答案、解析、章节和标签；选择题选项与填空题空位分别保留，切回时恢复。
+              </p>
+
+              <ChoiceEditor
+                v-if="form.question_type === 'choice'"
+                v-model:options="form.options"
+                v-model:correct-label="correctLabelModel"
+                :show-validation="attemptedSubmit"
+              />
+
+              <BlankEditor
+                v-else-if="form.question_type === 'blank'"
+                v-model:content="form.content_md"
+                v-model:blanks="form.blanks"
+                :show-validation="attemptedSubmit"
+              />
+
+              <p v-else class="info-note">
+                解答题按完整题干保存，不需要额外选项或空位；小问可用 Markdown 编号表达。
+              </p>
+
+              <p
+                v-if="attemptedSubmit && structureError"
+                class="field-error structure-error"
+                role="alert"
+              >
+                {{ structureError }}
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <aside class="editor-side" aria-label="题目元信息">
+          <section class="panel panel--pad meta-panel" aria-labelledby="meta-heading">
+            <h2 id="meta-heading" class="panel__title">题目信息</h2>
+
             <div class="field">
-              <label class="field-label" for="answer-md">答案</label>
-              <a-form-item field="answer_md" hide-label>
+              <label class="field-label" for="subject"
+                >学科 <span class="req-text">必填</span></label
+              >
+              <a-form-item field="subject" hide-label>
+                <a-select
+                  id="subject"
+                  v-model="form.subject"
+                  placeholder="请选择学科"
+                  :options="SUBJECTS"
+                  aria-label="学科"
+                />
+              </a-form-item>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="chapter">章节</label>
+              <a-form-item field="chapter" hide-label>
                 <a-input
-                  v-model="form.answer_md"
-                  placeholder="例如：极大值 $f(-1)=3$，极小值 $f(1)=-1$。"
-                  :max-length="MAX_CONTENT_LENGTH"
-                  :input-attrs="{ id: 'answer-md' }"
+                  v-model="form.chapter"
+                  placeholder="例如：导数与极值"
+                  :max-length="100"
+                  :input-attrs="{ id: 'chapter' }"
                   allow-clear
                 />
               </a-form-item>
             </div>
 
             <div class="field">
-              <label class="field-label" for="explanation-md">解析</label>
-              <a-form-item field="explanation_md" hide-label>
-                <a-textarea
-                  v-model="form.explanation_md"
-                  placeholder="写下你的解题过程，或留空等待 AI 补全。"
-                  :auto-size="{ minRows: 3, maxRows: 12 }"
-                  :max-length="MAX_CONTENT_LENGTH"
-                  :textarea-attrs="{ id: 'explanation-md' }"
+              <label class="field-label" for="tags">知识点标签</label>
+              <a-form-item field="tags" hide-label>
+                <a-input-tag
+                  id="tags"
+                  v-model="form.tags"
+                  placeholder="输入后按回车添加"
+                  :max-tag-count="MAX_TAGS"
+                  :unique-value="true"
                   allow-clear
+                  aria-label="知识点标签"
                 />
               </a-form-item>
             </div>
 
-            <p class="hint">已填写的内容不会被 AI 覆盖；留空时，分析任务会补全考点与解题摘要。</p>
-          </div>
-        </section>
-
-        <section class="panel" aria-labelledby="structure-heading">
-          <div class="panel__head">
-            <h2 id="structure-heading">结构与题型</h2>
-            <span class="tag">{{ questionTypeLabel(form.question_type) }}</span>
-          </div>
-          <div class="panel__body">
-            <QuestionTypeSelector v-model="form.question_type" />
-            <p class="hint structure-hint">
-              切换题型会保留题干、答案、解析、章节和标签；选择题选项与填空题空位分别保留，切回时恢复。
+            <p class="hint">
+              输入后按回车添加；标签用于筛选与薄弱知识点统计，最多 {{ MAX_TAGS }} 个。
             </p>
+          </section>
 
-            <ChoiceEditor
-              v-if="form.question_type === 'choice'"
-              v-model:options="form.options"
-              v-model:correct-label="correctLabelModel"
-              :show-validation="attemptedSubmit"
-            />
+          <section class="panel panel--pad" aria-labelledby="after-heading">
+            <h2 id="after-heading" class="panel__title">保存后会发生什么</h2>
+            <ol class="save-steps">
+              <li>
+                <span class="save-steps__num" aria-hidden="true">1</span>
+                <span>错题立即保存到你的错题本。</span>
+              </li>
+              <li>
+                <span class="save-steps__num" aria-hidden="true">2</span>
+                <span>后台创建分析任务，补全考点、错因和解题摘要。</span>
+              </li>
+              <li>
+                <span class="save-steps__num" aria-hidden="true">3</span>
+                <span>在详情页生成 3 道相似题，并返回任务中心跟踪。</span>
+              </li>
+            </ol>
+          </section>
+        </aside>
+      </a-form>
 
-            <BlankEditor
-              v-else-if="form.question_type === 'blank'"
-              v-model:content="form.content_md"
-              v-model:blanks="form.blanks"
-              :show-validation="attemptedSubmit"
-            />
-
-            <p v-else class="info-note">
-              解答题按完整题干保存，不需要额外选项或空位；小问可用 Markdown 编号表达。
-            </p>
-
-            <p
-              v-if="attemptedSubmit && structureError"
-              class="field-error structure-error"
-              role="alert"
-            >
-              {{ structureError }}
-            </p>
-          </div>
-        </section>
-      </div>
-
-      <aside class="editor-side" aria-label="题目元信息">
-        <section class="panel panel--pad meta-panel" aria-labelledby="meta-heading">
-          <h2 id="meta-heading" class="panel__title">题目信息</h2>
-
-          <div class="field">
-            <label class="field-label" for="subject">学科 <span class="req-text">必填</span></label>
-            <a-form-item field="subject" hide-label>
-              <a-select
-                id="subject"
-                v-model="form.subject"
-                placeholder="请选择学科"
-                :options="SUBJECTS"
-                aria-label="学科"
-              />
-            </a-form-item>
-          </div>
-
-          <div class="field">
-            <label class="field-label" for="chapter">章节</label>
-            <a-form-item field="chapter" hide-label>
-              <a-input
-                v-model="form.chapter"
-                placeholder="例如：导数与极值"
-                :max-length="100"
-                :input-attrs="{ id: 'chapter' }"
-                allow-clear
-              />
-            </a-form-item>
-          </div>
-
-          <div class="field">
-            <label class="field-label" for="tags">知识点标签</label>
-            <a-form-item field="tags" hide-label>
-              <a-input-tag
-                id="tags"
-                v-model="form.tags"
-                placeholder="输入后按回车添加"
-                :max-tag-count="MAX_TAGS"
-                :unique-value="true"
-                allow-clear
-                aria-label="知识点标签"
-              />
-            </a-form-item>
-          </div>
-
-          <p class="hint">
-            输入后按回车添加；标签用于筛选与薄弱知识点统计，最多 {{ MAX_TAGS }} 个。
-          </p>
-        </section>
-
-        <section class="panel panel--pad" aria-labelledby="after-heading">
-          <h2 id="after-heading" class="panel__title">保存后会发生什么</h2>
-          <ol class="save-steps">
-            <li>
-              <span class="save-steps__num" aria-hidden="true">1</span>
-              <span>错题立即保存到你的错题本。</span>
-            </li>
-            <li>
-              <span class="save-steps__num" aria-hidden="true">2</span>
-              <span>后台创建分析任务，补全考点、错因和解题摘要。</span>
-            </li>
-            <li>
-              <span class="save-steps__num" aria-hidden="true">3</span>
-              <span>在详情页生成 3 道相似题，并返回任务中心跟踪。</span>
-            </li>
-          </ol>
-        </section>
-      </aside>
-    </a-form>
-
-    <div class="sticky-actions" role="region" aria-label="录入操作">
-      <p>保存后将自动创建分析任务，可在任务中心查看进度。</p>
-      <div class="sticky-actions__buttons">
-        <button class="btn btn--outline" type="button" @click="handleCancel">取消</button>
-        <button
-          class="btn btn--primary"
-          type="button"
-          :disabled="submitting"
-          :aria-busy="submitting"
-          @click="handleSubmit"
-        >
-          <IconCheck aria-hidden="true" />
-          保存并分析
-        </button>
+      <div class="sticky-actions" role="region" aria-label="录入操作">
+        <p>保存后将自动创建分析任务，可在任务中心查看进度。</p>
+        <div class="sticky-actions__buttons">
+          <button class="btn btn--outline" type="button" @click="handleCancel">取消</button>
+          <button
+            class="btn btn--primary"
+            type="button"
+            :disabled="submitting"
+            :aria-busy="submitting"
+            @click="handleSubmit"
+          >
+            <IconCheck aria-hidden="true" />
+            保存并分析
+          </button>
+        </div>
       </div>
     </div>
+
+    <ImageIntakeFlow
+      v-show="intakeMode === 'image'"
+      :active="intakeMode === 'image'"
+      :subject="form.subject"
+      :subjects="SUBJECTS"
+      @update:subject="form.subject = $event"
+      @switch-to-text="intakeMode = 'text'"
+    />
   </div>
 </template>
 
@@ -453,6 +495,66 @@ function handleCancel(): void {
 .page__error {
   align-items: flex-start;
   margin-bottom: var(--space-5);
+}
+
+.intake-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.intake-switch__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.intake-switch__option:hover {
+  background: var(--color-surface-hover);
+}
+
+.intake-switch__option[aria-pressed='true'] {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-softer);
+  box-shadow: inset 0 0 0 1px var(--color-primary-border);
+}
+
+.intake-switch__option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.intake-switch__label {
+  color: var(--color-text-1);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-weight: 650;
+}
+
+.intake-switch__hint {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-wrap: pretty;
+}
+
+.mode-panel {
+  display: block;
 }
 
 .editor-layout {
