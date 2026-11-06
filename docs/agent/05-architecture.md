@@ -654,12 +654,13 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 ```text
 原题（文本输入 / 图片提取后用户确认）+ 分析结果
   → 用户选择 1–3 道题目（选中高亮）→ 每个选中题目一个 quiz 任务
-  → generate prompt（同知识点、同题型、同难度；纯文本可作答；禁止“如图”）
+  → generate prompt（同知识点、同难度；题型首选与原题一致＝软约束，不一致照常入库；纯文本可作答；禁止“如图”）
   → LLM（JSON array，恰好 3 题）
   → 校验：
       1. 恰好 3 题
       2. 题干/答案/解析非空
-      3. 不与原题高度重复（归一化相似度 < 0.9）
+      3. 不与原题高度重复（归一化相似度 < 0.9）；三题彼此只拒「归一化后完全相同」，
+        不套 0.9（实测含参题三题彼此 0.717–0.966，套 0.9 会误杀合法输出）
       4. 不依赖图片（禁止“如图/图中/下图”）
       5. LaTeX 分隔符成对
       6. 长度限制（题干 ≤ 3000 字）
@@ -949,4 +950,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-05 | v0.3.2 | 补 `PRACTICE_DUPLICATE`、mastery PATCH、`include=generated`、轮询 P0/SSE P1、TaskOut.question_id | 霹雳马桶 / agent |
 | 2026-11-05 | v0.4 | **图片录入改为用户裁剪 + 多题文本提取（`questions[]`，① ②… 条目）+ 选择 1–3 道生成**；删除 bbox/candidates/detection_confidence；分析补 answer/explanation；Prompt `vision_extract_v2` | 霹雳马桶 / agent |
 | 2026-11-06 | v0.4.1 | BE-005 review 修复：`AnalysisResult` 补 `answer_md`/`explanation_md`（05 §7.1 早就要求，代码一直缺）；生成温度 0.7→0.3、`max_tokens` 8000、`response_format=json_object`、`trust_env=False`；`\(...\)` 改为规范化而非判失败；撤掉「三题彼此 <0.9」误杀判据。**注：上面两行 v0.3.2 编号重复**（#7 与文档同步各占一行），后续新增请从 v0.4.2 起 | 人机 |
+| 2026-11-06 | v0.4.2 | 生成题型口径落定：**软约束**（首选与原题一致，不一致照常入库，不引入 `TYPE_MISMATCH`）——与 14 号文档 D2/D7 的「硬约束」表述冲突，按前端 review 选的 A 统一；§7.2 第 3 条补「三题彼此只拒完全相同」的实测依据 | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

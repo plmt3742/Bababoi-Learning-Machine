@@ -56,7 +56,9 @@ def quiz_messages(question: dict) -> list[dict]:
     """按一道错题生成恰好 3 道同类新题（BE-007 落库前的形状校验在 validator）。"""
     system = (
         f"{_SYSTEM_COMMON}\n"
-        "任务：仿照这道错题的考点与难度，生成恰好 3 道同类型的新题，数值和情境必须与原题不同。"
+        "任务：仿照这道错题的考点与难度，生成恰好 3 道同知识点的新题，数值和情境必须与原题不同。"
+        "题型首选与原题一致（原题是选择题就出选择题）；若为了考查同一知识点确实不便用原题型表达，"
+        "允许换题型，但不要因此放弃出题或降低知识点一致性。"
         '输出 JSON 形如 {"questions": [...]}，每道题包含：'
         "question_type（choice/blank/solve）、content_md（题干，Markdown + LaTeX）、"
         "answer_md（答案）、explanation_md（解析）、difficulty（easy/medium/hard）。"
