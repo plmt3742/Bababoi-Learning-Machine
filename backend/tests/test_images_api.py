@@ -181,7 +181,7 @@ def _extract(client, token: str, image_path: str, subject: str | None = None):
 
 
 def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
-    """mock 输出里三种情况各一条，正好把 ①②③ 的展示语义验全。"""
+    """mock 输出把提取的四条分支各来一条，正好验 ①②③④ 的展示语义。"""
     token, _ = token_and_user
     image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
 
@@ -189,21 +189,26 @@ def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["image_path"] == image_path
-    assert [q["index"] for q in body["questions"]] == [1, 2, 3]
+    assert [q["index"] for q in body["questions"]] == [1, 2, 3, 4]
 
-    solve, blank, figure = body["questions"]
+    solve, blank, degraded, figure = body["questions"]
     assert solve["question_type"] == "solve" and solve["incomplete"] is False
-    # 2 个空位只读出 1 个答案：条目留着、标 incomplete，而不是整张图判失败
-    assert blank["question_type"] == "blank" and blank["incomplete"] is True
-    assert blank["warnings"]
+    # 空位数 = 答案数：结构自洽，就按填空题原样交给用户
+    assert blank["question_type"] == "blank" and len(blank["blanks"]) == 2
+    # 2 个空只读出 1 个答案：不半套返回，整条降级成文本 + 说清去哪补结构
+    assert degraded["question_type"] == "solve" and degraded["incomplete"] is True
+    assert degraded["blanks"] is None and degraded["options"] is None
+    assert any("空位" in w and "文本题" in w for w in degraded["warnings"])
     assert figure["has_figure"] is True and any("含图" in w for w in figure["warnings"])
     # 提取阶段不返回答案/解析：那是 analysis 的事，两处都出就会抢真源
     assert "answer_md" not in solve and "explanation_md" not in solve
-    # 初判三项（FE-026 靠它预填学科/章节）：好值透出、坏值降级、拿不准就是 None
-    assert (solve["subject"], solve["chapter"], solve["difficulty"]) == ("高等数学", "习题 7.1", "medium")
-    assert (blank["subject"], blank["chapter"]) == ("线性代数", "复习题六")
+    # 17 号对齐清单 §三 规则 1：请求带了 subject 就一律用请求值，模型猜的（mock 第 2 条写"线性代数"）被覆盖
+    assert {q["subject"] for q in body["questions"]} == {"高等数学"}
+    # 初判另两项：好值透出、非法档位降级成 None
+    assert (solve["chapter"], solve["difficulty"]) == ("习题 7.1", "medium")
+    assert blank["chapter"] == "复习题六"
     assert blank["difficulty"] is None, "非法档位必须降级成 None，而不是把整条题目丢掉"
-    assert (figure["subject"], figure["chapter"], figure["difficulty"]) == (None, None, None)
+    assert (figure["chapter"], figure["difficulty"]) == (None, None)
 
     with db() as s:
         logs = s.scalars(select(AiCallLog).where(AiCallLog.operation == "vision")).all()

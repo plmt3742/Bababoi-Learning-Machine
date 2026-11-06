@@ -48,6 +48,8 @@ class ExtractedQuestionOut(BaseModel):
     subject: str | None = None
     chapter: str | None = None
     difficulty: str | None = None
+    # 可空是承重的（ADR-004 §5/§6.1）：识图只保证文字，结构不自洽的条目已整条降成文本，
+    # 这里不会流出"2 个空位配 1 个答案"那种半套结构。前端按 question_type 渲染即可。
     options: list[ExtractedOptionOut] | None = None
     blanks: list[ExtractedBlankOut] | None = None
     has_figure: bool = False

@@ -17,7 +17,6 @@ from app.schemas.question import (
     MIN_OPTIONS,
     BlankAnswer,
     ChoiceOption,
-    count_blanks,
     validate_type_payload,
 )
 
@@ -231,19 +230,44 @@ class ExtractedQuestion(BaseModel):
         return None
 
 
+def _zh_structure_problem(question_type: str, exc: ValidationError) -> str:
+    """把 `validate_type_payload` 的报错变成一句中文。
+
+    判据不在这里重复——只翻译文案。Pydantic 对数组长度给的是默认英文
+    （"List should have at least 2 items after validation, not 1"），原样塞进 warning
+    等于让用户在题目卡片上读一句英文；我们自己 raise 的那些本来就是中文，直接带走。
+    """
+    error = (exc.errors() or [{}])[0]
+    context = error.get("ctx") or {}
+    field_label = {"choice": "选项", "blank": "空位答案"}.get(question_type, "结构")
+    if error.get("type") == "too_short":
+        return f"{field_label}只有 {context.get('actual_length', '?')} 个（至少要 {context.get('min_length', '?')} 个）"
+    if error.get("type") == "too_long":
+        return f"{field_label}有 {context.get('actual_length', '?')} 个（最多 {context.get('max_length', '?')} 个）"
+    # 我们自己在 validator 里 raise 的 ValueError 会被 Pydantic 冠一句 "Value error, "，
+    # 那是框架的包装不是内容，留在卡片上只会让用户看到半句英文
+    message = str(error.get("msg") or "").removeprefix("Value error, ").strip()
+    return message or "结构不完整"
+
+
 def validate_extraction(raw: dict) -> dict:
-    """校验识图输出，**故意比入库校验宽**。
+    """识图输出的校验：**文字转录从严，题目结构从宽**（ADR-004「识别成文本」的落地口径）。
 
-    唯一理由是"残缺不等于坏输出"：一张 4 道题的页面里只要有一道没认全，
-    用户仍然应该看到另外 3 道 + 一条可编辑的残缺条目。要是这里照搬
-    `schemas/question.py::validate_type_payload`（选择题必须 ≥2 项、填空题
-    空位数必须等于答案数、答案非空），整张图会被判成坏输出，用户什么也拿不到——
-    那比"少一个答案"糟得多。差的部分标 `incomplete` + 写进 warnings，
-    严格规则等用户确认后 POST /questions 时再跑。
+    分成两类处理，是因为它们对用户的代价不一样：
 
-    另一条实测依据：DeepSeek 在 `response_format=json_object` 下更爱吐 `\\(...\\)`
-    （同一张图不开 JSON 模式给的是 `$...$`），所以这里对 LaTeX 定界符做归一化，
-    不让排版习惯变成失败条件。
+    1. **题干本身残缺**（漏字、`[不清]`、图被截断）→ 条目照样返回，标 `incomplete` +
+       warning。用户能看到"这一题只认出一半"，编辑两下就能用。
+    2. **结构不自洽**（选择题只 1 个选项、填空题空位数≠答案数、答案为空）→
+       **降级成纯文本条目**（`question_type=solve`、`options/blanks` 清空）+ warning。
+       契约里 `options?`/`blanks?` 是可选（ADR-004 §5），识图不该对用户假装自己结构化成功了；
+       实测密页 4 条里有 2 条是"图上 2 个空只读出 1 个答案"，原样返回的话用户要在
+       **提交那一步**才被 `POST /questions` 的严格校验拒掉，而且拒的原因他看不见。
+       结构化交还给 FE-020 的三题型编辑器，那里用户改得动。
+
+    单条坏输出（连对象都不是）只丢那一条 + 顶层 warning，不拖垮整张图；
+    图里没题返回 `questions=[]` + warning，**这不是错误**。
+    LaTeX 定界符统一规范化（实测 `json_object` 模式下模型更爱吐 `\\(...\\)`），
+    排版习惯不算失败。
     """
     if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
         raise ValueError("识图输出必须形如 {\"questions\": [...]}")
@@ -266,22 +290,33 @@ def validate_extraction(raw: dict) -> dict:
             item.warnings.append("题干含 [不清] 标记，可能有漏字或误读")
         if item.has_figure and not any("含图" in w for w in item.warnings):
             item.warnings.append("含图，暂只提取文字")
-        if item.question_type == "blank":
-            markers = count_blanks(item.content_md)
-            answers = item.blanks or []
-            if not answers:
-                item.incomplete = True
-                item.warnings.append("识别为填空题但没读出空位答案")
-            elif markers != len(answers) or any(not a.answer_md.strip() for a in answers):
-                item.incomplete = True
-                item.warnings.append(f"空位 {markers} 个、答案 {len(answers)} 个，或有空答案，请核对")
-        elif item.question_type == "choice":
-            options = item.options or []
-            if len(options) < 2:
-                item.incomplete = True
-                item.warnings.append(f"识别为选择题但只读出 {len(options)} 个选项，请核对")
-        elif item.question_type == "solve" and not (item.options or item.blanks):
+        # 结构自不自洽，只问一个地方：`schemas/question.py::validate_type_payload`
+        # 是题型规则的唯一来源，识图这边不再自己抄一份判据。
+        structure_problem = None
+        if item.question_type == "solve":
+            if item.options or item.blanks:
+                structure_problem = "识别为解答题却读出了选项/空位"
             item.options = item.blanks = None
+        else:
+            payload_options = [o.model_dump() for o in (item.options or [])]
+            payload_blanks = [b.model_dump() for b in (item.blanks or [])]
+            try:
+                validate_type_payload(item.question_type, item.content_md,
+                                      payload_options, payload_blanks)
+            except ValidationError as exc:
+                structure_problem = _zh_structure_problem(item.question_type, exc)
+        if structure_problem:
+            # 不自洽就**降级成纯文本条目**，而不是把半套结构原样交给用户：
+            # ADR-004 §5 里 `options?`/`blanks?` 本来就是可选，识图的职责是"识别成文本"，
+            # 结构化归 FE-020 编辑器。实拍密页有 2/4 条是"图上 2 个空只读出 1 个答案"，
+            # 原样返回的话用户要在"提交"那一步才被严格校验拒掉——那才是体验事故。
+            # ADR-004 §6 的复审条件（结构化成功率 <90%）就是这件事的预案入口。
+            item.incomplete = True
+            item.question_type = "solve"
+            item.options = item.blanks = None
+            item.warnings.append(
+                f"{structure_problem}，已按文本题返回；需要选择题/填空题请在编辑器里补结构"
+            )
         items.append(item)
 
     if not items and not top_warnings:
