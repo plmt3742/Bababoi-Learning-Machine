@@ -9,6 +9,8 @@ import type {
   DraftSavePayload,
   GenerateTaskRef,
   GenerationTargetIndex,
+  ImageExtractionResult,
+  ImageUploadResult,
   LoginPayload,
   MasteryStatus,
   PracticeRecord,
@@ -37,6 +39,8 @@ const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
 const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
 const TREND_DAY_COUNT = 7
 const WEAK_POINT_LIMIT = 5
+
+let mockImageSequence = 1
 
 const SEGMENT_INDEXES: GenerationTargetIndex[] = [1, 2, 3]
 const SEGMENT_DIFFICULTIES: Record<GenerationTargetIndex, Difficulty> = {
@@ -238,6 +242,50 @@ function readPositiveInt(config: AxiosRequestConfig, key: string, fallback: numb
 
   const value = Number.parseInt(raw, 10)
   return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function readUploadFile(config: AxiosRequestConfig): File | null {
+  const data: unknown = config.data
+  if (typeof FormData === 'undefined' || !(data instanceof FormData)) return null
+
+  const file = data.get('file')
+  return typeof File !== 'undefined' && file instanceof File ? file : null
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function readImageSize(file: File): Promise<{ width: number; height: number }> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const size = { width: bitmap.width, height: bitmap.height }
+    bitmap.close()
+    if (size.width > 0 && size.height > 0) return size
+  } catch {
+    return { width: 1600, height: 1200 }
+  }
+
+  return { width: 1600, height: 1200 }
+}
+
+function mockImageExtension(file: File): string {
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (extension === 'png' || extension === 'webp' || extension === 'jpg') return extension
+  return 'jpg'
+}
+
+function createMockImageUrl(file: File): string {
+  try {
+    return URL.createObjectURL(file)
+  } catch {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200">' +
+      '<rect width="100%" height="100%" fill="#f3f4f6"/>' +
+      '<text x="800" y="600" text-anchor="middle" font-size="48" fill="#5f6775">Mock image</text>' +
+      '</svg>'
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  }
 }
 
 function issueToken(user: MockUser): string {
@@ -770,6 +818,81 @@ export function setupMocks(): void {
     if (!user) return unauthorized()
 
     return [200, toPublicUser(user)]
+  })
+
+  adapter.onPost('/uploads/images').reply(async (config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const file = readUploadFile(config)
+    if (!file) return apiError(400, 'VALIDATION_ERROR', '请选择要上传的图片')
+
+    const { width, height } = await readImageSize(file)
+    const imagePath = `uploads/1/mock-${mockImageSequence}.${mockImageExtension(file)}`
+    mockImageSequence += 1
+
+    const result: ImageUploadResult = {
+      image_path: imagePath,
+      url: createMockImageUrl(file),
+      width,
+      height,
+    }
+    return [200, result]
+  })
+
+  adapter.onPost('/questions/from-image').reply(async (config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const body = readBody<{ image_path?: unknown; subject?: unknown }>(config)
+    if (!body || typeof body.image_path !== 'string' || !body.image_path.trim()) {
+      return apiError(400, 'VALIDATION_ERROR', '缺少图片路径')
+    }
+
+    await sleep(500)
+
+    const result: ImageExtractionResult = {
+      image_path: body.image_path,
+      questions: [
+        {
+          index: 1,
+          content_md: String.raw`求函数 $f(x)=x^3-3x^2+2$ 的极值。`,
+          question_type: 'solve',
+          options: null,
+          blanks: null,
+          has_figure: false,
+          warnings: [],
+        },
+        {
+          index: 2,
+          content_md: String.raw`设 $A=\begin{pmatrix}2&1\\1&2\end{pmatrix}$，则 $A$ 的特征值为 ___ 和 ___。`,
+          question_type: 'blank',
+          options: null,
+          blanks: [
+            { index: 1, answer_md: '$3$' },
+            { index: 2, answer_md: '$1$' },
+          ],
+          has_figure: false,
+          warnings: ['第二个空位的答案可能有误，请核对'],
+          incomplete: true,
+        },
+        {
+          index: 3,
+          content_md: String.raw`一质点沿直线做匀加速运动，初速度为 $2\ \mathrm{m/s}$，加速度为 $1\ \mathrm{m/s^2}$，则 $t=3\ \mathrm{s}$ 时的速度为（ ）。`,
+          question_type: 'choice',
+          options: [
+            { label: 'A', content_md: '$3\\ \\mathrm{m/s}$' },
+            { label: 'B', content_md: '$5\\ \\mathrm{m/s}$' },
+            { label: 'C', content_md: '$6\\ \\mathrm{m/s}$' },
+            { label: 'D', content_md: '$9\\ \\mathrm{m/s}$' },
+          ],
+          blanks: null,
+          has_figure: true,
+          warnings: ['含图，暂只提取文字'],
+        },
+      ],
+      warnings: [],
+    }
+
+    return [200, result]
   })
 
   adapter.onGet('/questions').reply((config) => {

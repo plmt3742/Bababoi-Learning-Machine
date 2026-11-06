@@ -269,6 +269,38 @@ export interface ApiErrorResponse {
   detail: ApiErrorDetail
 }
 
+/* ---------------------------------------------------------------------------
+ * Image intake v2 (FE-016 / FE-021, 05-architecture §6.2 + ADR-004)
+ * ------------------------------------------------------------------------- */
+
+export interface ImageUploadResult {
+  /** Relative storage path; send this back to `/questions/from-image`. */
+  image_path: string
+  /** Preview URL (mock: blob URL; backend: authenticated asset URL). */
+  url: string
+  width: number
+  height: number
+}
+
+export interface ExtractedImageQuestion {
+  /** 1-based reading-order index; rendered as ① ② ③… */
+  index: number
+  content_md: string
+  question_type: QuestionType
+  options: QuestionOption[] | null
+  blanks: QuestionBlank[] | null
+  has_figure: boolean
+  warnings: string[]
+  /** Backend may flag a partially readable item; editable but highlighted. */
+  incomplete?: boolean
+}
+
+export interface ImageExtractionResult {
+  image_path: string
+  questions: ExtractedImageQuestion[]
+  warnings: string[]
+}
+
 /* -------------------------------------------------------------------------
  * FE-023 · three-segment concurrent generation (ADR-006)
  * Legacy `{ task_id }` responses stay supported via the API normalizer.
