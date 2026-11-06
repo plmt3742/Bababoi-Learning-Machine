@@ -20,13 +20,13 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 | 表 | 一句话 | 关键字段 |
 |---|---|---|
-| `users` | 账号与登录 | `username`、`password_hash`、`email` |
+| `users` | 账号与登录 + 个人偏好 | `username`、`password_hash`、`email`、`enforce_same_question_type` |
 | `questions` | 原错题 + AI 分析 + 图片 | `user_id`、`subject`、`chapter`、`content_md`、`answer_md`、`explanation_md`、`question_type`、`options`、`blanks`、`analysis`、`mastery_status`、`image_path`、`crop_box`（用户裁剪，可选） |
 | `tags` | 知识点/自定义标签 | `name`、`type` |
 | `question_tags` | 错题↔标签多对多 | `question_id`、`tag_id` |
 | `generated_questions` | 3 道生成题 | `parent_question_id`、`content_md`、`answer_md`、`explanation_md`、`question_type`、`options`、`blanks`、`difficulty` |
 | `practice_records` | 练习记录 | `user_id`、`generated_question_id`、`user_answer`、`is_correct`、`duration_seconds` |
-| `ai_call_logs` | AI 调用日志 | `operation`、`model`、`latency_ms`、`status`、`error_code`、`queue_wait_ms` |
+| `ai_call_logs` | AI 调用日志 | `operation`、`model`、`latency_ms`、`status`、`error_code`、`queue_wait_ms`、`type_policy` |
 | `draft` | 每账号 1 份录入草稿 | `user_id` UNIQUE、`content_json`、`version`、`updated_at` |
 | `generation_task` | 后台整理/生题任务 | `question_id`、`stage`、`status`、`retry_index`、`timestamps` |
 
@@ -179,6 +179,7 @@ erDiagram
 | password_hash | VARCHAR(255) | bcrypt/argon2 |
 | created_at / updated_at | DATETIME | UTC |
 | last_login_at | DATETIME NULL | 可选 |
+| enforce_same_question_type | BOOLEAN NOT NULL DEFAULT 1 | BE-026 题型一致性开关，默认开启；迁移靠 `server_default` 回填历史用户（实测老用户迁移后=1） |
 
 #### questions
 
@@ -311,6 +312,7 @@ erDiagram
 | operation | VARCHAR(16) | `vision`/`analyze`/`generate`/`judge` |
 | model | VARCHAR(64) | |
 | prompt_version | VARCHAR(32) | |
+| type_policy | VARCHAR(16) NULL | BE-026：quiz 段记 `strict`/`soft`，其它操作 NULL。按策略分组才能量「默认开启值不值」 |
 | input_tokens | INT NULL | |
 | output_tokens | INT NULL | |
 | latency_ms | INT | |
@@ -709,19 +711,34 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
   所以截断这条错误路径要留着：`finish_reason=length` → 直接判坏输出**且不重试**（同参数再跑只会再截断一次），文案给可执行动作"这张图题目太多，请裁成几次再上传"。
 - 若 `has_figure=true`，当前阶段只提示“含图，暂只提取文字”；生成题仍要求“纯文本可作答”，不要生成依赖不存在图片的题。
 
-### 6.9 个人设置 / 用户自带 AI Key（P1）
+### 6.9 个人设置 / 用户自带 AI Key
 
-> ADR-007 / Issue #32。Key 只在后端加密存储，前端不落 localStorage/Pinia，不回显完整值。
+> `/settings/preferences` 已实现（BE-026 / Issue #44）；`/settings/ai` 仍是 P1 待实现（ADR-007 / Issue #32）。
+> BYOK 部分：Key 只在后端加密存储，前端不落 localStorage/Pinia，不回显完整值。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/settings/ai` | 返回 `{configured, provider, base_url, model, api_key_masked, updated_at}`；不返回原始 Key |
 | PUT | `/settings/ai` | body `{provider, base_url?, model, api_key}`；返回 masked；`api_key` ≥8 |
 | DELETE | `/settings/ai` | 删除用户配置，回退系统 Key；204 |
-| GET | `/settings/preferences` | `{enforce_same_question_type, updated_at}`；默认 `true` |
-| PUT | `/settings/preferences` | body `{enforce_same_question_type}`；返回同上 |
+| GET | `/settings/preferences` | `{enforce_same_question_type, updated_at}`；默认 `true`；未登录 401 |
+| PUT | `/settings/preferences` | body `{enforce_same_question_type}`；返回同上；**整份覆盖**（新增第二项偏好时前端必须一起提交，避免"只改一项、另一项被默认值重置"） |
 
-- `enforce_same_question_type` 按用户持久化，默认 `true`；生成链路读取该偏好：开启时题型不一致重试 1 次后 `AI_INVALID_OUTPUT`，关闭时允许换题型（BE-026）。
+BE-026 的实现口径（都是踩过的点，不是风格选择）：
+
+- **存储**：`users.enforce_same_question_type BOOLEAN NOT NULL DEFAULT 1`。用列不用 `user_settings` 表，因为本期只有一项、
+  回填靠 `server_default` 一行 SQL 就完成（实测老用户迁移后值为 1）；出现第二项偏好时再抽表。
+  BYOK 的 `user_ai_settings` 是密钥表，不混进来。
+- **读取时机**：**worker 执行时读**，不在入队时快照。否则用户在排队期间改了设置会出现
+  "我明明关了开关还是被拒"这种没法解释的状态差。
+- **请求校验用 `StrictBool`**：pydantic 默认会把 `"yes"`/`"1"`/`"no"` 悄悄转成布尔，而这是一个会改变生成失败率的开关，
+  宁可给 400 也别猜意图。校验失败走全局异常处理器，所以是 **400 `VALIDATION_ERROR`，不是 422**（§6.2 只有一种错误形状）。
+- **偏好读到 NULL 按 `true` 处理**（issue #44 的"缺失回退默认"），不返回 null 让前端自己猜。
+- **执行侧**：`validate_segment(original_question_type, type_policy)`；strict 下题型不一致抛 `ValueError`
+  → pipeline 归成坏输出 → **现有任务级 requeue 自动重试 1 次**，终态 `AI_INVALID_OUTPUT`。
+  不在 pipeline 里再叠一层 `retry_limit`：worker 传的是 `retry_limit=0`，叠了会变成最坏 3 次/段 × 3 段 = 9 次调用。
+- **日志**：`ai_call_logs.type_policy`（quiz 段写 `strict|soft`，其它操作 NULL）。
+  没有这一列就没办法按策略分组量"默认开启值不值"，这个数现在还是空的。
 
 - `provider`: `deepseek` | `openai_compatible`；`openai_compatible` 的 `base_url` 必须 https 且建议 host 白名单（防 SSRF）。
 - 新表 `user_ai_settings`：`user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4`、`created_at`、`updated_at`；加密密钥从 `SETTINGS_ENCRYPTION_KEY` 读取。
@@ -847,6 +864,8 @@ POST /questions/from-image
       5. LaTeX 分隔符成对
       6. 长度限制（题干 ≤ 3000 字）
       7. 难度档以**请求的那一格**为准改写落库，模型自标不算数
+      8. 题型一致性（BE-026）：用户开关开启时按原题题型判死（`type_policy=strict`），
+        关闭时只记不改（`soft`，即 #39 的软约束行为）
   → 失败：该段 requeue 1 次；但 `now - started_at > 90s` 就不再排（避免用户等第二轮），直接 failed
   → 仍失败：返回 AI_INVALID_OUTPUT，该格不入库；前端这张卡单独重试
   → 通过：入库 generated_questions（带 target_index/difficulty）+ ai_call_logs
@@ -1173,5 +1192,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-07 | v0.6.3 | **识图口径改成「文字从严、结构从宽」**：`validate_extraction` 不再把半套 `options`/`blanks` 交给用户，结构不自洽（选项<2、空位数≠答案数、空位答案为空、解答题带选项）时**整条降级成纯文本**（`question_type=solve`、两项清空）+ `incomplete` + 一句"已按文本题返回，请在编辑器里补结构"；判据仍只有 `validate_type_payload` 一份，新增 `_zh_structure_problem` 只翻译文案（Pydantic 的 `List should have at least 2 items`、`Value error, ` 前缀不该出现在卡片上）。实测三张实拍 14 条：**文字到手 14/14**，模型报成选择/填空的 6 条里 4 条保住结构、2 条降级（都来自密页 C 的填空——根因是教材页不印答案，所以填空在识图这步注定结构残缺，提示词第 6 条同步改成"答案不在图上就留空、不要自己解"）。另按 17 号对齐清单 §三 规则 1 在 `extract_from_image` 里**写死 subject 优先级**：请求带了就逐条覆写，不靠提示词的概率保证；§7.0 里"`subject` 不构成出参"那句被 v0.6.2 作废，一并改掉。ADR-004 §6 的"结构化成功率 <90%"复审条件按旧口径已触发（12/14），处置记在 ADR-004 §6.1；前端那份对齐清单入 `docs/agent/17-image-intake-alignment.md` 当真相源 | 人机 |
 | 2026-11-07 | v0.6.4 | `incomplete` 的判据从"正文有没有字面 `[不清]`"改成**"条目带任何 `warnings` 就是 true"**，并把顶层 `warnings` 里点得到第几条的那句**下沉到条目**（按 `index` 匹配，不按列表下标——丢过坏条目之后下标会前移并挂错题，测试真复现过）。动因是四张真图实测：模型把"第 5 题公式被截断"写进 warnings 却不打 `[不清]`，半截题干带着 `incomplete=false` 进前端，而 §四-4 让前端只看标志位。同批实测数据（thinking 三档 × 四张真图、分步 step1/step2、吞吐 180–244 tok/s、`thinking.type` 还有 `adaptive` 档）先记在 §6.8 与本行，链路拆分本身未实现 | 人机 / agent |
 | 2026-11-07 | v0.6.5 | `image_path` 真落库并透出到 `QuestionListItem`；BE-024 分步形态冻结契约（形状 + 三条硬约束 + 超时 ≥180 前置）；06 后端树同步实际结构；164 passed | 人机 / agent |
+| 2026-11-07 | v0.6.7 | **BE-026（Issue #44）生成偏好落地**：`users.enforce_same_question_type`（NOT NULL DEFAULT 1，迁移 `c8e1b6a4d902`，靠 server_default 回填历史用户，实测老行迁移后=1）+ `ai_call_logs.type_policy`（quiz 段记 strict/soft，其它 NULL）；新增 `GET/PUT /settings/preferences`（§6.9 那两行前端已写，这里补实现口径：worker **执行时**读偏好而不是入队快照、PUT 整份覆盖、请求体用 `StrictBool`——`"yes"`/`"1"` 会被 pydantic 悄悄转布尔，而这是个改变失败率的开关，所以宁可 400）；硬校验落在 `validate_segment(original_question_type, type_policy)`，不一致抛 ValueError 交给**现有任务级 requeue** 重试 1 次（worker 传 pipeline `retry_limit=0`，再叠一层会变成最坏 9 次调用）。⚠️ **默认开启的连带影响要产品确认**：mock 三段输出是 blank/solve/choice，原题 solve 时 strict 下只有第 2 格能落库——`tests/test_tasks.py` 里 7 个队列机制测试因此显式关掉了开关（题型策略正反用例在 `test_settings_api.py`）。也就是说「生成题会换题型」和「三段必须填满三格」这两件事在默认开启下直接冲突，而 §7.2 的软 prompt 并没有告诉模型要同题型。172 passed | 人机 / agent |
 | 2026-11-07 | v0.6.6 | FE-027 收口：`/settings/preferences` + `enforce_same_question_type`（默认 true，按用户持久化）；PATCH 支持完整三题型（BE-025）；统计改 rich shape、无记录 `accuracy=0`；BE-024 两步识图本期采用（超时 ≥180s，前端 loading 已接）；删除旧 PRD 归档与 `PRD.md` 引用 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

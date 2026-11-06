@@ -133,7 +133,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；`validate_type_payload`；迁移/测试；Issue #43 | TODO |
-| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `GET/PUT /settings/preferences`；默认 `true`；按用户持久化；生成链路按偏好执行硬/软校验；Issue #44 | TODO |
+| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `GET/PUT /settings/preferences`；默认 `true`；存 `users` 列（迁移 `c8e1b6a4d902` 回填）；worker 执行时读；硬校验在 `validate_segment`，重试走现有任务级 requeue；`ai_call_logs.type_policy` 记 strict/soft；Issue #44 | 已完成（PR 待前端合；⚠️ 默认开启与「三段填满三格」冲突，见 05 v0.6.7） |
 | FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DONE（PR #51） |
 | FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端执行等 BE-026） |
 | FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DONE（PR #51） |
