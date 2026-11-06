@@ -2,10 +2,12 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态：FE-001 ~ FE-012、FE-015、FE-019 已完成；FE-009/019 在 PR #19，全量 Calm Academic
-> 视觉覆写在 PR #21（stacked，2026-11-06，均 CI 绿待合并）。应用壳、路由、设计 tokens、API
-> client、Mock API、登录/注册与路由守卫已就位；错题录入、列表、详情、Markdown/公式渲染、
-> 空/错/loading 状态、AI 生成进度轮询与任务中心已可用。练习、统计等仍待实现。
+> 状态（2026-11-06 晚）：FE-001 ~ FE-025 已合入 main；FE-026（首页导航/AI 初判回填/768 收尾）
+> 本地完成，待提交 PR。应用壳、路由、设计 tokens、API
+> client、Mock API、登录/注册与路由守卫、错题录入/列表/详情、练习、统计、三种题型编辑器、
+> 图片裁剪与多题条目、草稿双写、三段并发生成 UI、首页学习概览、个人设置（BYOK）均已可用。
+> 顶部/移动导航已补首页入口；图片提取结果会用 AI 初判的学科/题型/章节预填。
+> 剩余工作：FE-017 的 768/键盘细节已由 FE-026 收尾；真实后端联调按接口可用性分批接入。
 
 ## 技术栈（实际安装版本）
 
@@ -86,13 +88,14 @@ VITE_USE_MOCK=true
 | 路径             | 页面                         | 布局     |
 | ---------------- | ---------------------------- | -------- |
 | `/login`         | 登录/注册                    | 独立页   |
-| `/`              | 首页占位                     | AppShell |
+| `/`              | 首页学习概览                 | AppShell |
 | `/questions`     | 错题列表（筛选/搜索/分页）   | AppShell |
-| `/questions/new` | 录入错题（文本）             | AppShell |
+| `/questions/new` | 录入错题（文本/图片）        | AppShell |
 | `/tasks`         | 任务中心（列表/筛选/重试）   | AppShell |
 | `/questions/:id` | 错题详情（分析/生成题/删除） | AppShell |
-| `/practice/:id?` | 练习占位（`id` 可选）        | AppShell |
-| `/stats`         | 统计占位（P1）               | AppShell |
+| `/practice/:id?` | 练习（`id` 可选）            | AppShell |
+| `/stats`         | 统计/概览（P1）              | AppShell |
+| `/settings`      | 个人设置 / AI Key（P1）      | AppShell |
 | 其余路径         | 404                          | AppShell |
 
 ## 错题页面（FE-007 / FE-008）
@@ -182,19 +185,34 @@ src/
 ├── styles/              # tokens / arco-theme / global
 ├── types/               # env、RouteMeta 类型扩展
 ├── utils/               # markdown/KaTeX 渲染、错题标签、日期与任务文案
-└── views/               # 登录 + 错题录入/列表/详情 + 任务中心 + 其余占位页
+└── views/               # 登录 + 首页 + 错题录入/列表/详情 + 练习/统计/设置/任务中心
 ```
 
 除 `/login` 外，AppShell 下的页面都需要登录；未登录访问会跳转到
 `/login?redirect=<原路径>`。
 
-## 尚未实现
+## 图片录入的 AI 初判（FE-026）
 
-- FE-013 / FE-014：练习页与统计/概览。
-- FE-016 / FE-021：图片上传、裁剪、多题识别与选择生成。
-- FE-018：完整键盘/可访问性走查、草稿自动保存/恢复与冲突处理。
-- FE-020：选择题/填空题结构编辑器与编辑工具栏。
-- FE-017 剩余：练习/统计页的移动端适配（四核心屏已完成 375/1366 适配）。
+- `POST /questions/from-image` 的每题结果包含 `subject`、`chapter`、`question_type`、
+  `difficulty`；前端在提取完成后自动预填学科（用户未手选时）、题型和章节。
+- 每道条目会显示 AI 判断的学科/难度标签；题型和章节可在保存前修改。
+- 当前 mock 已按该契约返回数据；真实后端 BE-014 实现后可直接切换。
+
+## 真接口接入状态
+
+| 功能 | 后端状态 | 前端处理 |
+|---|---|---|
+| 认证 / 错题 CRUD / 分析 / 任务 / 练习 | 已实现，2026-11-06 本地冒烟通过 | 可切 `VITE_USE_MOCK=false` |
+| 图片上传 + 多题提取 | BE-014 待实现 | 先走 mock |
+| 草稿 | BE-018 待实现 | 先走 mock |
+| 统计 | BE-013 待实现 | 先走 mock |
+| 个人设置 / BYOK | BE-020 待实现 | 先走 mock |
+| 三段并发生成 | ADR-006 待实现 | 兼容旧 `task_id`，先走 mock |
+
+## 测试
+
+- `tests/` 与 `e2e/` 目前只有 `.gitkeep`，`package.json` 暂无 `test` script；CI 会跳过测试步骤。
+- 收尾后优先补 Vitest（MarkdownRenderer、auth store、useTaskPolling）和 Playwright 主流程。
 
 ## 约定
 

@@ -67,6 +67,8 @@ read_when: 后端对接、M0 契约确认、分支合并/删除前
 | 23 | 草稿双写 | 服务端 + localStorage 双写；防抖 5s；三选项退出；见 `06-draft-dual-write.md` | ✅ 已定 |
 | 24 | 数据/API 口径 | 05 v0.4 统一：`content_md`/`answer_md`/`explanation_md`/`options`/`blanks`/`mastery_status`；tags 多对多；`from-image` 返回 `questions[]` | ✅ 已定 |
 | 25 | 多选生成 | P0 支持选中 1–3 道题；每道题独立调用 `/generate`，各自 3 道相似题 | ✅ 已定 |
+| 26 | 图片 AI 初判 | `from-image` 每题返回 `subject`/`chapter`/`question_type`/`difficulty`；前端预填、用户可改；prompt `vision_extract_v3` | ✅ 已定（2026-11-06 晚） |
+| 27 | 生成题题型 | 相似题题型必须与原题完全一致（硬约束）；不一致重试 1 次后 `AI_INVALID_OUTPUT`；prompt `generate_v2` | ✅ 已定（2026-11-06 晚） |
 
 ## 3. 后台队列：采用方案
 
@@ -159,7 +161,10 @@ data: {"code":"AI_TIMEOUT","message":"..."}
       {
         "index": 1,
         "content_md": "求函数 $f(x)=x^3-3x+1$ 的极值。",
+        "subject": "高等数学",
+        "chapter": "导数与极值",
         "question_type": "solve",
+        "difficulty": "medium",
         "options": null,
         "blanks": null,
         "has_figure": false,
@@ -171,6 +176,7 @@ data: {"code":"AI_TIMEOUT","message":"..."}
   ```
 - 不返回 `candidates` / `bbox` / `confidence`；不做 AI 框题。
 - 一次返回 1..N 道题；`index` 从 1 开始；题干保留 LaTeX；多题按阅读顺序。
+- 每题必须初判 `subject`/`chapter`/`question_type`/`difficulty`；前端预填，用户确认后可改。
 - 当前阶段不提取附图；`has_figure=true` 只加 warning，不生成图形描述。
 - 用户确认后，前端对每道题调用 `POST /questions`；每道题独立入队 analysis。
 - analysis 任务返回 `answer_md`/`explanation_md`（原题已有则保留）、知识点、错误原因。

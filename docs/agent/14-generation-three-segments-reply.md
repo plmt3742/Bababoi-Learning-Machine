@@ -56,13 +56,15 @@ read_when: 三段并发生成、PRD/05 改动、FE-023 适配、后端 #5/#6 fol
 | # | 决定 |
 |---|---|
 | D1 | `POST /questions/{id}/generate` 请求收 `difficulties`（整组）或 `difficulty`（单段）；返回 `{"tasks":[{task_id,target_index,difficulty}]}`；**不再返回单个 `task_id`** |
-| D2 | generate prompt：同知识点、同难度、**题型首选与原题一致（软约束，允许换题型）**；难度按指定档（相对原题：少一步/相当/多一步） |
+| D2 | generate prompt：同知识点、同难度、**题型必须与原题一致（硬约束，不允许换题型）**；难度按指定档（相对原题：少一步/相当/多一步） |
 | D3 | 每段 1 题；与原题相似度 <0.9 保留；三题彼此**只拒归一化后完全相同**，不套 0.9（实测会误杀） |
 | D4 | `target_index` 整组也记 1/2/3；active 去重键 = `question_id + stage + target_index` |
 | D5 | **`generated_questions` 加 `target_index`**（缺列会导致①②③错位，必须加） |
 | D6 | `generation_task` 加 `difficulty`（nullable，downgrade 可逆） |
-| D7 | **不新增 `TYPE_MISMATCH`**；题型是软约束，换题型照常入库；段失败沿用 `AI_*` / `INTERNAL_ERROR` |
+| D7 | **题型硬约束**：生成题必须与原题同题型；不一致时带原因重试 1 次，仍不一致按 `AI_INVALID_OUTPUT` 失败。**不新增 `TYPE_MISMATCH`**；段失败沿用 `AI_*` / `INTERNAL_ERROR`。2026-11-06 晚更新，覆盖旧「软约束」表述 |
 | D8 | 重试用任务级 requeue：`now - started_at > 90s` 不再排；不是同调用内重试 |
+
+> 2026-11-06 晚：D2/D7 已由产品确认改为**题型硬约束**，05 v0.4.5 同步；旧 v0.4.2 的「软约束」表述作废。
 
 ### 2.1 三个洞的决定
 

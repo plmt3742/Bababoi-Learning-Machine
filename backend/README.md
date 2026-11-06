@@ -2,7 +2,9 @@
 
 Python 3.13 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic。
 
-> 状态：目录骨架。脚手架任务 `BE-001`，见 `docs/agent/04-todos.md`。
+> 状态（2026-11-06 晚）：核心闭环已实现并通过本地冒烟——认证、错题 CRUD、分析、生成、任务、练习。
+> 图片上传/多题提取（BE-014）、草稿（BE-018）、统计（BE-013）、BYOK（BE-020）、三段并发（ADR-006）
+> 仍待实现；接口契约见 `docs/agent/05-architecture.md` 与 `15-backend-sync-20261106.md`。
 > 数据库 schema 最终由人机负责；`docs/agent/05-architecture.md` 第 5 节是草案。
 
 ## 计划结构

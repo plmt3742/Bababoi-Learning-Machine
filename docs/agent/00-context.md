@@ -64,9 +64,9 @@ AI 分析（知识点、题型、错误原因）
 
 ## 当前实际状态（2026-11-06）
 
-- `origin/main @ 7ee6029`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013（#23）、FE-014（#24）、FE-020（#25）、FE-023（#28）、FE-016/021（#29）、FE-018（#30）、首页（#34）、个人设置/BYOK（#35）等已合并
+- `origin/main @ 3747bd1`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013（#23）、FE-014（#24）、FE-020（#25）、FE-023（#28）、FE-016/021（#29）、FE-018（#30）、首页（#34）、个人设置/BYOK（#35）、会话交接（#37）等已合并
 - 后端待处理：BE-014 图片文本提取（open issue #13）、BE-020 用户 AI Key（#32）、BE-018 草稿、BE-013 统计、BE-008 种子、BE-009 OpenAPI、OPS；#8 docs 需关闭或缩成 backend README
-- 前端：FE-001~024 全部页面已合（含首页/个人设置）；剩余 FE-017 的 768/键盘细节与真接口联调
+- 前端：FE-001~025 已合入 main；FE-026（首页导航/图片 AI 初判回填/768 任务中心）本地收尾完成、待提交 PR；剩余真接口联调
 - 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
 - `docs/prd` 已删除；PRD v0.8 归档为 `docs/product/PRD-v0.8-reference.md`；v0.9 待合并
 - CI：`.github/workflows/ci.yml` 已存在；frontend job 已跑真实 lint/typecheck/build
@@ -100,6 +100,8 @@ AI 分析（知识点、题型、错误原因）
 | Q-014 | **视觉语言基准**：可读性优先 + 整体使用流畅；不为视觉效果牺牲题干/公式可读性、主操作路径和状态反馈 | 设计评审、组件和页面验收按此排序；风格变体先过可读性/流畅性，再看一致性/美感 |
 | Q-015 | **视觉细节确认**：辅助文字 `--color-text-3` 加深到 `#6B7280`；详情页难度/删除只在页头；录入页底部吸底操作栏；未掌握状态用红色；移除 M0 开发标识 | `04-design-system.md` / tokens / FE-007/008 按此执行 |
 | Q-016 | **最终视觉方向（2026-11-06 更新）**：全量采用 Calm Academic 原型（顶部 appbar + 1140px 纸面 frame、无侧边栏、白纸/细线/单一 Arco 蓝、14px UI 下限、纸张面板、详情右侧处理进度、录入两栏 + sticky 操作卡、任务中心 5 列列表）；`--color-text-3` 随原型调整为 `#5F6775` | 新分支 `feat/frontend-calm-redesign`；前端样式/布局按原型覆写；不直接合 main |
+| Q-017 | **图片提取 AI 初判（2026-11-06 晚）**：`from-image` 每题返回 `subject`/`chapter`/`question_type`/`difficulty`，前端预填、用户可改；不再要求用户先手工选学科/题型 | `05 §6.8/§7.0` 升 `vision_extract_v3`；BE-014 按此实现；前端 FE-016/021 增加回填 |
+| Q-018 | **生成题题型硬约束（2026-11-06 晚）**：三段并发生成的相似题题型必须与原题完全一致（choice/blank/solve）；不一致重试 1 次，仍不一致按 `AI_INVALID_OUTPUT` 失败 | `05 §7.2` 升 `generate_v2`；覆盖旧「软约束」；ADR-006 实现时落地 |
 
 ## 待确认
 
@@ -121,9 +123,9 @@ AI 分析（知识点、题型、错误原因）
 
 ## 下一步
 
-1. **后端优先 BE-014 图片文本提取**：`POST /uploads/images` + `POST /questions/from-image`（open issue #13）；前端 FE-016/021 已完成，只等真接口联调
+1. **后端优先 BE-014 图片文本提取**：`POST /uploads/images` + `POST /questions/from-image`（open issue #13）；每题需返回 `subject`/`chapter`/`question_type`/`difficulty` 初判；前端 FE-016/021/FE-026 已完成并预填，只等真接口联调
 2. **后端 BE-018 草稿 / BE-013 统计 / BE-020 BYOK**：前端 FE-018/FE-014/FE-024 已按 mock 完成
-3. **后端 ADR-006 三段并发**：新 PR base=main；`tasks[]`、`target_index`/`difficulty`、按格替换、单段重试；前端 FE-023 已兼容旧 `task_id`
-4. **前端 FE-017**：768px 与完整键盘细节；之后统一做真接口联调
+3. **后端 ADR-006 三段并发 + BE-021 题型硬约束**：新 PR base=main；`tasks[]`、`target_index`/`difficulty`、按格替换、单段重试、生成题题型与原题一致；前端 FE-023 已兼容旧 `task_id`
+4. **前端 FE-017/FE-026**：768px、键盘细节、首页导航、图片初判回填已完成；之后统一做真接口联调
 5. `03-page-specs.md` 按 8 个页面填全；从 `docs/product/PRD-v0.8-reference.md` 修订 PRD v0.9；完成 DS-006 可用性测试
 6. `main` 分支保护：Require PR + 1 approval + CI + no bypass；每天更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`
