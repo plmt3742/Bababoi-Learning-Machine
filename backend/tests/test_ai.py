@@ -478,6 +478,36 @@ def test_extraction_normalizes_backslash_math() -> None:
     assert "$f(x)=x^2$" in result["questions"][0].content_md
 
 
+def test_extraction_guess_fields_are_optional_and_tolerant() -> None:
+    """初判三项（subject/chapter/difficulty）：坏值降级成 None，绝不让一道认出来的题消失。
+
+    前端 FE-026 拿它们做预填，`''` 和 `None` 在它那边等价，但库里存 `''` 会多出
+    一种"有值但没内容"的状态，所以统一成 None。
+    """
+    result = validator.validate_extraction(_extract_payload(
+        _item(1, "求 $f(x)=x^2$ 的极小值。", subject="  高等数学  ", chapter="", difficulty="中等"),
+        _item(2, "求 $g(x)=\\ln x$ 的导数。", subject=None, chapter="习题 7.1", difficulty="hard"),
+    ))
+    first, second = result["questions"]
+    assert first.subject == "高等数学"          # 两端空白抹掉
+    assert first.chapter is None                # 空串 → None
+    assert first.difficulty is None             # 非法档位 → None，条目仍在
+    assert second.chapter == "习题 7.1"
+    assert second.difficulty == "hard"
+
+
+def test_vision_prompt_states_the_guess_rules() -> None:
+    """chapter 只照抄图上真实出现的标题；给了学科就沿用，不再改判。"""
+    no_subject = prompts.vision_messages("data:image/jpeg;base64,AAA")[0]["content"]
+    assert "不要自己编章节名" in no_subject
+    assert "subject 按题目内容判断所属学科" in no_subject
+
+    given = prompts.vision_messages("data:image/jpeg;base64,AAA", "概率论与数理统计")
+    assert "学科已经由用户给出，subject 一律沿用它" in given[0]["content"]
+    assert given[0]["content"] != no_subject, "给了学科时提示词要变，否则模型还会自己猜"
+    assert "概率论与数理统计" in given[1]["content"][0]["text"]
+
+
 def test_extraction_rejects_a_response_without_questions_list() -> None:
     for bad in ({"questions": "没有列表"}, ["数组"], {"warning": "拼错字段"}):
         with pytest.raises(ValueError, match="questions"):
