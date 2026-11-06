@@ -1,11 +1,11 @@
-"""后台任务 worker（12号 §3.2/§3.3）：消费 generation_task，调 LLM，写回结果。
+"""后台任务 worker（12号 §3.2/§3.3 + ADR-006 三段并发）：消费 generation_task，调 LLM，写回结果。
 
 设计要点：
 - 独立线程 + 每步独立短事务；调 LLM 时不持有事务（05 §9.3）
 - 启动时把 running 重置为 queued（进程重启不留卡死的任务）
 - analysis：写回 question.analysis + 按 knowledge_points 同步 tags
-- quiz：恰好 3 题校验通过后一次事务插入（全有或全无，05 §9.3）
-- 失败自动重试 1 次，仍失败置 failed；任务中心可手动 retry
+- quiz：一段一题，成功后只写自己那一格（target_index），不动其它两段
+- 失败自动重试 1 次（requeue，且跑完不到 90s 才排），仍失败置 failed；任务中心可手动 retry
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.db.base import utcnow
 from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
 from app.services.question_service import sync_tags, to_storage
+from app.services.task_service import segment_difficulty
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def _claim_next(session: Session) -> GenerationTask | None:
 
 def _question_payload(session: Session, question_id: int) -> dict:
     question = session.get(Question, question_id)
+    analysis = question.analysis or {}
     return {
         "subject": question.subject,
         "chapter": question.chapter,
@@ -87,6 +89,10 @@ def _question_payload(session: Session, question_id: int) -> dict:
         "explanation_md": question.explanation_md,
         "options": question.options,
         "blanks": question.blanks,
+        # 生成段的提示词要"同知识点"（14 号 D2）：优先用分析结果，
+        # 分析还没跑就用用户打的标签，两个都没有时提示词里会写"自己从题干判断"
+        "knowledge_points": analysis.get("knowledge_points") or [],
+        "tags": [tag.name for tag in question.tags],
     }
 
 
@@ -134,11 +140,29 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         is_analysis = task.stage == "analysis"
         operation = OPERATION_ANALYSIS if is_analysis else OPERATION_QUIZ
         payload = _question_payload(session, task.question_id)
-        messages = (
-            prompts.analysis_messages(payload) if is_analysis
-            else prompts.quiz_messages(payload)
-        )
         user_id = task.user_id
+        question_id = task.question_id
+        # 迁移前入队的 quiz 任务没有这两列，按默认递增档跑（slot 落 1），
+        # 不然老库里一条 queued 的旧任务会在这里 KeyError 变 INTERNAL_ERROR
+        slot = task.target_index or 1
+        difficulty = task.difficulty or segment_difficulty(slot)
+        if is_analysis:
+            messages = prompts.analysis_messages(payload)
+        else:
+            messages = prompts.quiz_messages(payload, target_index=slot, difficulty=difficulty)
+            siblings = tuple(
+                row.content_md
+                for row in session.scalars(
+                    select(GeneratedQuestion).where(
+                        GeneratedQuestion.parent_question_id == question_id,
+                        GeneratedQuestion.deleted_at.is_(None),
+                    )
+                )
+                # 同组其它格：用 Python 比而不是 SQL 的 !=，因为 target_index
+                # 可能是 NULL（迁移前的老行），NULL != 1 在 SQL 里不成立，
+                # 那些老题就会既不被排除、也不参与查重
+                if row.target_index != slot
+            )
 
     try:
         # retry_limit=0：任务级重试由 _fail_or_requeue 统一做（12号 §3.2 只重试 1 次），
@@ -146,11 +170,17 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         result = pipeline_run(
             _llm_client(), operation, messages,
             parse=validator.AnalysisResult if is_analysis else None,
-            # 原题题干要传进生成校验，否则拦不住「把原题抄一遍」这种坏输出（05 §7.2 第 3 条）
+            # 原题题干与同组其它段都要传进校验：前者拦「把原题抄一遍」，
+            # 后者拦「两段出了逐字相同的题」（05 §7.2 第 3 条）
             custom_validate=(
                 None
                 if is_analysis
-                else partial(validator.validate_quiz, original_content_md=payload["content_md"])
+                else partial(
+                    validator.validate_segment,
+                    difficulty=difficulty,
+                    original_content_md=payload["content_md"],
+                    sibling_content_mds=siblings,
+                )
             ),
             retry_limit=0,
         )
@@ -159,7 +189,7 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         if is_analysis:
             _apply_analysis(session_factory, task_id, result)
         else:
-            _apply_quiz(session_factory, task_id, result, user_id)
+            _apply_segment(session_factory, task_id, result, user_id, slot, difficulty)
     except AIError as exc:
         # 坏输出的原文（pipeline 挂在 exc.raw_text 上）一定要落库：
         # 只记「AI_INVALID_OUTPUT」的话，没法定位是 prompt 的问题还是模型的问题
@@ -201,39 +231,44 @@ def _apply_analysis(session_factory: sessionmaker, task_id: int, result) -> None
         session.commit()
 
 
-def _apply_quiz(session_factory: sessionmaker, task_id: int, result, user_id: int) -> None:
-    specs = result.value
+def _apply_segment(
+    session_factory: sessionmaker, task_id: int, result, user_id: int,
+    slot: int, difficulty: str,
+) -> None:
+    """一段成功只写自己那一格（14 号 Q2-A 的按格替换）。
+
+    软删范围限定在同一个 target_index：一段成功就删整组会把另外两段刚写好的题抹掉，
+    那是并发 worker 之间最容易互相踩的地方，所以宁可留同一格的历史行也不跨格删。
+    """
+    spec = result.value
     with session_factory() as session:
         task = session.get(GenerationTask, task_id)
-        # 详情页的「3 张题卡」是不变量：重新生成整组时先把旧组软删，
-        # 否则再点一次生成就变 6 道。软删而不是物理删，
-        # 已有的 practice_records 外键还要指回这些行。
         session.execute(
             update(GeneratedQuestion)
             .where(
                 GeneratedQuestion.parent_question_id == task.question_id,
                 GeneratedQuestion.deleted_at.is_(None),
+                GeneratedQuestion.target_index == slot,
             )
             .values(deleted_at=utcnow())
         )
-        # 全有或全无：3 题一起插，任何一条插不进就整体回滚
-        for spec in specs:
-            session.add(
-                GeneratedQuestion(
-                    parent_question_id=task.question_id,
-                    user_id=user_id,
-                    content_md=spec.content_md,
-                    answer_md=spec.answer_md,
-                    explanation_md=spec.explanation_md,
-                    question_type=spec.question_type,
-                    options=to_storage(spec.options),
-                    blanks=to_storage(spec.blanks),
-                    difficulty=spec.difficulty,
-                    model=result.usage.model,
-                    prompt_version=prompts.prompt_version(OPERATION_QUIZ),
-                    validation_status="valid",
-                )
+        session.add(
+            GeneratedQuestion(
+                parent_question_id=task.question_id,
+                user_id=user_id,
+                target_index=slot,
+                content_md=spec.content_md,
+                answer_md=spec.answer_md,
+                explanation_md=spec.explanation_md,
+                question_type=spec.question_type,
+                options=to_storage(spec.options),
+                blanks=to_storage(spec.blanks),
+                difficulty=difficulty,
+                model=result.usage.model,
+                prompt_version=prompts.prompt_version(OPERATION_QUIZ),
+                validation_status="valid",
             )
+        )
         session.commit()
 
 
@@ -242,7 +277,10 @@ def _fail_or_requeue(session_factory: sessionmaker, task_id: int, code: str, mes
         task = session.get(GenerationTask, task_id)
         if task is None:
             return
-        if task.retry_index < settings.task_retry_limit:
+        # 14 号 D8：跑过 90s 的段不再自动重排。三段并发下一个坏输出如果排队重试，
+        # 用户会在骨架卡上等到 4 分钟；直接 failed 让前端出"这一格可重试"的卡更快有终态。
+        ran_s = (utcnow() - task.started_at).total_seconds() if task.started_at else 0.0
+        if task.retry_index < settings.task_retry_limit and ran_s <= settings.task_requeue_deadline_s:
             task.status = "queued"  # 自动重试：回队列排到队尾之后（按 created_at 排仍是老位置）
             task.retry_index += 1
         else:

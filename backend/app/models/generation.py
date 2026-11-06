@@ -16,6 +16,9 @@ class GeneratedQuestion(Base, TimestampMixin, SoftDeleteMixin):
     __table_args__ = (
         Index("ix_generated_parent", "parent_question_id"),
         Index("ix_generated_user_created", "user_id", "created_at"),
+        # 三段并发的"格子"（ADR-006）：详情页三张卡按 parent+slot 定位，
+        # 单段重生成也要能只换掉自己那一格
+        Index("ix_generated_parent_slot", "parent_question_id", "target_index"),
     )
 
     id: Mapped[int] = mapped_column(BigIntPK, primary_key=True, autoincrement=True)
@@ -34,6 +37,9 @@ class GeneratedQuestion(Base, TimestampMixin, SoftDeleteMixin):
     options: Mapped[list | None] = mapped_column(JSON, nullable=True)
     blanks: Mapped[list | None] = mapped_column(JSON, nullable=True)
     difficulty: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ADR-006：这道题占详情页三张卡里的哪一格（1/2/3）。
+    # 老数据（一次生成 3 道那版）没有这个概念，留 NULL，前端按 created_at 兜底排。
+    target_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -70,6 +76,9 @@ class GenerationTask(Base):
         String(16), nullable=False, default="queued"
     )  # queued | running | done | failed
     target_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ADR-006：quiz 段请求的难度档；analysis 任务没有难度，留 NULL。
+    # 存它是因为「重新生成这一段」要能沿用原档位，而不是悄悄换成默认档。
+    difficulty: Mapped[str | None] = mapped_column(String(16), nullable=True)
     retry_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
