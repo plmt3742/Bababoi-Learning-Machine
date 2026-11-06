@@ -442,8 +442,12 @@ erDiagram
 | GET | `/generated-questions/{id}` | 单题详情 |
 | POST | `/generated-questions/{id}/regenerate` | 单题重新生成（P0 基础版）；入队 `quiz` 任务，`target_index` 定位 |
 | POST | `/generated-questions/{id}/feedback` | `{type: "bad_question"|"wrong_answer"|"too_easy"|"too_hard", comment?}` |
-| POST | `/practice-records` | `{generated_question_id, user_answer?, is_correct, duration_seconds}` |
-| GET | `/practice-records` | 分页；`?page&page_size` |
+| POST | `/practice-records` | `{generated_question_id, user_answer?, is_correct, duration_seconds}`；返回 201 |
+| GET | `/practice-records` | 分页；`?page&page_size`；附加过滤 `?generated_question_id=`（BE-012 新增，练习页回显用） |
+
+> BE-012 防重复口径：同用户、同生成题、同 `user_answer`、同 `is_correct`，60 秒窗口内再次提交返回 `409 PRACTICE_DUPLICATE`（时长不参与比对）；窗口外允许重复。生成题不存在/不属于当前用户/已删除一律 `404 NOT_FOUND`。
+>
+> 已知风险：防重复是“先查后插”，并发请求理论上仍可能双双通过；MVP 单人单端可接受，BE-016 再收紧。整组重生成会软删旧 3 题，对旧题补交返回 404；已入库的 practice_records 不受影响。
 
 ### 6.5b 草稿与任务
 
@@ -951,5 +955,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-05 | v0.4 | **图片录入改为用户裁剪 + 多题文本提取（`questions[]`，① ②… 条目）+ 选择 1–3 道生成**；删除 bbox/candidates/detection_confidence；分析补 answer/explanation；Prompt `vision_extract_v2` | 霹雳马桶 / agent |
 | 2026-11-06 | v0.4.1 | BE-005 review 修复：`AnalysisResult` 补 `answer_md`/`explanation_md`（05 §7.1 早就要求，代码一直缺）；生成温度 0.7→0.3、`max_tokens` 8000、`response_format=json_object`、`trust_env=False`；`\(...\)` 改为规范化而非判失败；撤掉「三题彼此 <0.9」误杀判据。**注：上面两行 v0.3.2 编号重复**（#7 与文档同步各占一行），后续新增请从 v0.4.2 起 | 人机 |
 | 2026-11-06 | v0.4.2 | 生成题型口径落定：**软约束**（首选与原题一致，不一致照常入库，不引入 `TYPE_MISMATCH`）——与 14 号文档 D2/D7 的「硬约束」表述冲突，按前端 review 选的 A 统一；§7.2 第 3 条补「三题彼此只拒完全相同」的实测依据 | 人机 |
+| 2026-11-06 | v0.4.4 | BE-012：`PRACTICE_DUPLICATE` 错误码与防重复口径（§6.4）；`GET /practice-records` 附加 `generated_question_id` 过滤 | 人机 |
 | 2026-11-06 | v0.4.3 | BE-006/007 review 修复：重新生成整组改为替换（旧组软删）、任务不存在用 `TASK_NOT_FOUND`、生成校验补 05 §7.2 四条、超时按操作分档 | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
