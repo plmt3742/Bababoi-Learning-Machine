@@ -27,6 +27,7 @@ from app.schemas.question import (
     QuestionCreate,
     QuestionListItem,
     QuestionUpdate,
+    structure_problem_zh,
     validate_type_payload,
 )
 
@@ -235,8 +236,26 @@ def update(
     if "tags" in changed:
         sync_tags(session, question, changed["tags"])
 
-    # 题干是空位数/选项校验的输入，改完必须整题复核一遍题型规则
-    if "content_md" in changed:
+    # 题型结构三字段（issue #43 / BE-025）。切换题型时清掉不适用的一半，
+    # 否则会留下"解答题挂着 4 个选项"这种库里看得见、UI 读不出的脏形状。
+    # 未提交的字段保持原值——`changed` 已经是 exclude_unset 的结果。
+    if "question_type" in changed:
+        question.question_type = changed["question_type"]
+    if question.question_type == "solve":
+        question.options = None
+        question.blanks = None
+    else:
+        if "options" in changed:
+            question.options = changed["options"] or None
+        if "blanks" in changed:
+            question.blanks = changed["blanks"] or None
+        if question.question_type == "choice":
+            question.blanks = None
+        elif question.question_type == "blank":
+            question.options = None
+
+    # 题型规则的输入有四个，动其中任何一个都要整题复核一遍——判据只有 validate_type_payload 一份
+    if {"question_type", "content_md", "options", "blanks"} & changed.keys():
         try:
             validate_type_payload(
                 question.question_type, question.content_md, question.options, question.blanks
@@ -244,7 +263,9 @@ def update(
         except ValidationError as exc:
             session.rollback()
             raise ApiError(
-                ErrorCode.VALIDATION_ERROR, exc.errors()[0]["msg"], 400
+                ErrorCode.VALIDATION_ERROR,
+                structure_problem_zh(question.question_type, exc),
+                400,
             ) from None
 
     session.commit()

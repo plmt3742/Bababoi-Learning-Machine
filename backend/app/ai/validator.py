@@ -17,6 +17,7 @@ from app.schemas.question import (
     MIN_OPTIONS,
     BlankAnswer,
     ChoiceOption,
+    structure_problem_zh,
     validate_type_payload,
 )
 
@@ -234,26 +235,6 @@ class ExtractedQuestion(BaseModel):
         return None
 
 
-def _zh_structure_problem(question_type: str, exc: ValidationError) -> str:
-    """把 `validate_type_payload` 的报错变成一句中文。
-
-    判据不在这里重复——只翻译文案。Pydantic 对数组长度给的是默认英文
-    （"List should have at least 2 items after validation, not 1"），原样塞进 warning
-    等于让用户在题目卡片上读一句英文；我们自己 raise 的那些本来就是中文，直接带走。
-    """
-    error = (exc.errors() or [{}])[0]
-    context = error.get("ctx") or {}
-    field_label = {"choice": "选项", "blank": "空位答案"}.get(question_type, "结构")
-    if error.get("type") == "too_short":
-        return f"{field_label}只有 {context.get('actual_length', '?')} 个（至少要 {context.get('min_length', '?')} 个）"
-    if error.get("type") == "too_long":
-        return f"{field_label}有 {context.get('actual_length', '?')} 个（最多 {context.get('max_length', '?')} 个）"
-    # 我们自己在 validator 里 raise 的 ValueError 会被 Pydantic 冠一句 "Value error, "，
-    # 那是框架的包装不是内容，留在卡片上只会让用户看到半句英文
-    message = str(error.get("msg") or "").removeprefix("Value error, ").strip()
-    return message or "结构不完整"
-
-
 def validate_extraction(raw: dict) -> dict:
     """识图输出的校验：**文字转录从严，题目结构从宽**（ADR-004「识别成文本」的落地口径）。
 
@@ -311,7 +292,7 @@ def validate_extraction(raw: dict) -> dict:
                 validate_type_payload(item.question_type, item.content_md,
                                       payload_options, payload_blanks)
             except ValidationError as exc:
-                structure_problem = _zh_structure_problem(item.question_type, exc)
+                structure_problem = structure_problem_zh(item.question_type, exc)
         if structure_problem:
             # 不自洽就**降级成纯文本条目**，而不是把半套结构原样交给用户：
             # ADR-004 §5 里 `options?`/`blanks?` 本来就是可选，识图的职责是"识别成文本"，

@@ -386,3 +386,72 @@ def test_create_keeps_image_path_for_intake_questions(client, db) -> None:
 
     with db() as session:
         assert session.get(Question, first["id"]).image_path == path
+
+
+def _patch(client, token: str, qid: int, body: dict):
+    return client.patch(f"/api/v1/questions/{qid}", json=body, headers=auth_headers(token))
+
+
+def test_patch_changes_question_type_and_clears_inapplicable_structure(client) -> None:
+    """BE-025（issue #43）：题型结构三字段进可改清单，切换题型要清掉不适用的一半。
+
+    前端 FE-027 已经能编辑选项/空位并 PATCH 上来；后端不收等于用户改的结构静默丢失，
+    只能靠前端事后比对再提示"后端尚未支持"——那是把后端的活推给调用方兜。
+    """
+    token = register_user(client)["access_token"]
+    q = _create(client, token, _choice_payload())["question"]
+    assert q["question_type"] == "choice" and len(q["options"]) == 2
+
+    blank = _patch(client, token, q["id"], {
+        "question_type": "blank",
+        "content_md": "$f(x)=x^2$ 的导数是 ___，极小值点是 ___。",
+        "blanks": [{"index": 1, "answer_md": "$2x$"}, {"index": 2, "answer_md": "$0$"}],
+    }).json()
+    assert blank["question_type"] == "blank"
+    assert blank["options"] is None, "切到填空题必须把选项清干净"
+    assert len(blank["blanks"]) == 2
+
+    solved = _patch(client, token, q["id"], {
+        "question_type": "solve", "content_md": r"证明对任意实数 $x$，$x^2 \ge 0$。"
+    }).json()
+    assert solved["question_type"] == "solve"
+    assert solved["options"] is None and solved["blanks"] is None
+
+    bad = _patch(client, token, q["id"], {
+        "question_type": "choice", "content_md": "下面哪个是对的？（  ）",
+        "options": [{"label": "A", "content_md": "$1$"}],
+    })
+    assert bad.status_code == 400, bad.text
+    assert client.get(f"/api/v1/questions/{q['id']}", headers=auth_headers(token)).json()["question_type"] == "solve", \
+        "非法结构必须整笔回滚，不能把题型改一半"
+
+    good = _patch(client, token, q["id"], {
+        "question_type": "choice", "content_md": "下面哪个是对的？（  ）",
+        "options": [{"label": "A", "content_md": "$1$"}, {"label": "B", "content_md": "$2$"}],
+    })
+    assert good.status_code == 200, good.text
+    assert [o["label"] for o in good.json()["options"]] == ["A", "B"]
+
+
+def test_patch_content_only_keeps_structure_intact(client) -> None:
+    """只改题干不动结构：选项/空位保持原值，但题型规则仍要复核一遍。"""
+    token = register_user(client)["access_token"]
+    q = _create(client, token, _choice_payload())["question"]
+    before = q["options"]
+
+    after = _patch(client, token, q["id"], {"content_md": "求 $f(x)=x^3-3x$ 的极值。"}).json()
+    assert after["options"] == before and after["question_type"] == "choice"
+
+
+def test_patch_structure_error_message_is_readable(client) -> None:
+    """400 的文案要中文可读：Pydantic 的默认英文串不该透到前端提示里（与识图同一口径）。"""
+    token = register_user(client)["access_token"]
+    q = _create(client, token, _blank_payload())["question"]
+
+    resp = _patch(client, token, q["id"], {
+        "content_md": "三个空：___、___ 和 ___。",
+        "blanks": [{"index": 1, "answer_md": "$1$"}],
+    })
+    assert resp.status_code == 400, resp.text
+    message = resp.json()["detail"]["message"]
+    assert "Value error" not in message and "should have" not in message, message
