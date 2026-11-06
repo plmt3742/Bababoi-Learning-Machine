@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.deepseek.com"
     llm_model: str = "deepseek-flash"
     llm_mock: bool = True  # CI 与本地默认不调真实模型（12号 §6.1）
+    # 识图是否让模型先"想一遍"。实测（两张实拍整页，生产提示词+生产校验器）：
+    #   开思考 28.9s / 5861 输出 token（其中 reasoning 14617 字符），5 条
+    #   关思考  3.4s /  714 输出 token，同样 5 条，题干字数 393 vs 405，过严格校验数相同
+    # 密页横拍那张关思考反而多认出一条（4 vs 3）。抄题这种活不需要推理，
+    # 思考的 token 还会顶满 max_tokens 变成"截断"，所以默认关掉。
+    # 留成配置而不是写死：样本只有两张图，演示前如果发现某类题（手写/复杂排版）掉质量，
+    # 改一个环境变量就能切回来，不用发版。
+    vision_thinking: bool = False
 
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
     recognize_client_timeout_s: int = 90  # 前端等待上限
@@ -48,9 +56,13 @@ class Settings(BaseSettings):
     task_workers_enabled: bool = True  # API 测试里关掉，worker 单测直接调同步函数
 
     # 图片（12号 §5；上传兜底 10MB，落库前压到 5MB/2000px）
+    upload_dir: str = "./uploads"
     image_max_upload_bytes: int = 10 * 1024 * 1024
     image_max_stored_bytes: int = 5 * 1024 * 1024
     image_max_edge_px: int = 2000
+    # 送多模态模型前的临时缩放（14 号 §5-3 实测：长边压到 1200 后 token/延迟明显下降、
+    # 质量不掉）。只在内存里做，不落第二份文件。
+    image_llm_max_edge_px: int = 1200
     image_allowed_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
 
     # 分页（05 §6.1）

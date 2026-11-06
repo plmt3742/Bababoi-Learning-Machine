@@ -41,6 +41,10 @@ def _timeout_for(operation: str) -> int:
 SAMPLING = {
     OPERATION_ANALYSIS: {"temperature": 0.2, "max_tokens": 4000},
     OPERATION_QUIZ: {"temperature": 0.3, "max_tokens": 6000},
+    # 识图：05 §7.0 定温度 0.1。max_tokens 8000 是实测给的——同一张 4 题图
+    # 开 response_format=json_object 是 7.7s / 1513 token，不开会跑偏到 44.1s / 7265 token
+    # 并几乎顶到上限，所以留够头寸，别让截断把整页题变成坏输出。
+    OPERATION_VISION: {"temperature": 0.1, "max_tokens": 8000},
 }
 
 
@@ -51,6 +55,9 @@ class LLMResponse:
     prompt_tokens: int
     completion_tokens: int
     latency_ms: int
+    # "length" 意味着输出被 max_tokens 掐断，JSON 必然不完整。
+    # 不带上它，截断只能以"解析失败"的形式冒出来，排查时要猜是模型笨还是上限小了。
+    finish_reason: str | None = None
 
 
 class LLMClient(Protocol):
@@ -69,6 +76,8 @@ class MockLLMClient:
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         if operation == OPERATION_QUIZ:
             text = _mock_quiz_text(messages)
+        elif operation == OPERATION_VISION:
+            text = _MOCK_OUTPUTS[OPERATION_VISION]
         else:
             text = _MOCK_OUTPUTS[operation]
         return LLMResponse(
@@ -77,6 +86,7 @@ class MockLLMClient:
             prompt_tokens=0,
             completion_tokens=0,
             latency_ms=0,
+            finish_reason="stop",
         )
 
 
@@ -106,12 +116,18 @@ class DeepSeekClient:
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         start = time.monotonic()
         sampling = SAMPLING.get(operation, {})
+        extra: dict = {}
+        if operation == OPERATION_VISION:
+            # 抄题不需要思考；开着的时候思考 token 会顶满 max_tokens，
+            # 表现成"输出被截断"而不是"模型不会"（05 §6.8 实测表）
+            extra["thinking"] = {"type": "enabled" if settings.vision_thinking else "disabled"}
         try:
             resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
                 model=self._model,
                 messages=messages,
-                response_format={"type": "json_object"},  # 实测 deepseek-flash 支持
+                response_format={"type": "json_object"},  # 实测 deepseek-flash 支持（与图片同用也可）
                 **sampling,
+                extra_body=extra or None,
             )
         except openai.APITimeoutError as exc:
             raise AITimeoutError(str(exc)) from None
@@ -124,6 +140,7 @@ class DeepSeekClient:
             prompt_tokens=resp.usage.prompt_tokens if resp.usage else 0,
             completion_tokens=resp.usage.completion_tokens if resp.usage else 0,
             latency_ms=int((time.monotonic() - start) * 1000),
+            finish_reason=resp.choices[0].finish_reason,
         )
 
 
@@ -177,6 +194,60 @@ _MOCK_QUIZ_SEGMENTS: dict[str, dict] = {
     },
 }
 
+# 识图的固定输出：把提取校验的四条分支各来一条——
+# 结构自洽的填空（保留 blank）、结构不自洽的填空（降级成文本）、依赖图形的题、
+# 初判坏值（非法档位 → None）。这些分支只有 mock 能钉死，实拍图每次不一样。
+_MOCK_VISION: dict = {
+    "questions": [
+        {
+            "index": 1,
+            "content_md": "求函数 $f(x)=x^3-3x^2+2$ 的极值。",
+            "question_type": "solve",
+            "subject": "高等数学",
+            "chapter": "习题 7.1",
+            "difficulty": "medium",
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            "index": 2,
+            "content_md": "设 $A=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}$，则 $A$ 的特征值为 ___ 和 ___。",
+            "question_type": "blank",
+            # 学科由请求参数写死覆盖（17 号对齐清单 §三 规则 1），这里给一个"错"的值好验它
+            "subject": "线性代数",
+            "chapter": "复习题六",
+            # 故意给一个非法档位：初判坏值不该让整条题目消失（validator 会降级成 None）
+            "difficulty": "中等",
+            "blanks": [{"index": 1, "answer_md": "$3$"}, {"index": 2, "answer_md": "$1$"}],
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            # 实拍密页 4 条里就有 2 条是这种"图上 2 个空只读出 1 个答案"：
+            # 结构不自洽 → 识图不假装成功，降级成纯文本条目，结构化交还给编辑器
+            "index": 3,
+            "content_md": "极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}= $ ___，$\\lim_{x\\to\\infty}\\dfrac{1}{x}= $ ___。",
+            "question_type": "blank",
+            "blanks": [{"index": 1, "answer_md": "$3$"}],
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            "index": 4,
+            "content_md": "如图，在三角形 $ABC$ 中，$CD$ 是 $AB$ 边上的高，$AC=4$，$BC=3$，求 $CD$。",
+            "question_type": "solve",
+            # 三项都拿不准时给 null，前端要能接受"没有初判"这条路径
+            "subject": None,
+            "chapter": None,
+            "difficulty": None,
+            "has_figure": True,
+            "warnings": ["含图，暂只提取文字"],
+        },
+    ],
+    "warnings": [],
+}
+
 _MOCK_OUTPUTS: dict[str, str] = {
     OPERATION_ANALYSIS: json.dumps(_MOCK_ANALYSIS, ensure_ascii=False),
+    OPERATION_VISION: json.dumps(_MOCK_VISION, ensure_ascii=False),
 }

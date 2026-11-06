@@ -9,7 +9,7 @@ import re
 from difflib import SequenceMatcher
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from app.schemas.question import (
     MAX_BLANKS,
@@ -27,6 +27,10 @@ GENERATED_CONTENT_MD_MAX = 3000
 
 # 05 §7.2 第 4 条：生成题不能依赖图片
 _IMAGE_DEPENDENCY = re.compile(r"如[图中下上]|见下?图|照图")
+# 顶层说明里能定位到具体某一条的那句。实测四张真图 4/4 都写成「第5题题干被截断」
+# 「第1条仅能辨认到公式」这种开头——定位得到就下沉到条目，因为前端的确认步骤
+# 只看条目的 incomplete（17 号 §四-4），写在顶层就等于用户看不见。
+_TOP_ITEM_POINTER = re.compile(r"^第\s*(\d+)\s*(?:条|题|小问|个)")
 
 
 def _normalize_for_compare(text: str) -> str:
@@ -151,6 +155,203 @@ class GeneratedQuestionSpec(BaseModel):
 
 def validate_analysis(raw: dict) -> AnalysisResult:
     return AnalysisResult.model_validate(raw)
+
+
+# ---- 图片文本提取（05 §7.0 / BE-014）----
+
+# 提取阶段题干按错题的上限走（5000），不按生成题的 3000：
+# 一张整页教材里的一道解答题本来就可能写得长，卡 3000 会把真题判死。
+EXTRACTED_CONTENT_MD_MAX = 5000
+_UNCLEAR_MARK = "[不清]"
+
+
+class ExtractedOption(BaseModel):
+    """提取阶段的选项。这里**允许空文本**，严格规则留给入库那一刻。"""
+
+    label: str = ""
+    content_md: str = ""
+
+    @field_validator("content_md", "label", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+
+class ExtractedBlank(BaseModel):
+    index: int = 1
+    answer_md: str = ""
+
+    @field_validator("answer_md", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+
+class ExtractedQuestion(BaseModel):
+    """一道从图里认出来的题目条目（前端 `ExtractedImageQuestion` 的对端）。
+
+    `subject`/`chapter`/`difficulty` 是**初判**：只有图上有依据时才填（页眉的「习题 7.1」
+    这类标题只有图片看得见，analysis 读文本永远读不到），前端拿去做预填与展示，
+    正式难度仍以 analysis 为准。三个都可空——判断不了就留空，不许编。
+    """
+
+    index: int = 1
+    content_md: str = Field(min_length=1, max_length=EXTRACTED_CONTENT_MD_MAX)
+    question_type: Literal["choice", "blank", "solve"] = "solve"
+    subject: str | None = None
+    chapter: str | None = None
+    difficulty: Difficulty | None = None
+    options: list[ExtractedOption] | None = None
+    blanks: list[ExtractedBlank] | None = None
+    has_figure: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    incomplete: bool = False
+
+    @field_validator("content_md", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+    @field_validator("subject", "chapter", mode="before")
+    @classmethod
+    def blank_text_is_none(cls, value: object) -> object:
+        """空串/纯空白统一成 None，别让前端拿到 '' 再判一次真假。"""
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return None if value is None else value
+
+    @field_validator("difficulty", mode="before")
+    @classmethod
+    def unknown_difficulty_becomes_none(cls, value: object) -> object:
+        """初判难度写错档（比如 "中等"/"mid"）时留空，不因此丢掉整条题目。
+
+        这三个字段是锦上添花，任何一个是坏值都不该让一道认出来的题消失——
+        和"提取比入库宽"是同一条原则。
+        """
+        if isinstance(value, str) and value.strip() in {"easy", "medium", "hard"}:
+            return value.strip()
+        return None
+
+
+def _zh_structure_problem(question_type: str, exc: ValidationError) -> str:
+    """把 `validate_type_payload` 的报错变成一句中文。
+
+    判据不在这里重复——只翻译文案。Pydantic 对数组长度给的是默认英文
+    （"List should have at least 2 items after validation, not 1"），原样塞进 warning
+    等于让用户在题目卡片上读一句英文；我们自己 raise 的那些本来就是中文，直接带走。
+    """
+    error = (exc.errors() or [{}])[0]
+    context = error.get("ctx") or {}
+    field_label = {"choice": "选项", "blank": "空位答案"}.get(question_type, "结构")
+    if error.get("type") == "too_short":
+        return f"{field_label}只有 {context.get('actual_length', '?')} 个（至少要 {context.get('min_length', '?')} 个）"
+    if error.get("type") == "too_long":
+        return f"{field_label}有 {context.get('actual_length', '?')} 个（最多 {context.get('max_length', '?')} 个）"
+    # 我们自己在 validator 里 raise 的 ValueError 会被 Pydantic 冠一句 "Value error, "，
+    # 那是框架的包装不是内容，留在卡片上只会让用户看到半句英文
+    message = str(error.get("msg") or "").removeprefix("Value error, ").strip()
+    return message or "结构不完整"
+
+
+def validate_extraction(raw: dict) -> dict:
+    """识图输出的校验：**文字转录从严，题目结构从宽**（ADR-004「识别成文本」的落地口径）。
+
+    分成两类处理，是因为它们对用户的代价不一样：
+
+    1. **题干本身残缺**（漏字、`[不清]`、图被截断）→ 条目照样返回，标 `incomplete` +
+       warning。用户能看到"这一题只认出一半"，编辑两下就能用。
+    2. **结构不自洽**（选择题只 1 个选项、填空题空位数≠答案数、答案为空）→
+       **降级成纯文本条目**（`question_type=solve`、`options/blanks` 清空）+ warning。
+       契约里 `options?`/`blanks?` 是可选（ADR-004 §5），识图不该对用户假装自己结构化成功了；
+       实测密页 4 条里有 2 条是"图上 2 个空只读出 1 个答案"，原样返回的话用户要在
+       **提交那一步**才被 `POST /questions` 的严格校验拒掉，而且拒的原因他看不见。
+       结构化交还给 FE-020 的三题型编辑器，那里用户改得动。
+
+    **判据只有一条是硬的：条目带任何 `warnings` 就置 `incomplete=true`**——前端的确认步骤
+    看的是标志位而不是文案（17 号 §四-4），残缺只写在 warnings 里等于没告诉用户要核对。
+
+    单条坏输出（连对象都不是）只丢那一条 + 顶层 warning，不拖垮整张图；
+    图里没题返回 `questions=[]` + warning，**这不是错误**。
+    LaTeX 定界符统一规范化（实测 `json_object` 模式下模型更爱吐 `\\(...\\)`），
+    排版习惯不算失败。
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
+        raise ValueError("识图输出必须形如 {\"questions\": [...]}")
+
+    top_warnings = [str(w) for w in (raw.get("warnings") or []) if str(w).strip()]
+    items: list[ExtractedQuestion] = []
+    for position, entry in enumerate(raw["questions"], start=1):
+        try:
+            item = ExtractedQuestion.model_validate(entry)
+        except ValidationError as exc:
+            # 单条坏输出不拖垮整张图：丢掉它，留一行说明
+            top_warnings.append(f"第 {position} 条无法解析（{exc.errors()[0]['msg']}），已跳过")
+            continue
+        if not item.content_md.strip():
+            top_warnings.append(f"第 {position} 条题干为空，已跳过")
+            continue
+        item.index = position  # 模型编号乱了就按阅读顺序重编，前端只认连续 ①②③
+        if _UNCLEAR_MARK in item.content_md:
+            item.incomplete = True
+            item.warnings.append("题干含 [不清] 标记，可能有漏字或误读")
+        if item.has_figure and not any("含图" in w for w in item.warnings):
+            item.warnings.append("含图，暂只提取文字")
+        # 结构自不自洽，只问一个地方：`schemas/question.py::validate_type_payload`
+        # 是题型规则的唯一来源，识图这边不再自己抄一份判据。
+        structure_problem = None
+        if item.question_type == "solve":
+            if item.options or item.blanks:
+                structure_problem = "识别为解答题却读出了选项/空位"
+            item.options = item.blanks = None
+        else:
+            payload_options = [o.model_dump() for o in (item.options or [])]
+            payload_blanks = [b.model_dump() for b in (item.blanks or [])]
+            try:
+                validate_type_payload(item.question_type, item.content_md,
+                                      payload_options, payload_blanks)
+            except ValidationError as exc:
+                structure_problem = _zh_structure_problem(item.question_type, exc)
+        if structure_problem:
+            # 不自洽就**降级成纯文本条目**，而不是把半套结构原样交给用户：
+            # ADR-004 §5 里 `options?`/`blanks?` 本来就是可选，识图的职责是"识别成文本"，
+            # 结构化归 FE-020 编辑器。实拍密页有 2/4 条是"图上 2 个空只读出 1 个答案"，
+            # 原样返回的话用户要在"提交"那一步才被严格校验拒掉——那才是体验事故。
+            # ADR-004 §6 的复审条件（结构化成功率 <90%）就是这件事的预案入口。
+            item.incomplete = True
+            item.question_type = "solve"
+            item.options = item.blanks = None
+            item.warnings.append(
+                f"{structure_problem}，已按文本题返回；需要选择题/填空题请在编辑器里补结构"
+            )
+        if item.warnings:
+            # 残缺必须落到 `incomplete` 上，不能只留在 `warnings` 里：17 号 §四-4 让前端
+            # 「`incomplete=true` 的条目要用户补完才能提交」，那条确认步骤读的是标志位，
+            # 不是文案。实测四张真图（11-07）：模型把"被截断/辨认不清"写进 warnings，
+            # 却不打 `[不清]` 标记，于是半截题干带着 `incomplete=false` 进了前端。
+            item.incomplete = True
+        items.append(item)
+
+    # 顶层那句只要点得到第几条，就搬到那一条上去（顺带把 incomplete 顶起来）。
+    # 实测模型常把"第 5 题被截断"写在顶层而不是条目的 warnings 里，留在顶层就变成
+    # 横幅上有、卡片上没有——用户照样会直接提交半截题干。
+    # 按 item.index（= 模型自己的编号）查而不是按列表下标：坏输出被丢掉之后列表会前移，
+    # 用列表下标会把"第 1 条题干为空，已跳过"挂到幸存下来的那道题上（测试里真复现过）。
+    by_index = {item.index: item for item in items}
+    kept: list[str] = []
+    for text in top_warnings:
+        match = _TOP_ITEM_POINTER.match(text.strip())
+        target = by_index.get(int(match.group(1))) if match else None
+        if target is not None:
+            target.warnings.append(text)
+            target.incomplete = True
+        else:
+            kept.append(text)
+    top_warnings = kept
+
+    if not items and not top_warnings:
+        top_warnings.append("没有从图片里辨认出题目")
+    return {"questions": items, "warnings": top_warnings}
 
 
 def validate_segment(

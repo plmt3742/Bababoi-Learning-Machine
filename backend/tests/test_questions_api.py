@@ -353,3 +353,36 @@ def test_patch_analysis_must_match_schema(client) -> None:
     )
     assert cleared.status_code == 200
     assert cleared.json()["analysis"] is None
+
+
+def test_create_keeps_image_path_for_intake_questions(client, db) -> None:
+    """05 §6.4 的 `image_path?` 必须真落库。
+
+    图片错题靠这一列关联原图，05 §5.2 还写明"多题共用同一 image_path，MVP 用它分组"。
+    之前 schema 收了、service 建对象时没列这一行，于是题建得出来、原图关联静默丢失，
+    列一直是 NULL——事后回补只能扫 uploads 目录猜，而文件名是内容寻址的，认不出归属。
+    """
+    from app.models.question import Question
+
+    token = register_user(client)["access_token"]
+    path = "uploads/1/6f1c2a3b4d5e6f70.jpg"
+
+    first = _create(client, token, _choice_payload(source_type="image", image_path=path))["question"]
+    second = _create(client, token, _blank_payload(source_type="image", image_path=path))["question"]
+    assert first["image_path"] == path and second["image_path"] == path, "同一次提取的多题共用同一 image_path"
+
+    detail = client.get(f"/api/v1/questions/{first['id']}", headers=auth_headers(token)).json()
+    assert detail["image_path"] == path, "详情页要能据此取原图"
+
+    text_only = _create(client, token, _choice_payload())["question"]
+    assert text_only["image_path"] is None, "不带就是 null，不能把上一条的值串过来"
+
+    # 错题本列表要显示原图，靠的是列表项这一项——逐条再请求一次详情不算实现
+    page = client.get("/api/v1/questions", params={"page_size": 50}, headers=auth_headers(token)).json()
+    listed = {x["id"]: x for x in page["items"]}
+    assert listed[first["id"]]["image_path"] == path
+    assert listed[second["id"]]["image_path"] == path
+    assert listed[text_only["id"]]["image_path"] is None
+
+    with db() as session:
+        assert session.get(Question, first["id"]).image_path == path

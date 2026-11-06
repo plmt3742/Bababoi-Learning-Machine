@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.errors import ApiError, ErrorCode
 from app.core.security import decode_access_token
@@ -31,3 +31,13 @@ def get_current_user(
         # token 有效但用户已不存在（如换了数据库）——按凭证无效处理
         raise ApiError(ErrorCode.AUTH_INVALID_CREDENTIALS, "无效的登录凭证", 401)
     return user
+
+
+def get_session_factory(session: Session = Depends(get_session)) -> sessionmaker:
+    """给"要在请求之外再开一个短事务"的地方用的工厂（识图写 ai_call_logs，05 §9.3）。
+
+    为什么从注入的 session 反推 engine，而不是直接用 `db.session.SessionLocal`：
+    测试把 `get_session` 换成临时库，真实 SessionLocal 还指着仓库里的 .db——
+    直接用的话识图的日志会写进测试没在看的库，测试隔离被悄悄打破。
+    """
+    return sessionmaker(bind=session.get_bind(), autoflush=False, expire_on_commit=False)
