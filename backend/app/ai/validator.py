@@ -185,11 +185,19 @@ class ExtractedBlank(BaseModel):
 
 
 class ExtractedQuestion(BaseModel):
-    """一道从图里认出来的题目条目（前端 `ExtractedImageQuestion` 的对端）。"""
+    """一道从图里认出来的题目条目（前端 `ExtractedImageQuestion` 的对端）。
+
+    `subject`/`chapter`/`difficulty` 是**初判**：只有图上有依据时才填（页眉的「习题 7.1」
+    这类标题只有图片看得见，analysis 读文本永远读不到），前端拿去做预填与展示，
+    正式难度仍以 analysis 为准。三个都可空——判断不了就留空，不许编。
+    """
 
     index: int = 1
     content_md: str = Field(min_length=1, max_length=EXTRACTED_CONTENT_MD_MAX)
     question_type: Literal["choice", "blank", "solve"] = "solve"
+    subject: str | None = None
+    chapter: str | None = None
+    difficulty: Difficulty | None = None
     options: list[ExtractedOption] | None = None
     blanks: list[ExtractedBlank] | None = None
     has_figure: bool = False
@@ -200,6 +208,27 @@ class ExtractedQuestion(BaseModel):
     @classmethod
     def math_normalized(cls, value: str) -> str:
         return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+    @field_validator("subject", "chapter", mode="before")
+    @classmethod
+    def blank_text_is_none(cls, value: object) -> object:
+        """空串/纯空白统一成 None，别让前端拿到 '' 再判一次真假。"""
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return None if value is None else value
+
+    @field_validator("difficulty", mode="before")
+    @classmethod
+    def unknown_difficulty_becomes_none(cls, value: object) -> object:
+        """初判难度写错档（比如 "中等"/"mid"）时留空，不因此丢掉整条题目。
+
+        这三个字段是锦上添花，任何一个是坏值都不该让一道认出来的题消失——
+        和"提取比入库宽"是同一条原则。
+        """
+        if isinstance(value, str) and value.strip() in {"easy", "medium", "hard"}:
+            return value.strip()
+        return None
 
 
 def validate_extraction(raw: dict) -> dict:

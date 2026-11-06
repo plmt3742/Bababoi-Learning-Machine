@@ -43,6 +43,11 @@ class ExtractedQuestionOut(BaseModel):
     index: int
     content_md: str
     question_type: QuestionType
+    # 初判三项，对齐前端 ExtractedImageQuestion：只用于预填/展示，
+    # 正式 difficulty 与知识点仍由 analysis 写；坏值在服务层已降级成 None
+    subject: str | None = None
+    chapter: str | None = None
+    difficulty: str | None = None
     options: list[ExtractedOptionOut] | None = None
     blanks: list[ExtractedBlankOut] | None = None
     has_figure: bool = False

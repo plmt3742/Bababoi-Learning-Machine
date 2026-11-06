@@ -579,6 +579,9 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
       "index": 1,
       "content_md": "求函数 $f(x)=x^3-3x+1$ 的极值。",
       "question_type": "solve",
+      "subject": "概率论与数理统计",
+      "chapter": "复习题六",
+      "difficulty": "medium",
       "options": null,
       "blanks": null,
       "has_figure": false,
@@ -607,6 +610,13 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - 一次识别返回 1..N 道题；每题有 `index`（从 1 开始），前端显示为 ① ② ③ …。
 - 当前阶段只提取文字和公式；`has_figure=true` 时只加 warning，不提取附图；生成题仍要求纯文本可作答。
 - 每道题可单独编辑；用户确认后才 `POST /questions` 创建；未确认的条目不落库。
+- **`subject` / `chapter` / `difficulty` 是初判**，供前端预填与展示（FE-026 消费的就是这三项）。
+  只写图上有依据的内容：`chapter` 照抄页眉/栏目里真实出现的标题，图上没有就 `null`，**不许编章节名**；
+  `difficulty` 只是初步印象，正式难度仍以 analysis 为准，两处都写就会抢真源。
+  实拍三张共 14 个条目的填充率：`subject` 14/14（全是"概率论与数理统计"，正确）、
+  `chapter` 10/14（有页眉的两张全填对，密页那张如实留空）、`difficulty` 4/14（模型保守）。
+  代价约 +0.5s、+15% 输出 token。坏值一律降级成 `null`（`"中等"` 这种不判死）——
+  初判是锦上添花，不能让它把一道认出来的题弄没。
 - 多选生成 P0 上限 3 道，避免成本/延迟失控；超过时提示“最多选择 3 道”。
 - 提取结果为空 → `questions: []` + `warnings`，**这不是错误**（探针实测：无题图模型就这么答，判错误等于把正常行为说成故障）；输出形状不对/被长度上限截断 → 坏输出 → `AI_INVALID_IMAGE`；部分题没认全 → 该条 `incomplete=true` + `warnings`，用户可编辑、重试或改文本。
 - **提取校验比入库校验宽**（`ai/validator.py::validate_extraction` ≠ `schemas/question.py::validate_type_payload`）。一张 4 题的页面里有一题没认全时，用户应该拿到另外 3 题 + 一条可编辑的残缺条目；照搬严格规则（选择题 ≥2 项、空位数=答案数、答案非空）会让整张图判坏输出，用户什么也拿不到。严格规则等用户确认后 `POST /questions` 那一刻才跑。实测一张真实教材照片提取出 4 条，**4/4 直接过严格入库校验**，说明"宽"并没有把形状带歪。
@@ -1076,4 +1086,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-06 | v0.5.1 | 按前端《三段并发-前端意见单》落地：§7.2 写清「归一化后逐字相同」的归一化范围与**没覆盖**的部分（`\left(`/全半角/多余空格已归一，`\ln`vs`\log_e` 这类语义等价留给 P1 BE-022）；§5.2 迁移补**历史行回填 target_index**（软删行与第 4 条以后留 NULL）；§7.3 把 `generate_v2` 定权给三段版、禁止另一条复用同名；§6.4 明确响应只有 `tasks`、后端从未双发 `task_id`，前端可删 FE-023 的兜底分支 | 人机 |
 | 2026-11-06 | v0.6.0 | **BE-014 图片录入落地**：新增 `POST /uploads/images`(201)、`GET /uploads/{user_id}/{filename}`（鉴权取图，非本用户/坏文件名一律 404 不给 403）、`POST /questions/from-image`；存储口径改为"只存一份转正剥元数据的 ≤2000px JPEG + 内容寻址文件名"，送模型前内存压到长边 1200；§6.8/§7.0 按实现重写（宽松提取校验与 `incomplete`、旋转归前端上传前、无题图不算错误、截断不重试、超时按 90s 收口并说明与 14 号 §5-4 的 120s 差异）；新增依赖 pillow==13.0.0 / python-multipart==0.0.33；§11 补 5 个图片键 | 人机 |
 | 2026-11-06 | v0.6.1 | 识图找到真正的瓶颈：**输出大头是 `reasoning_content`（思考）**，不是抄题啰嗦。新增 `VISION_THINKING=false` 默认关思考（实拍整页 20.0s/4145 token → 3.5s/691 token，条目与质量不降、截断风险消失），§6.8 的实测表补上 thinking A/B 并写清"我先前两次解释都错了"的过程；超时余量与输出上限两条按新数据重写；BE-023 分块识图取消。⚠️ 质量结论目前只有 3 张实拍支撑，所以做成配置而非写死 | 人机 |
+| 2026-11-06 | v0.6.2 | `from-image` 每题补上 **`subject`/`chapter`/`difficulty` 初判**，对齐 FE-026 已写好的预填消费代码（层级与可空性按 `ExtractedImageQuestion` 逐字核对过：条目级、三项皆可空）。`chapter` 只照抄图上真实标题、`difficulty` 展示用不覆盖 analysis 正式值、坏值降级 null；实拍 14 条填充率 subject 14/14、chapter 10/14、difficulty 4/14，代价 +0.5s / +15% token | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

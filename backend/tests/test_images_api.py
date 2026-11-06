@@ -199,6 +199,11 @@ def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
     assert figure["has_figure"] is True and any("含图" in w for w in figure["warnings"])
     # 提取阶段不返回答案/解析：那是 analysis 的事，两处都出就会抢真源
     assert "answer_md" not in solve and "explanation_md" not in solve
+    # 初判三项（FE-026 靠它预填学科/章节）：好值透出、坏值降级、拿不准就是 None
+    assert (solve["subject"], solve["chapter"], solve["difficulty"]) == ("高等数学", "习题 7.1", "medium")
+    assert (blank["subject"], blank["chapter"]) == ("线性代数", "复习题六")
+    assert blank["difficulty"] is None, "非法档位必须降级成 None，而不是把整条题目丢掉"
+    assert (figure["subject"], figure["chapter"], figure["difficulty"]) == (None, None, None)
 
     with db() as s:
         logs = s.scalars(select(AiCallLog).where(AiCallLog.operation == "vision")).all()
