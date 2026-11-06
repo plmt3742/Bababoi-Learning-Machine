@@ -8,14 +8,27 @@ import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
+import SegmentCard from '../components/ai/SegmentCard.vue'
 import { getDraft } from '../api/drafts'
 import { retryTask } from '../api/tasks'
 import { normalizeApiError } from '../api/errors'
-import type { Draft, Task, TaskStatus } from '../api/types'
+import type { Draft, GenerationTargetIndex, Task, TaskStatus } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
-import { taskErrorMessage, taskStageLabel, taskStatusLabel } from '../utils/task'
+import { taskFailureMessage, taskStageLabel, taskStatusLabel } from '../utils/task'
+import {
+  SEGMENT_INDEXES,
+  groupQuizSegmentTasks,
+  isSegmentTask,
+  latestSegmentTask,
+  segmentGroupStatusLabel,
+} from '../utils/segments'
+import type { QuizSegmentGroup, SegmentGroupStatus } from '../utils/segments'
 
 type StatusFilter = 'all' | TaskStatus
+
+type TaskRow =
+  | { kind: 'task'; key: string; sortAt: string; task: Task }
+  | { kind: 'group'; key: string; sortAt: string; group: QuizSegmentGroup }
 
 const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: 'all', label: '全部' },
@@ -44,23 +57,67 @@ const draftLoaded = ref(false)
 const draftError = ref('')
 const retryingTaskId = ref<number | null>(null)
 const manualRefreshing = ref(false)
+const expandedGroups = ref<Set<number>>(new Set())
 
-const filteredTasks = computed(() => {
-  if (statusFilter.value === 'all') return tasks.value
-  return tasks.value.filter((task) => task.status === statusFilter.value)
+const taskRows = computed<TaskRow[]>(() => {
+  const rows: TaskRow[] = []
+
+  for (const task of tasks.value) {
+    if (isSegmentTask(task)) continue
+    rows.push({ kind: 'task', key: `task-${task.id}`, sortAt: task.created_at, task })
+  }
+
+  for (const group of groupQuizSegmentTasks(tasks.value)) {
+    rows.push({
+      kind: 'group',
+      key: `group-${group.questionId}`,
+      sortAt: group.latestCreatedAt,
+      group,
+    })
+  }
+
+  return rows.sort((left, right) => right.sortAt.localeCompare(left.sortAt))
 })
+
+function matchesStatusFilter(row: TaskRow, filter: StatusFilter): boolean {
+  if (filter === 'all') return true
+  if (row.kind === 'task') return row.task.status === filter
+
+  if (filter === 'failed') {
+    return row.group.status === 'failed' || row.group.status === 'partial-failed'
+  }
+  if (filter === 'queued') {
+    return row.group.status === 'queued' || row.group.status === 'waiting'
+  }
+  return row.group.status === filter
+}
+
+const filteredRows = computed(() =>
+  taskRows.value.filter((row) => matchesStatusFilter(row, statusFilter.value)),
+)
 
 const filterCounts = computed<Record<StatusFilter, number>>(() => {
   const counts: Record<StatusFilter, number> = {
-    all: tasks.value.length,
+    all: taskRows.value.length,
     queued: 0,
     running: 0,
     done: 0,
     failed: 0,
   }
 
-  for (const task of tasks.value) {
-    counts[task.status] += 1
+  for (const row of taskRows.value) {
+    if (row.kind === 'task') {
+      counts[row.task.status] += 1
+      continue
+    }
+
+    if (row.group.status === 'failed' || row.group.status === 'partial-failed') {
+      counts.failed += 1
+    } else if (row.group.status === 'waiting') {
+      counts.queued += 1
+    } else {
+      counts[row.group.status] += 1
+    }
   }
 
   return counts
@@ -173,6 +230,58 @@ function taskStatusTagClass(status: TaskStatus): string {
   return 'tag'
 }
 
+function rowFailed(row: TaskRow): boolean {
+  if (row.kind === 'task') return row.task.status === 'failed'
+  return row.group.status === 'failed' || row.group.status === 'partial-failed'
+}
+
+function rowPartial(row: TaskRow): boolean {
+  return row.kind === 'group' && row.group.status === 'partial-failed'
+}
+
+function groupStatusTagClass(status: SegmentGroupStatus): string {
+  if (status === 'done') return 'tag tag--ok'
+  if (status === 'failed') return 'tag tag--fail'
+  if (status === 'partial-failed') return 'tag tag--draft'
+  if (status === 'running') return 'tag tag--run'
+  return 'tag'
+}
+
+function groupTimeSub(group: QuizSegmentGroup): string {
+  switch (group.status) {
+    case 'queued':
+    case 'running':
+      return '自动刷新'
+    case 'done':
+      return '3 / 3 段完成'
+    case 'partial-failed':
+    case 'failed':
+      return `${group.doneCount} / 3 段完成`
+    default:
+      return '等待开始'
+  }
+}
+
+function isGroupExpanded(questionId: number): boolean {
+  return expandedGroups.value.has(questionId)
+}
+
+function toggleGroup(questionId: number): void {
+  const next = new Set(expandedGroups.value)
+  if (next.has(questionId)) next.delete(questionId)
+  else next.add(questionId)
+  expandedGroups.value = next
+}
+
+function groupSegmentTask(group: QuizSegmentGroup, index: GenerationTargetIndex): Task | null {
+  return latestSegmentTask(group.tasks, index)
+}
+
+function isSegmentRetrying(group: QuizSegmentGroup, index: GenerationTargetIndex): boolean {
+  const task = groupSegmentTask(group, index)
+  return task !== null && retryingTaskId.value === task.id
+}
+
 async function loadDraft(): Promise<void> {
   draftError.value = ''
 
@@ -196,14 +305,14 @@ async function handleRefresh(): Promise<void> {
   }
 }
 
-async function handleRetry(task: Task): Promise<void> {
+async function handleRetry(taskId: number): Promise<void> {
   if (retryingTaskId.value !== null) return
 
-  retryingTaskId.value = task.id
+  retryingTaskId.value = taskId
 
   try {
-    await retryTask(task.id)
-    Message.success(`任务 #${task.id} 已重新提交`)
+    await retryTask(taskId)
+    Message.success(`任务 #${taskId} 已重新提交`)
     startTaskPolling()
   } catch (cause) {
     Message.error(normalizeApiError(cause).message)
@@ -321,7 +430,7 @@ onMounted(() => {
       />
 
       <EmptyState
-        v-else-if="filteredTasks.length === 0"
+        v-else-if="filteredRows.length === 0"
         :title="statusFilter === 'all' ? '暂无任务' : '当前筛选下暂无任务'"
         :description="
           statusFilter === 'all'
@@ -343,62 +452,147 @@ onMounted(() => {
 
         <ul class="task-list">
           <li
-            v-for="task in filteredTasks"
-            :key="task.id"
+            v-for="row in filteredRows"
+            :key="row.key"
             class="task-row"
-            :class="{ 'task-row--failed': task.status === 'failed' }"
+            :class="{
+              'task-row--failed': rowFailed(row),
+              'task-row--partial': rowPartial(row),
+              'task-row--group': row.kind === 'group',
+            }"
           >
-            <div class="task-row__main">
-              <span class="task-row__id">#{{ task.id }}</span>
-              <RouterLink class="task-row__link" :to="`/questions/${task.question_id}`">
-                题目 #{{ task.question_id }}
-                <IconArrowRight aria-hidden="true" />
-              </RouterLink>
-            </div>
+            <template v-if="row.kind === 'task'">
+              <div class="task-row__main">
+                <span class="task-row__id">#{{ row.task.id }}</span>
+                <RouterLink class="task-row__link" :to="`/questions/${row.task.question_id}`">
+                  题目 #{{ row.task.question_id }}
+                  <IconArrowRight aria-hidden="true" />
+                </RouterLink>
+              </div>
 
-            <div class="task-row__stage">{{ taskStageLabel(task.stage) }}</div>
+              <div class="task-row__stage">{{ taskStageLabel(row.task.stage) }}</div>
 
-            <div class="task-row__status">
-              <span :class="taskStatusTagClass(task.status)">
-                <span v-if="task.status === 'running'" class="dot" aria-hidden="true" />
-                {{ taskStatusText(task.status) }}
-              </span>
-            </div>
+              <div class="task-row__status">
+                <span :class="taskStatusTagClass(row.task.status)">
+                  <span v-if="row.task.status === 'running'" class="dot" aria-hidden="true" />
+                  {{ taskStatusText(row.task.status) }}
+                </span>
+              </div>
 
-            <div class="task-row__time">
-              <time :datetime="task.created_at">{{ formatTaskTime(task.created_at) }}</time>
-              <span class="task-row__time-sub">{{ formatTaskDuration(task) }}</span>
-            </div>
+              <div class="task-row__time">
+                <time :datetime="row.task.created_at">
+                  {{ formatTaskTime(row.task.created_at) }}
+                </time>
+                <span class="task-row__time-sub">{{ formatTaskDuration(row.task) }}</span>
+              </div>
 
-            <div class="task-row__action">
-              <button
-                v-if="task.status === 'failed'"
-                class="btn btn--danger btn--sm"
-                type="button"
-                :disabled="retryingTaskId !== null"
-                :aria-busy="retryingTaskId === task.id"
-                @click="handleRetry(task)"
-              >
-                {{ retryingTaskId === task.id ? '重试中…' : '重试' }}
-              </button>
-              <span v-else class="muted">—</span>
-            </div>
+              <div class="task-row__action">
+                <button
+                  v-if="row.task.status === 'failed'"
+                  class="btn btn--danger btn--sm"
+                  type="button"
+                  :disabled="retryingTaskId !== null"
+                  :aria-busy="retryingTaskId === row.task.id"
+                  @click="handleRetry(row.task.id)"
+                >
+                  {{ retryingTaskId === row.task.id ? '重试中…' : '重试' }}
+                </button>
+                <span v-else class="muted">—</span>
+              </div>
 
-            <p v-if="task.status === 'failed'" class="task-row__error">
-              <code v-if="task.error_code" class="task-row__error-code">
-                {{ task.error_code }}
-              </code>
-              <span>{{ taskErrorMessage(task.error_code) }}</span>
-              <span v-if="task.retry_index > 0" class="task-row__error-meta">
-                第 {{ task.retry_index + 1 }} 次尝试
-              </span>
-            </p>
+              <p v-if="row.task.status === 'failed'" class="task-row__error">
+                <code v-if="row.task.error_code" class="task-row__error-code">
+                  {{ row.task.error_code }}
+                </code>
+                <span>{{ taskFailureMessage(row.task) }}</span>
+                <span v-if="row.task.retry_index > 0" class="task-row__error-meta">
+                  第 {{ row.task.retry_index + 1 }} 次尝试
+                </span>
+              </p>
+            </template>
+
+            <template v-else>
+              <div class="task-row__main">
+                <span class="task-row__group-tag">3 段</span>
+                <RouterLink class="task-row__link" :to="`/questions/${row.group.questionId}`">
+                  题目 #{{ row.group.questionId }}
+                  <IconArrowRight aria-hidden="true" />
+                </RouterLink>
+              </div>
+
+              <div class="task-row__stage">生题 {{ row.group.doneCount }}/3</div>
+
+              <div class="task-row__status">
+                <span :class="groupStatusTagClass(row.group.status)">
+                  <span v-if="row.group.status === 'running'" class="dot" aria-hidden="true" />
+                  {{ segmentGroupStatusLabel(row.group.status) }}
+                </span>
+              </div>
+
+              <div class="task-row__time">
+                <time :datetime="row.group.latestCreatedAt">
+                  {{ formatTaskTime(row.group.latestCreatedAt) }}
+                </time>
+                <span class="task-row__time-sub">{{ groupTimeSub(row.group) }}</span>
+              </div>
+
+              <div class="task-row__action">
+                <button
+                  class="btn btn--quiet btn--sm task-row__expand"
+                  type="button"
+                  :aria-expanded="isGroupExpanded(row.group.questionId)"
+                  :aria-label="
+                    isGroupExpanded(row.group.questionId) ? '收起三段生成' : '展开三段生成'
+                  "
+                  @click="toggleGroup(row.group.questionId)"
+                >
+                  {{ isGroupExpanded(row.group.questionId) ? '收起' : '展开' }}
+                  <svg
+                    class="chev"
+                    :class="{ 'chev--open': isGroupExpanded(row.group.questionId) }"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </div>
+
+              <div v-if="isGroupExpanded(row.group.questionId)" class="task-row__segments">
+                <div class="task-row__segments-head">
+                  <span class="task-row__segments-title">三段并发生成</span>
+                  <span class="task-row__segments-count">
+                    {{ row.group.doneCount }} / 3 段完成
+                    <template v-if="row.group.failedCount > 0">
+                      · {{ row.group.failedCount }} 段失败
+                    </template>
+                  </span>
+                </div>
+                <div class="segment-grid">
+                  <SegmentCard
+                    v-for="index in SEGMENT_INDEXES"
+                    :key="index"
+                    :index="index"
+                    :task="groupSegmentTask(row.group, index)"
+                    :retrying="isSegmentRetrying(row.group, index)"
+                    :retry-disabled="retryingTaskId !== null"
+                    compact
+                    @retry="handleRetry"
+                  />
+                </div>
+              </div>
+            </template>
           </li>
         </ul>
       </section>
 
-      <p v-if="filteredTasks.length > 0" class="task-foot">
-        共 {{ filteredTasks.length }} 条任务 · 任务结束后自动停止刷新 · 失败任务保留错误码
+      <p v-if="filteredRows.length > 0" class="task-foot">
+        共 {{ filteredRows.length }} 条记录 · 生题任务按题目折叠 · 任务结束后自动停止刷新
       </p>
     </template>
   </div>
@@ -672,6 +866,28 @@ onMounted(() => {
   background: var(--color-danger-soft);
 }
 
+.task-row--partial {
+  background: var(--color-warning-soft);
+}
+
+.task-row--partial:hover {
+  background: var(--color-warning-soft);
+}
+
+.task-row__group-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+}
+
 .task-row__main {
   display: flex;
   flex-wrap: wrap;
@@ -747,6 +963,58 @@ onMounted(() => {
 
 .task-row__action {
   justify-self: start;
+}
+
+.task-row__expand {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.task-row__expand .chev {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  transition: transform 0.15s ease;
+}
+
+.task-row__expand .chev--open {
+  transform: rotate(90deg);
+}
+
+.task-row__segments {
+  grid-column: 1 / -1;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.task-row__segments-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin-bottom: 8px;
+}
+
+.task-row__segments-title {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-weight: 650;
+}
+
+.task-row__segments-count {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.segment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .task-row__error {
@@ -833,6 +1101,20 @@ onMounted(() => {
       'action action';
   }
 
+  .task-row--group {
+    grid-template-areas:
+      'main status'
+      'stage time'
+      'action action';
+  }
+
+  .task-row--group.task-row--failed {
+    grid-template-areas:
+      'main status'
+      'stage time'
+      'action action';
+  }
+
   .task-row__main {
     grid-area: main;
     align-self: center;
@@ -864,13 +1146,17 @@ onMounted(() => {
     width: 100%;
   }
 
-  .task-row:not(.task-row--failed) .task-row__action {
+  .task-row:not(.task-row--failed):not(.task-row--group) .task-row__action {
     display: none;
   }
 
   .task-row__action .btn {
     width: 100%;
     min-height: 38px;
+  }
+
+  .segment-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .task-foot {

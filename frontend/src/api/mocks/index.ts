@@ -7,6 +7,8 @@ import type {
   Difficulty,
   Draft,
   DraftSavePayload,
+  GenerateTaskRef,
+  GenerationTargetIndex,
   LoginPayload,
   MasteryStatus,
   PracticeRecord,
@@ -35,6 +37,20 @@ const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
 const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
 const TREND_DAY_COUNT = 7
 const WEAK_POINT_LIMIT = 5
+
+const SEGMENT_INDEXES: GenerationTargetIndex[] = [1, 2, 3]
+const SEGMENT_DIFFICULTIES: Record<GenerationTargetIndex, Difficulty> = {
+  1: 'easy',
+  2: 'medium',
+  3: 'hard',
+}
+const SEGMENT_INDEX_BY_DIFFICULTY: Record<Difficulty, GenerationTargetIndex> = {
+  easy: 1,
+  medium: 2,
+  hard: 3,
+}
+const MOCK_FAILING_SEGMENT: GenerationTargetIndex = 2
+const MOCK_FAILING_QUESTION_ID = 104
 
 const genericAnalysis: Analysis = {
   topic_type: '待整理',
@@ -450,6 +466,14 @@ function isTaskStatus(value: unknown): value is TaskStatus {
   return typeof value === 'string' && TASK_STATUSES.some((status) => status === value)
 }
 
+function isDifficulty(value: unknown): value is Difficulty {
+  return value === 'easy' || value === 'medium' || value === 'hard'
+}
+
+function isSegmentIndex(value: number | null): value is GenerationTargetIndex {
+  return value === 1 || value === 2 || value === 3
+}
+
 function toAnalysis(value: unknown): Analysis | null {
   if (
     !isRecord(value) ||
@@ -523,8 +547,12 @@ function buildFallbackTemplates(question: Question): GeneratedTemplate[] {
   return [build(1), build(2), build(3)]
 }
 
+function generatedTemplatesFor(question: Question): GeneratedTemplate[] {
+  return GENERATED_QUIZ_TEMPLATES[question.id] ?? buildFallbackTemplates(question)
+}
+
 function materializeGeneratedQuestions(state: MockState, question: Question): void {
-  const templates = GENERATED_QUIZ_TEMPLATES[question.id] ?? buildFallbackTemplates(question)
+  const templates = generatedTemplatesFor(question)
   const createdAt = nowIso()
 
   state.generatedQuestions = state.generatedQuestions.filter(
@@ -542,6 +570,7 @@ function materializeGeneratedQuestions(state: MockState, question: Question): vo
       options: template.options ?? null,
       blanks: template.blanks ?? null,
       difficulty: template.difficulty,
+      target_index: null,
       model: 'deepseek-flash',
       prompt_version: 'generate_v1',
       validation_status: 'valid',
@@ -551,8 +580,41 @@ function materializeGeneratedQuestions(state: MockState, question: Question): vo
   }
 }
 
+function materializeSegmentQuestion(state: MockState, question: Question, task: Task): void {
+  const targetIndex = task.target_index
+  if (!isSegmentIndex(targetIndex)) return
+
+  const templates = generatedTemplatesFor(question)
+  const template = templates[targetIndex - 1] ?? templates[0]
+  if (!template) return
+
+  state.generatedQuestions = state.generatedQuestions.filter(
+    (item) => !(item.parent_question_id === question.id && item.target_index === targetIndex),
+  )
+  state.generatedQuestions.push({
+    id: state.nextGeneratedId,
+    parent_question_id: question.id,
+    content_md: template.content_md,
+    answer_md: template.answer_md,
+    explanation_md: template.explanation_md,
+    question_type: template.question_type,
+    options: template.options ?? null,
+    blanks: template.blanks ?? null,
+    difficulty: isDifficulty(task.difficulty) ? task.difficulty : SEGMENT_DIFFICULTIES[targetIndex],
+    target_index: targetIndex,
+    model: 'deepseek-flash',
+    prompt_version: 'generate_v1',
+    validation_status: 'valid',
+    created_at: nowIso(),
+  })
+  state.nextGeneratedId += 1
+}
+
 function scheduleTaskProgress(task: Task, state: MockState, question?: Question): void {
   const attempt = task.retry_index
+  const targetIndex = isSegmentIndex(task.target_index) ? task.target_index : null
+  const runningDelay = targetIndex ? 700 + targetIndex * 150 : 900
+  const finishDelay = targetIndex ? 2000 + targetIndex * 600 : 2400
 
   setTimeout(() => {
     if (task.retry_index !== attempt) return
@@ -561,12 +623,26 @@ function scheduleTaskProgress(task: Task, state: MockState, question?: Question)
       task.status = 'running'
       task.started_at = nowIso()
     }
-  }, 900)
+  }, runningDelay)
 
   setTimeout(() => {
     // A retry bumped retry_index, so this timer belongs to a stale attempt.
     if (task.retry_index !== attempt) return
     if (task.status !== 'running') return
+
+    if (
+      task.stage === 'quiz' &&
+      targetIndex === MOCK_FAILING_SEGMENT &&
+      attempt === 0 &&
+      question?.id === MOCK_FAILING_QUESTION_ID
+    ) {
+      task.status = 'failed'
+      task.finished_at = nowIso()
+      task.error_code = 'VALIDATION_FAILED'
+      task.error_message = '该段生成结果未通过校验（Mock 首次失败，重试可通过）。'
+      question.updated_at = nowIso()
+      return
+    }
 
     task.status = 'done'
     task.finished_at = nowIso()
@@ -581,13 +657,50 @@ function scheduleTaskProgress(task: Task, state: MockState, question?: Question)
       return
     }
 
-    materializeGeneratedQuestions(state, question)
+    if (targetIndex) materializeSegmentQuestion(state, question, task)
+    else materializeGeneratedQuestions(state, question)
+
     question.updated_at = nowIso()
-  }, 2400)
+  }, finishDelay)
 }
 
 function findQuestion(state: MockState, id: number): Question | undefined {
   return state.questions.find((question) => question.id === id)
+}
+
+interface SegmentTarget {
+  index: GenerationTargetIndex
+  difficulty: Difficulty
+}
+
+function defaultSegmentTargets(): SegmentTarget[] {
+  return SEGMENT_INDEXES.map((index) => ({
+    index,
+    difficulty: SEGMENT_DIFFICULTIES[index],
+  }))
+}
+
+function readSegmentTargets(config: AxiosRequestConfig): SegmentTarget[] | null {
+  const body = readBody<Record<string, unknown>>(config)
+  if (!body) return null
+
+  const targets: SegmentTarget[] = []
+  const seen = new Set<Difficulty>()
+
+  if (Array.isArray(body.difficulties)) {
+    for (const item of body.difficulties) {
+      if (!isDifficulty(item) || seen.has(item)) continue
+      seen.add(item)
+      targets.push({ index: SEGMENT_INDEX_BY_DIFFICULTY[item], difficulty: item })
+    }
+    if (targets.length > 0) return targets.sort((left, right) => left.index - right.index)
+  }
+
+  if (isDifficulty(body.difficulty)) {
+    return [{ index: SEGMENT_INDEX_BY_DIFFICULTY[body.difficulty], difficulty: body.difficulty }]
+  }
+
+  return null
 }
 
 export function setupMocks(): void {
@@ -838,24 +951,50 @@ export function setupMocks(): void {
     const question = match ? findQuestion(state, Number.parseInt(match[1], 10)) : undefined
     if (!question) return apiError(404, 'QUESTION_NOT_FOUND', '错题不存在或已删除')
 
+    const requestedTargets = readSegmentTargets(config)
+    const targets = requestedTargets ?? defaultSegmentTargets()
+    const singleSlot = targets.length === 1
     const timestamp = nowIso()
-    const task: Task = {
-      id: state.nextTaskId,
-      question_id: question.id,
-      stage: 'quiz',
-      status: 'queued',
-      target_index: null,
-      retry_index: 0,
-      error_code: null,
-      created_at: timestamp,
-      started_at: null,
-      finished_at: null,
-    }
-    state.nextTaskId += 1
-    state.tasks.push(task)
-    scheduleTaskProgress(task, state, question)
 
-    return [200, { task_id: task.id }]
+    if (singleSlot) {
+      const slot = targets[0]
+      state.generatedQuestions = state.generatedQuestions.filter(
+        (item) => !(item.parent_question_id === question.id && item.target_index === slot.index),
+      )
+    } else {
+      state.generatedQuestions = state.generatedQuestions.filter(
+        (item) => item.parent_question_id !== question.id,
+      )
+    }
+
+    const refs: GenerateTaskRef[] = []
+
+    for (const target of targets) {
+      const task: Task = {
+        id: state.nextTaskId,
+        question_id: question.id,
+        stage: 'quiz',
+        status: 'queued',
+        target_index: target.index,
+        difficulty: target.difficulty,
+        retry_index: 0,
+        error_code: null,
+        error_message: null,
+        created_at: timestamp,
+        started_at: null,
+        finished_at: null,
+      }
+      state.nextTaskId += 1
+      state.tasks.push(task)
+      scheduleTaskProgress(task, state, question)
+      refs.push({
+        task_id: task.id,
+        target_index: target.index,
+        difficulty: target.difficulty,
+      })
+    }
+
+    return [200, { tasks: refs }]
   })
 
   adapter.onGet('/tasks').reply((config) => {
@@ -888,6 +1027,7 @@ export function setupMocks(): void {
     task.status = 'queued'
     task.retry_index += 1
     task.error_code = null
+    task.error_message = null
     task.started_at = null
     task.finished_at = null
     scheduleTaskProgress(task, state, findQuestion(state, task.question_id))
