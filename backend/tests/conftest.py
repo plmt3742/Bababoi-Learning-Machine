@@ -37,6 +37,7 @@ def client(db, monkeypatch):
 
     app.dependency_overrides[get_session] = override_session
     monkeypatch.setattr(settings, "jwt_secret", TEST_SECRET)
+    monkeypatch.setattr(settings, "task_workers_enabled", False)  # worker 单测自己调同步函数
     login_limiter.clear()
     with TestClient(app) as c:
         yield c

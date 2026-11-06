@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.session import get_session
 from app.models import User
 from app.schemas.question import (
+    GeneratedQuestionOut,
     MasterStatus,
     QuestionCreate,
     QuestionCreateOut,
@@ -69,7 +70,11 @@ def get_question(
     detail.tasks = [
         TaskOut.model_validate(t) for t in question_service.list_tasks(session, question.id)
     ]
-    # include=generated 在 BE-007 落库生成题后才有内容；当前恒为空列表
+    if include and "generated" in include.split(","):
+        detail.generated_questions = [
+            GeneratedQuestionOut.model_validate(g)
+            for g in question_service.list_generated(session, user.id, question.id)
+        ]
     return detail
 
 
