@@ -118,6 +118,23 @@
       <h3>最近一次响应原文</h3>
       <pre id="raw">-</pre>
     </div>
+    <div class="card">
+      <h3>识图（BE-014：uploads + from-image）</h3>
+      <label>题图文件（手机拍的教材页最能验转正/压缩/截断）</label>
+      <input type="file" id="vi_file" accept="image/jpeg,image/png,image/webp">
+      <label>学科（填了后端就逐条覆写 subject；不填才透出模型初判）</label>
+      <input id="vi_subject" placeholder="如 概率论与数理统计">
+      <div style="margin-top:6px">
+        <button onclick="doUploadImage()">1 上传</button>
+        <button class="gray" onclick="doExtractImage()">2 识图</button>
+        <button class="gray" onclick="checkImageAuth()">3 验鉴权取图</button>
+      </div>
+      <div id="vi_out" class="muted" style="margin-top:8px">还没上传</div>
+    </div>
+    <div class="card">
+      <h3>作答记录（GET /practice-records）</h3>
+      <div id="pr_list" class="muted">登录后显示</div>
+    </div>
   </div>
 </main>
 <div id="msg"></div>
@@ -128,6 +145,9 @@ let token = localStorage.getItem("tc_token") || "";
 let me = null;
 let currentQid = null;
 let pollTimer = null;
+let timerTick = null;
+let practiceTotal = 0;
+let practiceItems = [];
 
 // ---- 基础 ----
 function toast(text, isErr) {
@@ -283,6 +303,9 @@ function selectQ(id) { currentQid = id; loadDetail(); loadList(); }
 async function loadDetail() {
   if (!currentQid || !token) return;
   try {
+    // 作答记录只是附属信息：练习接口一旦失败（401/500），不能把整张详情卡带走
+    try { await loadPracticeRecords(); }
+    catch (e) { recordsByGid = {}; practiceItems = []; practiceTotal = 0; }
     const q = await api("GET", `/questions/${currentQid}?include=generated`);
     document.getElementById("detailCard").classList.remove("hidden");
     document.getElementById("d_qid").textContent = q.id;
@@ -297,11 +320,18 @@ async function loadDetail() {
       ${q.answer_md ? `<div class="muted" style="margin-top:6px">原题答案：${esc(q.answer_md)}</div>` : ""}
       ${q.analysis ? `<details open><summary>AI 分析（topic_type: ${esc(q.analysis.topic_type || "-")}）</summary>
         <pre>${esc(JSON.stringify(q.analysis, null, 2))}</pre></details>` : `<p class="muted">还没有 AI 分析</p>`}
+      <label>掌握状态（确认单 B-5：自评后由前端 PATCH，后端不自动流转）</label>
+      <select id="d_mastery" onchange="doPatchMastery(this.value)">
+        <option value="unmastered">未掌握</option>
+        <option value="reviewing">复习中</option>
+        <option value="mastered">已掌握</option>
+      </select>
     `;
+    document.getElementById("d_mastery").value = q.mastery_status;
     document.getElementById("d_tasks").innerHTML = q.tasks.length
       ? q.tasks.map(t => `
         <div class="taskline">
-          <span>#${t.id} ${t.stage === "analysis" ? "分析" : "生题"}${t.retry_index ? " 重试" + t.retry_index : ""}</span>
+          <span>#${t.id} ${t.stage === "analysis" ? "分析" : (t.target_index ? `生题 第${t.target_index}格/${t.difficulty || "-"}` : "生题（格位未标，迁移前的老任务）")}${t.retry_index ? " 重试" + t.retry_index : ""}</span>
           <span>
             <span class="status st-${t.status}">${t.status}</span>
             ${t.status === "failed" ? `<button class="small" onclick="doRetry(${t.id})">重试</button>` : ""}
@@ -309,30 +339,220 @@ async function loadDetail() {
         </div>
         ${t.error_code ? `<div class="muted">错误：${esc(t.error_code)}</div>` : ""}`).join("")
       : `<span class="muted">无任务</span>`;
-    document.getElementById("d_generated").innerHTML = q.generated_questions.length
-      ? q.generated_questions.map(renderGenerated).join("")
-      : `<span class="muted">还没有，点上面按钮生成</span>`;
+    const quizTaskBySlot = {};
+    q.tasks.filter(t => t.stage === "quiz" && t.target_index).forEach(t => {
+      const cur = quizTaskBySlot[t.target_index];
+      if (!cur || t.id > cur.id) quizTaskBySlot[t.target_index] = t;
+    });
+    const bySlot = {};
+    q.generated_questions.forEach(g => {
+      const slot = g.target_index || 0;  // 0 = 迁移前的老数据，没有格位
+      (bySlot[slot] = bySlot[slot] || []).push(g);
+    });
+    let cards = "";
+    for (let slot = 1; slot <= 3; slot++) {
+      cards += bySlot[slot]
+        ? bySlot[slot].map(g => renderGenerated(g, slot)).join("")
+        : renderSlotEmpty(slot, quizTaskBySlot[slot]);
+    }
+    (bySlot[0] || []).forEach(g => { cards += renderGenerated(g, null); });
+    document.getElementById("d_generated").innerHTML = cards;
+    startPracticeTimers(q.generated_questions);
+    renderPracticePanel();
   } catch (e) { toast(e.message, true); }
 }
 function renderOptions(q) {
   if (!q.options || !q.options.length) return "";
   return q.options.map(o => `<div class="opt">${esc(o.label)}. ${esc(o.content_md)}</div>`).join("");
 }
-function renderGenerated(g) {
+function renderGenerated(g, slot) {
   let extra = "";
   if (g.options) extra = g.options.map(o => `<div class="opt">${esc(o.label)}. ${esc(o.content_md)}</div>`).join("");
   if (g.blanks) extra = g.blanks.map(b => `<div class="opt">第 ${b.index} 空：${esc(b.answer_md)}</div>`).join("");
-  return `<div class="gq">
+  const records = recordsByGid[g.id] || [];
+  return `<div class="gq" data-gid="${g.id}">
+    ${slot ? `<span class="tag">第 ${slot} 格</span>` : ""}
     <span class="type">${TYPE_NAME[g.question_type] || g.question_type || "-"}</span>
     <span class="tag">${esc(g.difficulty || "难度未标注")}</span>
     <span class="tag">${esc(g.validation_status)}</span>
+    <span class="muted" id="timer-${g.id}">作答计时 0s</span>
     <div style="white-space:pre-wrap;margin-top:4px">${esc(g.content_md)}</div>
     ${extra}
+    <label>你的作答（可留空，只点「会/不会」也行）</label>
+    <textarea id="answer-${g.id}" style="min-height:32px" placeholder="写点过程，方便回填 practice_records.user_answer"></textarea>
+    <div>
+      <button class="small" onclick="doPractice(${g.id}, true)">会做</button>
+      <button class="small gray" onclick="doPractice(${g.id}, false)">不会</button>
+    </div>
     <details><summary>看答案与思路</summary>
       <div style="margin-top:4px"><b>答案：</b>${esc(g.answer_md)}</div>
       <div style="margin-top:4px"><b>思路：</b>${esc(g.explanation_md)}</div>
     </details>
+    <div class="muted" style="margin-top:4px">本题作答记录：${records.length
+      ? records.map(r => `${r.is_correct ? "会" : "不会"}/${r.duration_seconds}s`).join("、")
+      : "暂无"}</div>
   </div>`;
+}
+
+// 一格还没有题时显示的样子：ADR-006 下三张卡是常驻的，缺哪格就标哪格的状态
+function renderSlotEmpty(slot, task) {
+  const defaultDiff = ["easy", "medium", "hard"][slot - 1];
+  if (!task) {
+    return `<div class="gq"><span class="tag">第 ${slot} 格</span><span class="tag">${defaultDiff}</span>
+      <span class="muted">还没入队过这一格</span>
+      <div><button class="small gray" onclick="doGenerateSlot(${slot}, '${defaultDiff}')">只出这一格</button></div></div>`;
+  }
+  return `<div class="gq"><span class="tag">第 ${slot} 格</span>
+    <span class="tag">${esc(task.difficulty || defaultDiff)}</span>
+    <span class="status st-${task.status}">${task.status}</span>
+    ${task.error_code ? `<div class="muted">${esc(task.error_code)}：${esc(task.error_message || "")}</div>` : ""}
+    <div>${task.status === "failed"
+      ? `<button class="small" onclick="doRetry(${task.id})">重试这一格</button>` : ""}</div></div>`;
+}
+
+// ---- 练习（BE-012）----
+// 计时起点＝题卡渲染出来那一刻（确认单 A-4 前端自定的口径）；切后台不暂停
+let practiceStart = {};
+let recordsByGid = {};
+
+function startPracticeTimers(generated) {
+  const now = performance.now();
+  generated.forEach(g => { practiceStart[g.id] = practiceStart[g.id] || now; });
+  clearInterval(timerTick);
+  timerTick = setInterval(() => {
+    generated.forEach(g => {
+      const el = document.getElementById("timer-" + g.id);
+      if (el && practiceStart[g.id]) el.textContent = "作答计时 " + Math.round((performance.now() - practiceStart[g.id]) / 1000) + "s";
+    });
+  }, 1000);
+}
+
+async function loadPracticeRecords() {
+  const page = await api("GET", "/practice-records?page=1&page_size=100");
+  recordsByGid = {};
+  page.items.forEach(r => {
+    (recordsByGid[r.generated_question_id] = recordsByGid[r.generated_question_id] || []).push(r);
+  });
+  practiceTotal = page.total;
+  practiceItems = page.items;
+}
+
+function renderPracticePanel() {
+  const box = document.getElementById("pr_list");
+  if (!practiceItems.length) { box.innerHTML = `<span class="muted">还没有作答记录（共 ${practiceTotal} 条）</span>`; return; }
+  box.innerHTML = `<p class="muted" style="margin:0 0 6px">共 ${practiceTotal} 条，倒序前 10 条</p>` + practiceItems.slice(0, 10).map(r => `
+    <div class="taskline">
+      <span>#${r.id} 题 ${r.generated_question_id} · ${r.is_correct ? "会" : "不会"} · ${r.duration_seconds}s</span>
+      <span class="muted">${new Date(r.created_at).toLocaleTimeString()}</span>
+    </div>
+    ${r.user_answer ? `<div class="muted">作答：${esc(String(r.user_answer).slice(0, 80))}</div>` : ""}`).join("");
+}
+
+async function doPractice(gid, isCorrect) {
+  const answerEl = document.getElementById("answer-" + gid);
+  const body = {
+    generated_question_id: gid,
+    is_correct: isCorrect,
+    duration_seconds: Math.min(3600, Math.round((performance.now() - (practiceStart[gid] || performance.now())) / 1000)),
+  };
+  if (answerEl && answerEl.value.trim()) body.user_answer = answerEl.value.trim();
+  try {
+    const rec = await api("POST", "/practice-records", body);
+    toast(`已记录：第 ${rec.id} 条作答，用时 ${rec.duration_seconds}s`);
+    practiceStart[gid] = performance.now();  // 重练下一题，计时重新起算
+    await loadPracticeRecords();
+    await loadDetail();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function doPatchMastery(value) {
+  try {
+    await api("PATCH", `/questions/${currentQid}`, { mastery_status: value });
+    toast("掌握状态已改成 " + (MS_NAME[value] || value));
+    loadList();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---- 识图（BE-014）----
+let lastUpload = null;
+
+async function doUploadImage() {
+  if (!token) { toast("先登录", true); return; }
+  const f = document.getElementById("vi_file").files[0];
+  if (!f) { toast("先选一张图", true); return; }
+  const fd = new FormData();
+  fd.append("file", f);
+  const t0 = performance.now();
+  try {
+    // 走 FormData，不能复用 api()（它固定 Content-Type: application/json）
+    const resp = await fetch(API + "/uploads/images", {
+      method: "POST", headers: { "Authorization": "Bearer " + token }, body: fd });
+    const text = await resp.text();
+    document.getElementById("raw").textContent = "POST /uploads/images (" + f.name + ")\n→ " + resp.status + "\n" + text;
+    if (!resp.ok) { let j = {}; try { j = JSON.parse(text); } catch {} throw new Error((j.detail || {}).message || resp.status + " 错误"); }
+    lastUpload = JSON.parse(text);
+    document.getElementById("vi_out").innerHTML =
+      `<span class="tag">上传 ${Math.round(performance.now() - t0)}ms</span>` +
+      `<span class="tag">落盘 ${lastUpload.width}×${lastUpload.height}</span>` +
+      `<div class="muted">${esc(lastUpload.image_path)}</div>` +
+      `<div class="muted">url=${esc(lastUpload.url)}</div>`;
+    toast("上传成功，可以识图");
+  } catch (e) { toast("上传失败：" + e.message, true); }
+}
+
+async function doExtractImage() {
+  if (!lastUpload) { toast("先上传", true); return; }
+  const subject = document.getElementById("vi_subject").value.trim();
+  const body = { image_path: lastUpload.image_path };
+  if (subject) body.subject = subject;
+  const t0 = performance.now();
+  try {
+    const d = await api("POST", "/questions/from-image", body);
+    renderExtraction(d, Math.round(performance.now() - t0), subject);
+  } catch (e) { toast("识图失败：" + e.message, true); }
+}
+
+function renderExtraction(d, ms, subject) {
+  const qs = d.questions;
+  const hasStruct = q => (q.options && q.options.length) || (q.blanks && q.blanks.length);
+  let html = `<span class="tag">识图 ${ms}ms</span><span class="tag">${qs.length} 条</span>`;
+  if (!qs.length) html += `<div class="muted">没认出题目——按契约这不是错误，看下面顶层说明</div>`;
+  if (d.warnings.length) html += `<div>${d.warnings.map(w => `<span class="tag">${esc(w)}</span>`).join(" ")}</div>`;
+  html += qs.map(q => `
+    <div class="gq">
+      <span class="type">① ${q.index} · ${TYPE_NAME[q.question_type] || q.question_type}</span>
+      ${q.incomplete ? `<span class="tag">信息不完整</span>` : ""}
+      ${q.has_figure ? `<span class="tag">含图 · 仅文字</span>` : ""}
+      <span class="muted">初判 ${esc(q.subject || "-")} / ${esc(q.chapter || "-")} / ${esc(q.difficulty || "-")}</span>
+      <div style="white-space:pre-wrap;margin-top:4px">${esc(q.content_md)}</div>
+      ${q.options && q.options.length ? `<div>${q.options.map(o => `<div class="opt">${esc(o.label)}. ${esc(o.content_md)}</div>`).join("")}</div>` : ""}
+      ${q.blanks && q.blanks.length ? `<div>${q.blanks.map(b => `<div class="opt">第 ${b.index} 空：${esc(b.answer_md) || "（空）"}</div>`).join("")}</div>` : ""}
+      ${q.warnings.length ? `<div class="muted" style="margin-top:4px">${q.warnings.map(w => esc(w)).join(" ｜ ")}</div>` : ""}
+    </div>`).join("");
+  // 三条口径自检，不用读代码就能看见：index 连续 / 半套结构不外流 / subject 覆写
+  const seq = qs.map(q => q.index).join(",") === Array.from({ length: qs.length }, (_, i) => i + 1).join(",");
+  const leaks = qs.filter(q => q.question_type === "solve" && hasStruct(q)).length;
+  const subjOk = !subject || qs.every(q => q.subject === subject);
+  html += `<div class="muted" style="margin-top:6px">自检：index 连续=${seq ? "OK" : "不对"} · `
+        + `solve 条目带结构=${leaks}（应为 0）· subject=${subject ? (subjOk ? "已按请求覆写" : "没覆写干净") : "未传学科"}</div>`;
+  document.getElementById("vi_out").innerHTML = html;
+}
+
+async function checkImageAuth() {
+  if (!lastUpload) { toast("先上传", true); return; }
+  const path = lastUpload.url.replace("/api/v1", "");
+  // 必须 no-store：图片带 `immutable` 长缓存，浏览器会直接从缓存回 200，
+  // 看起来就像"不带 token 也放行"——那是缓存不是鉴权失效（实测踩过）。
+  const withTok = await fetch(API + path, { headers: { "Authorization": "Bearer " + token }, cache: "no-store" });
+  const bytes = withTok.ok ? (await withTok.blob()).size : 0;
+  const noTok = await fetch(API + path, { cache: "no-store" });
+  const mine = (me || {}).id;
+  const other = mine ? await fetch(API + path.replace("/" + mine + "/", "/999999/"),
+    { headers: { "Authorization": "Bearer " + token }, cache: "no-store" }) : null;
+  document.getElementById("vi_out").innerHTML += `<div class="muted" style="margin-top:6px">`
+    + `鉴权取图（no-store）：带 JWT=${withTok.status}（应 200，${bytes} 字节）· 不带=${noTok.status}（应 401）· `
+    + `别人的 uid=${other ? other.status : "未登录，跳过"}（应 404，不给 403）· `
+    + `Cache-Control=${esc(withTok.headers.get("cache-control") || "-")}</div>`;
 }
 
 // ---- 任务 ----
@@ -344,8 +564,18 @@ async function doAnalyze() {
 }
 async function doGenerate() {
   try {
+    // ADR-006：一次生题返回 3 段任务，不再是单个 task_id
     const d = await api("POST", `/questions/${currentQid}/generate`);
-    toast("生题任务 #" + d.task_id + " 已入队"); startPolling(); loadDetail();
+    toast("生题入队 " + d.tasks.map(t => `#${t.task_id}→${t.target_index ? "第" + t.target_index + "格" : "格位未标"}/${t.difficulty || "-"}`).join("  "));
+    startPolling(); loadDetail();
+  } catch (e) { toast(e.message, true); }
+}
+async function doGenerateSlot(slot, difficulty) {
+  try {
+    const d = await api("POST", `/questions/${currentQid}/generate`,
+      { target_index: slot, difficulty: difficulty || "medium" });
+    toast(`第 ${slot} 格已重新入队（任务 #${d.tasks[0].task_id}）`);
+    startPolling(); loadDetail();
   } catch (e) { toast(e.message, true); }
 }
 async function doRetry(taskId) {
