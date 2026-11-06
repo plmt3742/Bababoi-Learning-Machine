@@ -22,6 +22,7 @@ import {
 import type { PreparedImage } from '../../../utils/image'
 import {
   createImageItemDrafts,
+  firstDetectedSubject,
   MAX_GENERATE_SELECTION,
   toImageQuestionPayload,
   validateImageItem,
@@ -74,6 +75,8 @@ const generatedTasks = ref<GeneratedImageTask[]>([])
 const generateError = ref('')
 const cropVisible = ref(false)
 const cropSource = ref<File | null>(null)
+const detectedSubject = ref('')
+const subjectAutoFilled = ref(false)
 
 const busy = computed(
   () =>
@@ -85,6 +88,12 @@ const allSelected = computed(
   () => items.value.length > 0 && items.value.every((item) => item.selected),
 )
 const extractionWarnings = computed(() => extractResult.value?.warnings ?? [])
+const detectedSubjectHint = computed(() => {
+  if (!detectedSubject.value) return ''
+  return `AI 判断学科：${detectedSubject.value}${
+    subjectAutoFilled.value ? '（已自动填入，保存前可修改）' : ''
+  }`
+})
 
 const statusText = computed(() => {
   if (status.value === 'compressing') return '正在压缩图片…'
@@ -111,6 +120,8 @@ function resetSession(): void {
   saveAttempted.value = false
   saveNotice.value = ''
   generateError.value = ''
+  detectedSubject.value = ''
+  subjectAutoFilled.value = false
   status.value = 'idle'
 }
 
@@ -218,6 +229,18 @@ async function runExtraction(): Promise<void> {
     }
 
     items.value = createImageItemDrafts(result)
+    detectedSubject.value = firstDetectedSubject(result)
+    subjectAutoFilled.value = false
+
+    if (
+      detectedSubject.value &&
+      detectedSubject.value !== '待确认' &&
+      !props.subject.trim()
+    ) {
+      emit('update:subject', detectedSubject.value)
+      subjectAutoFilled.value = true
+    }
+
     status.value = 'ready'
   } catch (cause) {
     flowError.value = normalizeApiError(cause).message
@@ -248,6 +271,7 @@ async function retryIntake(): Promise<void> {
 
 function handleSubject(value: unknown): void {
   subjectError.value = ''
+  subjectAutoFilled.value = false
   emit('update:subject', typeof value === 'string' ? value : '')
 }
 
@@ -609,9 +633,12 @@ onBeforeUnmount(() => {
             @update:model-value="handleSubject"
           />
           <p v-if="subjectError" class="field-error" role="alert">{{ subjectError }}</p>
+          <p v-if="detectedSubjectHint" class="hint">{{ detectedSubjectHint }}</p>
         </div>
 
-        <p class="hint">保存时使用的学科；识别阶段也会把它作为提示传给 AI。</p>
+        <p class="hint">
+          识别后 AI 会自动判断学科、章节、题型和难度；未手选学科时会用 AI 结果预填，保存前请核对。
+        </p>
       </section>
 
       <section class="panel panel--pad" aria-labelledby="image-rules-heading">

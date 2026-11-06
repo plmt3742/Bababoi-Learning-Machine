@@ -113,7 +113,7 @@ const isWorkspace = computed(() => route.name === 'question-new')
     left: 0;
     z-index: var(--z-mobile-nav);
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-border-strong);
     background: var(--color-surface);
