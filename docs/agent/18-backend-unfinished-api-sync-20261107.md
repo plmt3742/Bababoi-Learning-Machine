@@ -11,6 +11,7 @@ read_when: 后端实现未完成接口、前后端联调、演示前收尾、上
 > 基线：`origin/main @ 2540f63`（#39 三段并发、#42 图片识图、#49 FE-026、#50 测试控制台、#51 FE-027、#52 状态回写）
 > 前端状态：FE-027 已完成并合入 main；真实后端测试环境已起（5173 + 8000，独立 SQLite 测试库，`LLM_MOCK=true`）
 > 用途：把前端已实现、当前仍等后端的接口一次性说清；字段名请勿改，若要改先在本文件/Issue 说明。
+> 2026-11-07 晚更新：后端已回复，见 §12；BE-025 已在 #55 完成，前端兜底文案已改为真正的错误上报。
 
 ## 0. 当前结论
 
@@ -45,6 +46,7 @@ read_when: 后端实现未完成接口、前后端联调、演示前收尾、上
 - **默认 `true`**
 - 按用户后端持久化（换设备/换浏览器一致）
 - 开启：生成题题型必须与原题一致；不一致重试 1 次，仍不一致按 `AI_INVALID_OUTPUT` 失败
+  - 现有任务级重试已经存在（`retry_index < task_retry_limit=1` + 90s 窗口）；**不要**在 pipeline 再叠一层 `retry_limit=1`，否则最坏 9 次调用/组。
 - 关闭：允许换题型，照常入库（当前 #39 的软约束行为）
 - 不能只做前端 localStorage；必须后端读取并执行
 
@@ -86,7 +88,7 @@ enforce_same_question_type BOOLEAN NOT NULL DEFAULT TRUE
   - 不新增 `TYPE_MISMATCH`。
 - `false`：保持当前 #39 的软约束行为。
 - `generate_v2` 的 prompt 保持软措辞；
-- 建议在 `ai_call_logs` 记录 `type_policy=strict|soft`（或另升 `generate_v3`），避免同版本号语义混淆。
+- **已确认**：加 `ai_call_logs.type_policy`（strict|soft），不升 `prompt_version`；quiz 段写 strict/soft，其它操作为 null。
 
 ### 验收
 
@@ -104,7 +106,9 @@ enforce_same_question_type BOOLEAN NOT NULL DEFAULT TRUE
 
 ---
 
-## 2. P0 · BE-025 完整三题型编辑 PATCH 扩展
+## 2. P0 · BE-025 完整三题型编辑 PATCH 扩展（已完成 #55）
+
+> 后端 #55 已实现并合并；`chapter` 本来就在可改清单里。前端比对失败此时视为后端 bug，不再提示“未支持”。
 
 ### 背景
 
@@ -161,6 +165,8 @@ body: { content, base_version, client_updated_at }
 DELETE /api/v1/drafts/me → 204
 ```
 
+**已确认**：`content` 原样存前端 draft JSON，不拆字段；新增 `DRAFT_MAX_BYTES`，建议 **256KB**（前端接受；草稿不含图片 base64），超限 400 + 中文文案。
+
 验收：
 
 - [ ] 空草稿 204；
@@ -198,7 +204,7 @@ DELETE /api/v1/drafts/me → 204
 规则：
 
 - 只统计当前用户、未软删数据；
-- `accuracy` 为 0–1；无练习记录返回 **0**（不是 null）；
+- `accuracy` 为 0–1；无练习记录返回 **0**（不是 null）；前端类型已收紧为 `number`；
 - `weak_knowledge_points` 按练习记录聚合到父题标签，Top 5；无数据返回 `[]`；
 - `recent_trend` 按天聚合；无数据返回 `[]`；
 - 不造数、不返回假趋势；
@@ -233,7 +239,7 @@ DELETE /api/v1/settings/ai → 204
 
 - 原始 Key 永不返回；加密存储；
 - `openai_compatible` 的 `base_url` 必须 https + host 白名单（防 SSRF）；
-- 取 Key 顺序：用户配置 → 系统 `.env` → mock；
+- 取 Key 顺序：用户配置 → 系统 `.env` → **AI_PROVIDER_ERROR**；mock 只由 `LLM_MOCK` 决定，不再静默回退 mock；
 - 失败用明确错误码，建议补 `AI_INVALID_KEY`；
 - `ai_call_logs` 记录 `key_source=user|system`，不记录 Key；
 - pytest 覆盖加密/掩码/删除/回退/非法 Key。
@@ -259,7 +265,7 @@ DELETE /api/v1/settings/ai → 204
 - `RECOGNIZE_CLIENT_TIMEOUT_S` 90 → **≥180s**；前端已按 180s 实现；
 - 保留一步模式作为配置回退（`VISION_TWO_STEP` 或等价开关）；
 - 结构不自洽仍按 v0.6.3 降级成文本 + `incomplete`；
-- 验收：密页 4 题不丢末题；墙钟 17–60s；日志两行；一步可回退；pytest 全绿。
+- 验收：四张真图各跑 2 次，被页边裁掉的末题至少 1 次返回且带 `incomplete=true`；墙钟 17–60s；日志两行；一步可回退；pytest 全绿。
 
 前端 loading 已做「正在认字 → 正在拆题」，后端未上线前一步识图也能正常结束。
 
@@ -300,6 +306,7 @@ DELETE /api/v1/settings/ai → 204
 - 时间统一 ISO 8601 UTC；
 - 所有资源按当前用户隔离；
 - 404：不存在/已软删；403：存在但不属于当前用户；
+  - **例外：图片取图 `GET /uploads/{user_id}/{filename}` 对“非本人/坏文件名/不存在”一律 404，不给 403**（避免泄露文件是否存在）；
 - 错误码沿用 05 §6.2：
   `AI_TIMEOUT` / `AI_PROVIDER_ERROR` / `AI_RATE_LIMITED` / `AI_INVALID_OUTPUT` / `AI_INVALID_IMAGE` / `AI_INVALID_KEY` / `TASK_NOT_FOUND` / `PRACTICE_DUPLICATE` / `VALIDATION_ERROR`；
 - 不新增同义错误码（如 `TYPE_MISMATCH`）；
@@ -321,20 +328,36 @@ DELETE /api/v1/settings/ai → 204
 
 ## 10. 需要后端确认
 
-1. BE-026 的偏好存 `users` 列还是 `user_settings` 表？
-2. 硬模式日志用 `type_policy` 还是 `generate_v3`？
-3. BE-024 两步识图是否本期上线，还是先保留一步 + 配置开关？
-4. BE-013 是否只实现 `/stats/overview`（前端当前只调这个），`trends/weak-points` 是否仍保留？
-5. BE-018 的 `content` 结构是否直接存前端 draft JSON（不再拆字段）？
-6. 云上 MySQL 切换时，BE-011 的验收清单和窗口如何安排？（当前 SQLite 开发不受影响）
+后端已在 §12 回复 1–5；当前只剩 **staging 部署目标**未定：
+
+- 机器 / 域名 / HTTPS 证书归属 / `uploads/` 挂载目录。
+- 后端方案：11.14 staging 用 SQLite+WAL；CI 加一条 MySQL `alembic upgrade head` 冒烟；MySQL 不进 11.14 路径。
 
 ---
 
 ## 11. 前端当前测试环境
 
 - 前端：`http://127.0.0.1:5173`，`VITE_USE_MOCK=false`（`frontend/.env.local`，已 gitignore）
-- 后端：`http://127.0.0.1:8000`，独立测试库 `backend/bababoi_realtest.db`，`LLM_MOCK=true`
+- 后端：`http://127.0.0.1:8000`，独立测试库 `backend/bababoi_realtest.db`，当前已用临时 Key 切到 `LLM_MOCK=false`
 - 测试账号：`realtest01 / password123`
-- 已验证：登录 → 文本录入 → 分析 → 三段生成 → 练习；图片上传 → `from-image` → 图片错题入库
-- 真实 DeepSeek 需 `backend/.env` 设 `LLM_MOCK=false` + `LLM_API_KEY` 后重启后端
+- 已验证：文本分析 → 三段生成 3 题（题型全部 solve）→ 练习；图片上传 → `from-image` 真实返回 2 条 → 图片错题入库
+- 真实 DeepSeek 的 Key 只注入后端进程环境，未写入前端、未提交仓库；后端重启后需重新注入或写 `backend/.env`
 - 统计/草稿/BYOK/题型开关接口当前会 404/读取失败，属于预期
+
+## 12. 后端回复确认（2026-11-07）
+
+| 问题 | 后端结论 |
+|---|---|
+| BE-025 | **已完成 #55**；`chapter` 本来就在可改清单；切换题型清掉不适用的一半；不合法 400 且整笔回滚；前端兜底文案改为错误上报 |
+| BE-026 偏好存哪 | **users 加列**（本期只有一项布尔；第二项偏好出现时再抽 `user_settings`） |
+| 硬模式日志 | 加 `ai_call_logs.type_policy`（strict/soft），**不升 `prompt_version`**；现有任务级重试已经存在，**不要**在 pipeline 再叠一层 |
+| BE-024 两步识图 | **本期就做两步**：第 1 跳 adaptive、第 2 跳 disabled；vision `max_tokens` 8000→≥16000；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→≥180；保留 `VISION_TWO_STEP` 一步回退 |
+| BE-024 验收 | “密页 4 题不丢末题”改为概率性：四张真图各跑 2 次，被裁末题至少 1 次返回且带 `incomplete=true` |
+| BE-013 | **只实现 `/stats/overview`**；`/stats/trends`、`/stats/weak-points` 从 05 删除；前端用 `overview.recent_trend` / `overview.weak_knowledge_points` |
+| BE-018 | `content` 原样存前端 draft JSON；新增 `DRAFT_MAX_BYTES`，建议 **256KB**（前端接受；草稿不含图片 base64） |
+| BE-020 Key 回退 | 用户 Key → 系统 `.env` → **AI_PROVIDER_ERROR**；不再静默回退 mock；mock 只由 `LLM_MOCK` 决定 |
+| 图片鉴权 | 取图非本人/坏文件名/不存在 **一律 404**，不给 403；§8 通用 403 规则有例外 |
+| accuracy | 后端返回 **0**；前端类型已收紧为 `number` |
+| BE-008 seed | 必须与 BE-013 联动：按未软删统计，三类掌握状态之和 = 总数，每条题带知识点标签 |
+| staging | **SQLite+WAL**；MySQL 不进 11.14 路径；CI 加 MySQL `alembic upgrade head` 冒烟；只剩部署目标待定 |
+| 合并节奏 | 6 个任务里 5 个改 05，**串行合**（合一个、下一个 rebase） |

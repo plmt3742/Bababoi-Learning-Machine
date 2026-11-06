@@ -725,7 +725,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 - `provider`: `deepseek` | `openai_compatible`；`openai_compatible` 的 `base_url` 必须 https 且建议 host 白名单（防 SSRF）。
 - 新表 `user_ai_settings`：`user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4`、`created_at`、`updated_at`；加密密钥从 `SETTINGS_ENCRYPTION_KEY` 读取。
-- 生成/分析取 Key 顺序：用户配置 → 系统 `.env` → mock；`ai_call_logs` 记录 `key_source=user|system`，不记录 Key。
+- 生成/分析取 Key 顺序：用户配置 → 系统 `.env` → **`AI_PROVIDER_ERROR`**；mock 只由 `LLM_MOCK` 决定，不再静默回退。`ai_call_logs` 记录 `key_source=user|system`，不记录 Key。
 - 用户 Key 失效/额度不足要返回明确错误，不静默回退。
 
 ## 7. AI 流水线
