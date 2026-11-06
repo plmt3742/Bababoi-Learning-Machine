@@ -425,22 +425,50 @@ def _item(index: int, content: str, qtype: str = "solve", **over) -> dict:
     return {"index": index, "content_md": content, "question_type": qtype, **over}
 
 
-def test_extraction_accepts_partial_page_and_marks_incomplete() -> None:
-    """一张 3 题的页面里有一题没认全，用户仍该拿到另外 2 题 + 一条可编辑的残缺条目。
+def test_extraction_degrades_inconsistent_structure_to_plain_text() -> None:
+    """结构不自洽 → 整条降级成纯文本，而不是把半套结构交给用户。
 
-    这条是"提取校验必须比入库校验宽"的全部理由：照搬 validate_type_payload
-    （空位数=答案数、选择题 ≥2 项、答案非空）会让整张图判失败，用户什么也拿不到。
+    契约上 `options`/`blanks` 本来就是可选（ADR-004 §5），"只给文字"是合法输出；
+    反过来，"图上 2 个空只读出 1 个答案"原样返回的话，用户要在提交那一步
+    才被 `POST /questions` 的严格校验拒掉，而且拒的原因他看不见。
+    降级仍留条目、仍标 incomplete，用户补结构的地方是 FE-020 编辑器。
     """
     result = validator.validate_extraction(_extract_payload(
         _item(1, "求 $f(x)=x^2$ 的极小值。"),
         _item(2, "两个空：___ 和 ___。", "blank", blanks=[{"index": 1, "answer_md": "$1$"}]),
         _item(3, "下面哪个是对的？（  ）", "choice",
               options=[{"label": "A", "content_md": "$1$"}]),
+        _item(4, "求 $g(x)=e^x$ 的导数。", "solve",
+              options=[{"label": "A", "content_md": "$e^x$"}]),
     ))
-    solve, blank, choice = result["questions"]
-    assert solve.incomplete is False
-    assert blank.incomplete is True and any("空位" in w for w in blank.warnings)
-    assert choice.incomplete is True and any("选项" in w for w in choice.warnings)
+    solve, blank, choice, mislabeled = result["questions"]
+    assert solve.incomplete is False and solve.question_type == "solve"
+    for item in (blank, choice, mislabeled):
+        assert item.question_type == "solve", "半套结构不往外传"
+        assert item.options is None and item.blanks is None
+        assert item.incomplete is True
+    assert any("空位" in w and "文本题" in w for w in blank.warnings)
+    assert any("选项" in w and "文本题" in w for w in choice.warnings)
+    assert any("解答题" in w for w in mislabeled.warnings)
+    # warning 是给用户读的：Pydantic 的英文默认文案（"List should have at least 2 items"、
+    # "Value error, …"）不能原样出现在卡片上
+    for item in (blank, choice, mislabeled):
+        joined = " ".join(item.warnings)
+        assert "Value error" not in joined and "should have" not in joined, joined
+
+
+def test_extraction_keeps_structure_when_it_is_self_consistent() -> None:
+    """自洽就照原样给回：识图不是"只会给文本"，已经认全的选择/填空题没必要拆平。"""
+    result = validator.validate_extraction(_extract_payload(
+        _item(1, "两个空：___ 和 ___。", "blank",
+              blanks=[{"index": 1, "answer_md": "$1$"}, {"index": 2, "answer_md": "$2$"}]),
+        _item(2, "下面哪个是对的？", "choice",
+              options=[{"label": "A", "content_md": "$1$"}, {"label": "B", "content_md": "$2$"}]),
+    ))
+    blank, choice = result["questions"]
+    assert blank.question_type == "blank" and len(blank.blanks) == 2
+    assert choice.question_type == "choice" and len(choice.options) == 2
+    assert blank.incomplete is False and choice.incomplete is False
 
 
 def test_extraction_keeps_reading_order_even_when_the_model_numbers_wrong() -> None:

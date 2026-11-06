@@ -75,6 +75,12 @@ def extract_from_image(
         raise
 
     value = result.value
+    if subject and subject.strip():
+        # 17 号对齐清单 §三 规则 1：用户已经选了学科，就别让模型猜的值覆盖它。
+        # 提示词里也写了"沿用 subject"，但那是概率保证；这里写死成确定性行为。
+        chosen = subject.strip()
+        for item in value["questions"]:
+            item.subject = chosen
     ai_log.write_call_log(session_factory, user_id, OPERATION_VISION, status="success",
                           usage=result.usage, raw_text=result.usage.text)
     return {

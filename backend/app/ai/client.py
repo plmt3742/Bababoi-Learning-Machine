@@ -194,8 +194,9 @@ _MOCK_QUIZ_SEGMENTS: dict[str, dict] = {
     },
 }
 
-# 识图的固定输出：故意三种"残缺"各来一条，让宽松提取校验的分支在 CI 里真被跑到
-# （空答案的填空、只读出一个选项的选择、依赖图形的题）。
+# 识图的固定输出：把提取校验的四条分支各来一条——
+# 结构自洽的填空（保留 blank）、结构不自洽的填空（降级成文本）、依赖图形的题、
+# 初判坏值（非法档位 → None）。这些分支只有 mock 能钉死，实拍图每次不一样。
 _MOCK_VISION: dict = {
     "questions": [
         {
@@ -212,16 +213,27 @@ _MOCK_VISION: dict = {
             "index": 2,
             "content_md": "设 $A=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}$，则 $A$ 的特征值为 ___ 和 ___。",
             "question_type": "blank",
+            # 学科由请求参数写死覆盖（17 号对齐清单 §三 规则 1），这里给一个"错"的值好验它
             "subject": "线性代数",
             "chapter": "复习题六",
             # 故意给一个非法档位：初判坏值不该让整条题目消失（validator 会降级成 None）
             "difficulty": "中等",
+            "blanks": [{"index": 1, "answer_md": "$3$"}, {"index": 2, "answer_md": "$1$"}],
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            # 实拍密页 4 条里就有 2 条是这种"图上 2 个空只读出 1 个答案"：
+            # 结构不自洽 → 识图不假装成功，降级成纯文本条目，结构化交还给编辑器
+            "index": 3,
+            "content_md": "极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}= $ ___，$\\lim_{x\\to\\infty}\\dfrac{1}{x}= $ ___。",
+            "question_type": "blank",
             "blanks": [{"index": 1, "answer_md": "$3$"}],
             "has_figure": False,
             "warnings": [],
         },
         {
-            "index": 3,
+            "index": 4,
             "content_md": "如图，在三角形 $ABC$ 中，$CD$ 是 $AB$ 边上的高，$AC=4$，$BC=3$，求 $CD$。",
             "question_type": "solve",
             # 三项都拿不准时给 null，前端要能接受"没有初判"这条路径

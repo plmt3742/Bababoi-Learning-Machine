@@ -42,6 +42,7 @@
 | [agent/14-generation-three-segments-reply.md](agent/14-generation-three-segments-reply.md) | 三段并发生成：Q1–Q7、PRD/05 改动、图片实测回复 | 三段并发 / 生成链路 |
 | [agent/15-backend-sync-20261106.md](agent/15-backend-sync-20261106.md) | 后端对接同步：已合 PR、下一步、接口确认 | 后端对接 / 联调 |
 | [agent/16-three-segments-frontend-review.md](agent/16-three-segments-frontend-review.md) | 三段并发前端意见单原文（判据/同函数式/#38 让位/迁移检查）+ 后端逐条处置 | 三段并发 / 生成链路 |
+| [agent/17-image-intake-alignment.md](agent/17-image-intake-alignment.md) | 图片录入接口对齐清单原文（三字段/三条规则/合并顺序）+ 后端逐条处置 | 图片录入 / 联调 / #38~#40 合并 |
 
 ### 产品设计
 
