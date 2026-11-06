@@ -41,6 +41,10 @@ def _timeout_for(operation: str) -> int:
 SAMPLING = {
     OPERATION_ANALYSIS: {"temperature": 0.2, "max_tokens": 4000},
     OPERATION_QUIZ: {"temperature": 0.3, "max_tokens": 6000},
+    # 识图：05 §7.0 定温度 0.1。max_tokens 8000 是实测给的——同一张 4 题图
+    # 开 response_format=json_object 是 7.7s / 1513 token，不开会跑偏到 44.1s / 7265 token
+    # 并几乎顶到上限，所以留够头寸，别让截断把整页题变成坏输出。
+    OPERATION_VISION: {"temperature": 0.1, "max_tokens": 8000},
 }
 
 
@@ -51,6 +55,9 @@ class LLMResponse:
     prompt_tokens: int
     completion_tokens: int
     latency_ms: int
+    # "length" 意味着输出被 max_tokens 掐断，JSON 必然不完整。
+    # 不带上它，截断只能以"解析失败"的形式冒出来，排查时要猜是模型笨还是上限小了。
+    finish_reason: str | None = None
 
 
 class LLMClient(Protocol):
@@ -69,6 +76,8 @@ class MockLLMClient:
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         if operation == OPERATION_QUIZ:
             text = _mock_quiz_text(messages)
+        elif operation == OPERATION_VISION:
+            text = _MOCK_OUTPUTS[OPERATION_VISION]
         else:
             text = _MOCK_OUTPUTS[operation]
         return LLMResponse(
@@ -77,6 +86,7 @@ class MockLLMClient:
             prompt_tokens=0,
             completion_tokens=0,
             latency_ms=0,
+            finish_reason="stop",
         )
 
 
@@ -124,6 +134,7 @@ class DeepSeekClient:
             prompt_tokens=resp.usage.prompt_tokens if resp.usage else 0,
             completion_tokens=resp.usage.completion_tokens if resp.usage else 0,
             latency_ms=int((time.monotonic() - start) * 1000),
+            finish_reason=resp.choices[0].finish_reason,
         )
 
 
@@ -177,6 +188,37 @@ _MOCK_QUIZ_SEGMENTS: dict[str, dict] = {
     },
 }
 
+# 识图的固定输出：故意三种"残缺"各来一条，让宽松提取校验的分支在 CI 里真被跑到
+# （空答案的填空、只读出一个选项的选择、依赖图形的题）。
+_MOCK_VISION: dict = {
+    "questions": [
+        {
+            "index": 1,
+            "content_md": "求函数 $f(x)=x^3-3x^2+2$ 的极值。",
+            "question_type": "solve",
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            "index": 2,
+            "content_md": "设 $A=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}$，则 $A$ 的特征值为 ___ 和 ___。",
+            "question_type": "blank",
+            "blanks": [{"index": 1, "answer_md": "$3$"}],
+            "has_figure": False,
+            "warnings": [],
+        },
+        {
+            "index": 3,
+            "content_md": "如图，在三角形 $ABC$ 中，$CD$ 是 $AB$ 边上的高，$AC=4$，$BC=3$，求 $CD$。",
+            "question_type": "solve",
+            "has_figure": True,
+            "warnings": ["含图，暂只提取文字"],
+        },
+    ],
+    "warnings": [],
+}
+
 _MOCK_OUTPUTS: dict[str, str] = {
     OPERATION_ANALYSIS: json.dumps(_MOCK_ANALYSIS, ensure_ascii=False),
+    OPERATION_VISION: json.dumps(_MOCK_VISION, ensure_ascii=False),
 }

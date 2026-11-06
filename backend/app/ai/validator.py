@@ -9,7 +9,7 @@ import re
 from difflib import SequenceMatcher
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from app.schemas.question import (
     MAX_BLANKS,
@@ -17,6 +17,7 @@ from app.schemas.question import (
     MIN_OPTIONS,
     BlankAnswer,
     ChoiceOption,
+    count_blanks,
     validate_type_payload,
 )
 
@@ -151,6 +152,112 @@ class GeneratedQuestionSpec(BaseModel):
 
 def validate_analysis(raw: dict) -> AnalysisResult:
     return AnalysisResult.model_validate(raw)
+
+
+# ---- 图片文本提取（05 §7.0 / BE-014）----
+
+# 提取阶段题干按错题的上限走（5000），不按生成题的 3000：
+# 一张整页教材里的一道解答题本来就可能写得长，卡 3000 会把真题判死。
+EXTRACTED_CONTENT_MD_MAX = 5000
+_UNCLEAR_MARK = "[不清]"
+
+
+class ExtractedOption(BaseModel):
+    """提取阶段的选项。这里**允许空文本**，严格规则留给入库那一刻。"""
+
+    label: str = ""
+    content_md: str = ""
+
+    @field_validator("content_md", "label", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+
+class ExtractedBlank(BaseModel):
+    index: int = 1
+    answer_md: str = ""
+
+    @field_validator("answer_md", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+
+class ExtractedQuestion(BaseModel):
+    """一道从图里认出来的题目条目（前端 `ExtractedImageQuestion` 的对端）。"""
+
+    index: int = 1
+    content_md: str = Field(min_length=1, max_length=EXTRACTED_CONTENT_MD_MAX)
+    question_type: Literal["choice", "blank", "solve"] = "solve"
+    options: list[ExtractedOption] | None = None
+    blanks: list[ExtractedBlank] | None = None
+    has_figure: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    incomplete: bool = False
+
+    @field_validator("content_md", mode="before")
+    @classmethod
+    def math_normalized(cls, value: str) -> str:
+        return normalize_math_delimiters(value) if isinstance(value, str) else value
+
+
+def validate_extraction(raw: dict) -> dict:
+    """校验识图输出，**故意比入库校验宽**。
+
+    唯一理由是"残缺不等于坏输出"：一张 4 道题的页面里只要有一道没认全，
+    用户仍然应该看到另外 3 道 + 一条可编辑的残缺条目。要是这里照搬
+    `schemas/question.py::validate_type_payload`（选择题必须 ≥2 项、填空题
+    空位数必须等于答案数、答案非空），整张图会被判成坏输出，用户什么也拿不到——
+    那比"少一个答案"糟得多。差的部分标 `incomplete` + 写进 warnings，
+    严格规则等用户确认后 POST /questions 时再跑。
+
+    另一条实测依据：DeepSeek 在 `response_format=json_object` 下更爱吐 `\\(...\\)`
+    （同一张图不开 JSON 模式给的是 `$...$`），所以这里对 LaTeX 定界符做归一化，
+    不让排版习惯变成失败条件。
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
+        raise ValueError("识图输出必须形如 {\"questions\": [...]}")
+
+    top_warnings = [str(w) for w in (raw.get("warnings") or []) if str(w).strip()]
+    items: list[ExtractedQuestion] = []
+    for position, entry in enumerate(raw["questions"], start=1):
+        try:
+            item = ExtractedQuestion.model_validate(entry)
+        except ValidationError as exc:
+            # 单条坏输出不拖垮整张图：丢掉它，留一行说明
+            top_warnings.append(f"第 {position} 条无法解析（{exc.errors()[0]['msg']}），已跳过")
+            continue
+        if not item.content_md.strip():
+            top_warnings.append(f"第 {position} 条题干为空，已跳过")
+            continue
+        item.index = position  # 模型编号乱了就按阅读顺序重编，前端只认连续 ①②③
+        if _UNCLEAR_MARK in item.content_md:
+            item.incomplete = True
+            item.warnings.append("题干含 [不清] 标记，可能有漏字或误读")
+        if item.has_figure and not any("含图" in w for w in item.warnings):
+            item.warnings.append("含图，暂只提取文字")
+        if item.question_type == "blank":
+            markers = count_blanks(item.content_md)
+            answers = item.blanks or []
+            if not answers:
+                item.incomplete = True
+                item.warnings.append("识别为填空题但没读出空位答案")
+            elif markers != len(answers) or any(not a.answer_md.strip() for a in answers):
+                item.incomplete = True
+                item.warnings.append(f"空位 {markers} 个、答案 {len(answers)} 个，或有空答案，请核对")
+        elif item.question_type == "choice":
+            options = item.options or []
+            if len(options) < 2:
+                item.incomplete = True
+                item.warnings.append(f"识别为选择题但只读出 {len(options)} 个选项，请核对")
+        elif item.question_type == "solve" and not (item.options or item.blanks):
+            item.options = item.blanks = None
+        items.append(item)
+
+    if not items and not top_warnings:
+        top_warnings.append("没有从图片里辨认出题目")
+    return {"questions": items, "warnings": top_warnings}
 
 
 def validate_segment(

@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.ai import parser
 from app.ai.client import LLMClient, LLMResponse
-from app.ai.errors import AIInvalidOutputError
+from app.ai.errors import AIInvalidOutputError, AITruncatedError
 
 
 class PipelineResult:
@@ -44,6 +44,14 @@ def run[T: BaseModel](
     for attempt in range(1, retry_limit + 2):
         usage = client.complete(operation, messages)
         last_raw = usage.text  # 坏输出也要把原文带出去，否则没法定位 prompt
+        if usage.finish_reason == "length":
+            # 被 max_tokens 掐断的输出必然不是完整 JSON。这里直接抛、不再重试：
+            # 同一段提示词再跑一次只会顶到同一个上限，白等一倍时间。
+            raise AITruncatedError(
+                f"模型输出被 max_tokens 截断（已输出 {usage.completion_tokens} token），"
+                "请减少一次处理的内容量后重试",
+                raw_text=usage.text,
+            )
         try:
             raw = parser.extract_json(usage.text)
             value: object
