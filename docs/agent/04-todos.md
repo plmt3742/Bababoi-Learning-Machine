@@ -33,7 +33,7 @@ ID:
 
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
-> 当前同步（2026-11-06，origin/main @ 7ee6029）：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）已合；前端 FE-001~024 全部页面已合（#16~#21/#23~#25/#28~#30/#34/#35）；剩余 FE-017 的 768/键盘细节与真接口联调。管理端 ADR-005/P1，BYOK ADR-007/P1，均不进入 11.29 演示。
+> 当前同步（2026-11-06，origin/main @ 3747bd1）：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）已合；前端 FE-001~024 全部页面已合（#16~#21/#23~#25/#28~#30/#34/#35，交接文档 #37）；剩余 FE-017 的 768/键盘细节与真接口联调。后端在做的：BE-021 三段并发（ADR-006，base=main 新 PR）、BE-014 图片文本提取。管理端 ADR-005/P1，BYOK ADR-007/P1，均不进入 11.29 演示。
 
 ### 1.1 设计（霹雳马桶 + 人机共同主导，我想抓住风的影子评审）
 
@@ -91,7 +91,7 @@ ID:
 | BE-004 | 错题 CRUD + 标签/搜索 | 人机 | P0 | BE-002/003 | 创建/列表/详情/更新/软删；分页筛选搜索；测试 | DONE（PR #7） |
 | BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | DONE（PR #6；题型软约束，ADR-006 再改三段） |
 | BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DONE（PR #5；answer/explanation 写回 + 标签合并） |
-| BE-007 | 生成接口 | 人机 | P0 | BE-006 | 恰好 3 题；content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；三段并发由 ADR-006 单独改） |
+| BE-007 | 生成接口 | 人机 | P0 | BE-006 | content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；一次 3 道的旧形状已由 BE-021/ADR-006 取代） |
 | BE-008 | 种子脚本 | 人机 | P1 | BE-004 | 演示账号 + 10 道大学理科错题（3 道含图/公式）+ 20 条练习；可重复执行 | TODO |
 | BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
 
@@ -152,9 +152,10 @@ ID:
 | BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
 | BE-013 | 统计接口 | 人机 | P1 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
 | BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户逐条确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | TODO |
-| BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | P0 基础版：单题图标 + 二次确认 + 队列替换；反馈标记；不覆盖原记录 | TODO |
+| BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | 「重排该段」已由 `POST /questions/{id}/generate` + `target_index` 覆盖（ADR-006）；剩下是 `/generated-questions/{id}/regenerate` 与质量反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
-| BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；三段并发由 ADR-006 单独改） |
+| BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；并发位与重试窗口由 BE-021 调整） |
+| BE-021 | 三段并发生成改造（ADR-006） | 人机 | P0 | BE-006/007/019 | `/generate` 返回 `tasks[]`（整组 3 段 / 单段 `target_index`+`difficulty`）；`generated_questions.target_index` + `generation_task.difficulty` 迁移；按格替换；一段失败不牵连其余；`TASK_MAX_CONCURRENCY=6`；requeue 前判 90s；`generate_v2` prompt；ADR-006 | 进行中（base=main 新 PR；前端 FE-023 #28 已兼容） |
 | FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | DONE（PR #23；mock 先行，待联调） |
 | FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | DONE（PR #24；mock 先行，待 BE-013） |
 | FE-015 | 搜索/筛选/标签 | 霹雳马桶 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | DONE（PR #18） |
