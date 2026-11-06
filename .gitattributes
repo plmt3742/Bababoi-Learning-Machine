@@ -1,0 +1,33 @@
+# 行尾约定（11-07 加）。这台机器 core.autocrlf=true，而仓库里 33 个文件是以 CRLF 提交的，
+# 结果任何人一碰这些文件，git 就把整个文件重写成 LF，凭空产生整文件级 diff——
+# `05-architecture.md` 实测出现过 2310 行的假改动，真实内容只有 34 行。
+# 定死规则之后：仓库内一律 LF，检出也 LF，只有 Windows 脚本保留 CRLF。
+
+* text=auto eol=lf
+
+# 批处理必须 CRLF，否则双击可能不执行（cmd.exe 对 LF 的 .bat 行为不稳）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制：不做行尾处理，也不进 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.db binary
+*.sqlite binary
+*.zip binary
+*.gz binary
+
+# 这些文件即使没有扩展名也按文本处理
+.gitignore text
+.gitattributes text eol=lf
+.env.example text eol=lf
+
+# 导出产物/锁文件不参与 review，diff 关掉
+pnpm-lock.yaml -diff linguist-generated
+uv.lock -diff linguist-generated
