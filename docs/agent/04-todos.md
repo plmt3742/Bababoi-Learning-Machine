@@ -33,7 +33,7 @@ ID:
 
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
-> 当前同步（2026-11-06，origin/main @ 55e01b4）：BE-001/002/003 + follow-up（#14）、BE-004（#7）已合；#6/#5 需补 analysis `answer_md`/`explanation_md` 与标签合并；#9 approved 等 #5；#8 docs 最后合。前端 FE-001~015/009/019/020/022（#16~#21/#23~#25）已合；剩余 FE-016/018/021 + FE-023。管理端 ADR-005 已定 P1，不进入 11.29 演示。
+> 当前同步（2026-11-06，origin/main @ 90d5d77）：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）已合；analysis `answer_md`/`explanation_md` 与标签合并已修。前端 FE-001~015/009/019/020/022（#16~#21/#23~#25）已合；剩余 FE-016/018/021 + FE-023。管理端 ADR-005 已定 P1，不进入 11.29 演示。
 
 ### 1.1 设计（霹雳马桶 + 人机共同主导，我想抓住风的影子评审）
 
@@ -87,10 +87,10 @@ ID:
 | BE-001 | 后端脚手架 | 人机 | P0 | SH-002 | FastAPI + 配置 + `/health` + CORS + 日志 + ruff + pytest + uv | DONE（PR #2；follow-up 见 #11） |
 | BE-002 | 数据模型 + Alembic | 人机 | P0 | BE-001/SH-001 | users/questions/tags/generated_questions/practice_records/ai_call_logs/draft/generation_task；questions 含 options/blanks/mastery_status；迁移可跑 | DONE（PR #3；follow-up 见 #11） |
 | BE-003 | 认证 | 人机 | P0 | BE-002 | 注册/登录/me；JWT；bcrypt；401/409；测试 | DONE（PR #4；follow-up 见 #11） |
-| BE-004 | 错题 CRUD + 标签/搜索 | 人机 | P0 | BE-002/003 | 创建/列表/详情/更新/软删；分页筛选搜索；测试 | DOING（PR #7 open） |
-| BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | DOING（PR #6 open；base=BE-004） |
-| BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DOING（PR #5 open） |
-| BE-007 | 生成接口 | 人机 | P0 | BE-006 | 恰好 3 题；content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DOING（PR #5 open） |
+| BE-004 | 错题 CRUD + 标签/搜索 | 人机 | P0 | BE-002/003 | 创建/列表/详情/更新/软删；分页筛选搜索；测试 | DONE（PR #7） |
+| BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | DONE（PR #6；题型软约束，ADR-006 再改三段） |
+| BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DONE（PR #5；answer/explanation 写回 + 标签合并） |
+| BE-007 | 生成接口 | 人机 | P0 | BE-006 | 恰好 3 题；content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；三段并发由 ADR-006 单独改） |
 | BE-008 | 种子脚本 | 人机 | P1 | BE-004 | 演示账号 + 10 道大学理科错题（3 道含图/公式）+ 20 条练习；可重复执行 | TODO |
 | BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
 
@@ -139,12 +139,12 @@ ID:
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DOING（PR #9 open；需 rebase 到 BE-006-007/main） |
+| BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
 | BE-013 | 统计接口 | 人机 | P1 | BE-012 | 总错题/练习/正确率/薄弱知识点/趋势；与数据一致 | TODO |
 | BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户逐条确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | TODO |
 | BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | P0 基础版：单题图标 + 二次确认 + 队列替换；反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
-| BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DOING（并入 PR #5） |
+| BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；三段并发由 ADR-006 单独改） |
 | FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | DONE（PR #23；mock 先行，待联调） |
 | FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | DONE（PR #24；mock 先行，待 BE-013） |
 | FE-015 | 搜索/筛选/标签 | 霹雳马桶 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | DONE（PR #18） |

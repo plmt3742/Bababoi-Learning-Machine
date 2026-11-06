@@ -154,8 +154,8 @@ P0 全部可用，主流程无阻塞 bug；P1 按剩余时间做。
 | 设计原型 | DONE（视觉定稿） | `calm-academic/index.html` 四屏为最终视觉基准，前端已按原型覆写；仓库内 `docs/product/drafts/` 仍是旧框题线框，待归档/更新 |
 | 前端视觉 | DONE（PR #19/#21/#23/#24/#25 已合） | AppShell/列表/录入/详情/任务中心/登录/占位/404 已按 Calm 原型覆写；练习/统计/三题型编辑器已补齐；1366/375 + 核心路径验证通过 |
 | API 契约 v0 | DOING | `05-architecture.md` v0.4 草案（图片 v2/队列/草稿/题型/掌握状态）；`12-backend-alignment.md` 已对齐，待两人逐节确认后冻结 |
-| 仓库骨架 | DONE | `origin/main @ 55e01b4`：BE-001/002/003 + #14 + BE-004 #7 + 前端 #16~#21/#23~#25；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
-| 后端后续 | DOING | #14/#7 已合；#6/#5 需补 analysis 字段与标签合并；#9 approved 等 #5；#8 docs 最后合 |
+| 仓库骨架 | DONE | `origin/main @ 90d5d77`：BE-004 #7、BE-005 #6、BE-006/007 #5、BE-012 #9 + 前端 #16~#21/#23~#25；`contracts/`/`deploy/`/`scripts/` 仍为骨架 |
+| 后端后续 | DOING | #6/#5/#9 已合；下一步 ADR-006 三段并发、BE-014 图片、BE-018 草稿、BE-013 统计；#8 docs 关闭/缩窄 |
 | CI | DONE | `.github/workflows/ci.yml`；PR #10 已合；frontend 在 FE-001 后改为真实命令 |
 | 部署 | TODO | 11.14 前必须完成 |
 | 种子数据 | TODO | 需要 10+ 道大学理科真实错题；3 道含图/公式题用于图片提取 |

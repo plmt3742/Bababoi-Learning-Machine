@@ -29,7 +29,7 @@ read_when: 三段并发生成、PRD/05 改动、FE-023 适配、后端 #5/#6 fol
 
 | # | 位置 | 改成 |
 |---|---|---|
-| P1 | `01-prd-lite.md` FR-5 | 生成 3 道相似题；**题型与原题一致（硬约束，不符该段失败）**；各带难度档（简单/中等/难），默认递增 |
+| P1 | `01-prd-lite.md` FR-5 | 生成 3 道相似题；**同知识点、同难度；题型首选与原题一致（软约束，允许换题型）**；各带难度档（简单/中等/难），默认递增 |
 | P2 | `02-ia-and-flows.md` 生成流程 | 一次生题 = **3 个任务（①②③）**，各占一个并发位；整组重生成 = 重排 3 个任务 |
 | P3 | 同上「重新生成（整组）」 | 一次入队 3 个单题任务；替换时机按 Q2-A |
 | P4 | `02-ia-and-flows.md:157` | 「通常 **20–40 秒**，题目复杂时更久」；不要写 10–30 秒 |
@@ -56,12 +56,12 @@ read_when: 三段并发生成、PRD/05 改动、FE-023 适配、后端 #5/#6 fol
 | # | 决定 |
 |---|---|
 | D1 | `POST /questions/{id}/generate` 请求收 `difficulties`（整组）或 `difficulty`（单段）；返回 `{"tasks":[{task_id,target_index,difficulty}]}`；**不再返回单个 `task_id`** |
-| D2 | generate prompt：同知识点、**同题型（硬约束）**、难度按指定档（相对原题：少一步/相当/多一步） |
+| D2 | generate prompt：同知识点、同难度、**题型首选与原题一致（软约束，允许换题型）**；难度按指定档（相对原题：少一步/相当/多一步） |
 | D3 | 每段 1 题；与原题相似度 <0.9 保留；三题彼此**只拒归一化后完全相同**，不套 0.9（实测会误杀） |
 | D4 | `target_index` 整组也记 1/2/3；active 去重键 = `question_id + stage + target_index` |
 | D5 | **`generated_questions` 加 `target_index`**（缺列会导致①②③错位，必须加） |
 | D6 | `generation_task` 加 `difficulty`（nullable，downgrade 可逆） |
-| D7 | 新增错误码 `TYPE_MISMATCH`，回写 05 §6.2 |
+| D7 | **不新增 `TYPE_MISMATCH`**；题型是软约束，换题型照常入库；段失败沿用 `AI_*` / `INTERNAL_ERROR` |
 | D8 | 重试用任务级 requeue：`now - started_at > 90s` 不再排；不是同调用内重试 |
 
 ### 2.1 三个洞的决定
