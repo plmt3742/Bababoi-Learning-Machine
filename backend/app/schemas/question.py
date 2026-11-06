@@ -262,11 +262,13 @@ class TaskOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    question_id: int
     stage: str
     status: str
     target_index: int | None
     retry_index: int
     error_code: str | None
+    error_message: str | None  # 任务中心要显示「为什么失败」，只有 code 前端得硬背码表
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
@@ -338,6 +340,26 @@ class QuestionCreateOut(BaseModel):
     task_id: int
 
 
+class GeneratedQuestionOut(BaseModel):
+    """一道 AI 相似题（05 §5.2 generated_questions，US-4 的展示字段）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    parent_question_id: int
+    content_md: str
+    answer_md: str
+    explanation_md: str
+    question_type: str | None
+    options: list | None
+    blanks: list | None
+    difficulty: str | None
+    model: str | None
+    prompt_version: str | None
+    validation_status: str
+    created_at: datetime
+
+
 class QuestionDetail(QuestionOut):
     """详情 = 题目全量 + 任务列表（+ 可选的生成题列表）。
 
@@ -345,4 +367,4 @@ class QuestionDetail(QuestionOut):
     """
 
     tasks: list[TaskOut] = []
-    generated_questions: list = []
+    generated_questions: list[GeneratedQuestionOut] = []

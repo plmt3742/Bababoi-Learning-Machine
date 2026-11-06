@@ -401,7 +401,7 @@ erDiagram
 | PATCH | `/questions/{id}` | 更新题干/答案/学科/标签/`analysis`（分析可编辑写回）/`mastery_status`（v0.3.2 确认单 B-5：掌握状态由前端自评后 PATCH，后端不做自动流转） |
 | DELETE | `/questions/{id}` | 软删除；204 |
 | POST | `/questions/{id}/analyze` | 重新分析，入队 `analysis` 任务；返回 `task_id` |
-| POST | `/questions/{id}/generate` | 入队 `quiz` 任务；返回 `task_id`；多选时前端对每个选中题目并行调用 |
+| POST | `/questions/{id}/generate` | 入队 `quiz` 任务；返回 `task_id`；多选时前端对每个选中题目并行调用。**重新生成整组是替换**：任务成功入库时旧 3 题软删（`deleted_at`），详情页始终最多 3 张题卡；旧题的 `practice_records` 保留 |
 | GET | `/questions/{id}/events` | SSE 任务进度（P1；P0 用 `/tasks` 轮询）；见 6.7 |
 
 > 生成题统一通过 `GET /questions/{id}?include=generated` 返回；不单独提供 `/questions/{id}/generated`，避免两套取法。
@@ -951,4 +951,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-05 | v0.4 | **图片录入改为用户裁剪 + 多题文本提取（`questions[]`，① ②… 条目）+ 选择 1–3 道生成**；删除 bbox/candidates/detection_confidence；分析补 answer/explanation；Prompt `vision_extract_v2` | 霹雳马桶 / agent |
 | 2026-11-06 | v0.4.1 | BE-005 review 修复：`AnalysisResult` 补 `answer_md`/`explanation_md`（05 §7.1 早就要求，代码一直缺）；生成温度 0.7→0.3、`max_tokens` 8000、`response_format=json_object`、`trust_env=False`；`\(...\)` 改为规范化而非判失败；撤掉「三题彼此 <0.9」误杀判据。**注：上面两行 v0.3.2 编号重复**（#7 与文档同步各占一行），后续新增请从 v0.4.2 起 | 人机 |
 | 2026-11-06 | v0.4.2 | 生成题型口径落定：**软约束**（首选与原题一致，不一致照常入库，不引入 `TYPE_MISMATCH`）——与 14 号文档 D2/D7 的「硬约束」表述冲突，按前端 review 选的 A 统一；§7.2 第 3 条补「三题彼此只拒完全相同」的实测依据 | 人机 |
+| 2026-11-06 | v0.4.3 | BE-006/007 review 修复：重新生成整组改为替换（旧组软删）、任务不存在用 `TASK_NOT_FOUND`、生成校验补 05 §7.2 四条、超时按操作分档 | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

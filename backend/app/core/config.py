@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     task_hard_timeout_s: int = 120  # 单任务服务端硬超时
     task_max_concurrency: int = 2  # 🔵 待用 RPM/TPM 实测核定
     task_retry_limit: int = 1
+    task_workers_enabled: bool = True  # API 测试里关掉，worker 单测直接调同步函数
 
     # 图片（12号 §5；上传兜底 10MB，落库前压到 5MB/2000px）
     image_max_upload_bytes: int = 10 * 1024 * 1024

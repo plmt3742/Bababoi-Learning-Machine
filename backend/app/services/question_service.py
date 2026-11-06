@@ -16,7 +16,13 @@ from sqlalchemy.orm import Session, selectinload
 from app.ai.validator import AnalysisResult
 from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
-from app.models import GenerationTask, Question, QuestionTag, Tag
+from app.models import (
+    GeneratedQuestion,
+    GenerationTask,
+    Question,
+    QuestionTag,
+    Tag,
+)
 from app.schemas.question import (
     QuestionCreate,
     QuestionListItem,
@@ -40,11 +46,23 @@ def _get_or_create_tag(session: Session, name: str) -> Tag:
     return tag
 
 
-def _sync_tags(session: Session, question: Question, names: list[str]) -> None:
-    question.tags = [_get_or_create_tag(session, n) for n in dict.fromkeys(names)]
+def sync_tags(session: Session, question: Question, names: list[str], *, merge: bool = False) -> None:
+    """同步标签。
+
+    `merge=False`（默认）是整体替换，用于用户自己编辑标签的场景。
+    `merge=True` 给 AI 分析用：AI 知识点是**追加**，不能把用户手动打的标签
+    （例如「我的易错」）冲掉——那是真实数据丢失，不是显示问题。
+    """
+    incoming = [_get_or_create_tag(session, n) for n in dict.fromkeys(names)]
+    if merge:
+        existing = list(question.tags)
+        known = {tag.id for tag in existing}
+        question.tags = existing + [tag for tag in incoming if tag.id not in known]
+    else:
+        question.tags = incoming
 
 
-def _to_storage(value: list | None) -> list | None:
+def to_storage(value: list | None) -> list | None:
     """pydantic 模型列表 -> 可进 JSON 列的 dict 列表。"""
     return [item.model_dump() for item in value] if value else None
 
@@ -61,12 +79,12 @@ def create(
         answer_md=data.answer_md,
         explanation_md=data.explanation_md,
         question_type=data.question_type,
-        options=_to_storage(data.options),
-        blanks=_to_storage(data.blanks),
+        options=to_storage(data.options),
+        blanks=to_storage(data.blanks),
     )
     session.add(question)
     session.flush()
-    _sync_tags(session, question, data.tags)
+    sync_tags(session, question, data.tags)
 
     # 05 §6.4：保存后自动入队 analysis。BE-006 才有 worker，任务先排队不消费
     task = GenerationTask(
@@ -158,6 +176,23 @@ def list_tasks(session: Session, question_id: int) -> list[GenerationTask]:
     )
 
 
+def list_generated(
+    session: Session, user_id: int, question_id: int
+) -> list[GeneratedQuestion]:
+    """某错题名下的相似题，旧→新（target_index 顺序由 created_at 天然保证）。"""
+    return list(
+        session.scalars(
+            select(GeneratedQuestion)
+            .where(
+                GeneratedQuestion.parent_question_id == question_id,
+                GeneratedQuestion.user_id == user_id,
+                GeneratedQuestion.deleted_at.is_(None),
+            )
+            .order_by(GeneratedQuestion.created_at, GeneratedQuestion.id)
+        )
+    )
+
+
 def update(
     session: Session, user_id: int, question_id: int, data: QuestionUpdate
 ) -> Question:
@@ -186,7 +221,7 @@ def update(
         if field in changed:
             setattr(question, field, changed[field])
     if "tags" in changed:
-        _sync_tags(session, question, changed["tags"])
+        sync_tags(session, question, changed["tags"])
 
     # 题干是空位数/选项校验的输入，改完必须整题复核一遍题型规则
     if "content_md" in changed:
