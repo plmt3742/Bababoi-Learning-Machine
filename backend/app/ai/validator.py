@@ -30,8 +30,20 @@ _IMAGE_DEPENDENCY = re.compile(r"如[图中下上]|见下?图|照图")
 
 
 def _normalize_for_compare(text: str) -> str:
-    """去掉空白与常见标点后再比，避免「只是排版不同」被当成同一道题。"""
-    return re.sub(r"[\s，。；：、（）(){}\[\]$\\*_-]", "", text.lower())
+    """去掉空白、全角/半角标点、LaTeX 定界符与排版宏后再比。
+
+    这条归一化就是「逐字相同」判据的全部强度：判据唯一的价值是拦真抄题，
+    而抄题最容易躲的方式就是换排版（多敲空格、`（`→`(`、`\\left(`→`(`、加 `\\\\,`）。
+    所以排版层差异一律先抹平，再判是否同一句（前端意见单 §二）。
+    没覆盖的：`\\ln x` vs `\\log_e x` 这类语义等价写法——那需要公式解析，
+    归 P1「同组公式结构去重」，不在这里假装做到了。
+    """
+    for macro in ("\\left", "\\right", "\\displaystyle"):
+        text = text.replace(macro, "")
+    # \dfrac/\tfrac 换成 \frac：只剥样式前缀，别把 frac 这个词一起吃掉
+    for macro in ("\\dfrac", "\\tfrac"):
+        text = text.replace(macro, "\\frac")
+    return re.sub(r"[\s，。；：、,;（）(){}\[\]$\\*_-]", "", text.lower())
 
 
 def similarity(a: str, b: str) -> float:

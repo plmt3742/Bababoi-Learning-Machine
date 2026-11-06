@@ -229,6 +229,15 @@ def test_validate_segment_only_rejects_verbatim_copy_of_original() -> None:
     # 只改排版（括号换成半角加空格）归一化后仍是同一句，照样拦
     with pytest.raises(ValueError, match="原题逐字相同"):
         validator.validate_segment(_segment(original.replace("（", " ( ")), original_content_md=original)
+    # 前端意见单 §二：换 LaTeX 写法也必须拦住，否则"抄题多敲一个空格就溜过去"，
+    # 而这条规则唯一的价值就是拦真抄
+    for layout_variant in (
+        "设函数 $f(x) = x - a\\ln x$ （ $a\\in\\mathbb{R}$ ），讨论 $f(x)$ 的单调性。",
+        "设函数 $f(x)=x-a\\left(\\ln x\\right)$（$a\\in\\mathbb{R}$），讨论 $f(x)$ 的单调性。",
+        r"设函数 \(f(x)=x-a\ln x\)（$a\in\mathbb{R}$），讨论 $f(x)$ 的单调性。",
+    ):
+        with pytest.raises(ValueError, match="原题逐字相同"):
+            validator.validate_segment(_segment(layout_variant), original_content_md=original)
 
     variant = "设函数 $f(x)=x^2-a\\ln x$（$a\\in\\mathbb{R}$），讨论 $f(x)$ 的单调性。"
     assert validator.similarity(original, variant) > 0.9  # 老判据会把它判死
