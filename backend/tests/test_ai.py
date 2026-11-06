@@ -45,15 +45,24 @@ def _segment_messages(target_index: int = 1, difficulty: str = "medium") -> list
 
 
 class FakeClient:
-    """按脚本依次返回预设文本，记录收到的 operation。"""
+    """按脚本依次返回预设文本，记录收到的 operation。
+
+    返回的是真的 LLMResponse，不是临时 duck-type 出来的对象——
+    pipeline 会读 finish_reason，替身跟契约不一致时测试就只是在测自己的假象。
+    """
 
     def __init__(self, texts: list[str]) -> None:
         self.texts = texts
         self.calls: list[str] = []
 
     def complete(self, operation: str, messages: list[dict]):
+        from app.ai.client import LLMResponse
+
         self.calls.append(operation)
-        return type("R", (), {"text": self.texts.pop(0)})()
+        return LLMResponse(
+            text=self.texts.pop(0), model="fake",
+            prompt_tokens=1, completion_tokens=1, latency_ms=1,
+        )
 
 
 def test_factory_uses_mock_by_default(monkeypatch) -> None:
@@ -109,6 +118,33 @@ def test_quiz_prompt_carries_slot_knowledge_and_difficulty() -> None:
     assert "我的易错" in prompts.quiz_messages(from_tags, target_index=1, difficulty="easy")[1]["content"]
     from_nothing = {**QUESTION, "knowledge_points": [], "tags": []}
     assert "自己从题干判断" in prompts.quiz_messages(from_nothing, target_index=1, difficulty="easy")[1]["content"]
+
+
+def test_pipeline_fails_fast_on_truncated_output() -> None:
+    """finish_reason=length 的输出必然不是完整 JSON，重跑一次只会顶到同一个上限。
+
+    这条判据来自实测：一张真实教材照片 4 道题吃掉 6776 输出 token（识图上限 8000），
+    一页更密的题就会顶格。不重试是为了不让用户白等 35s。
+    """
+    from app.ai.client import LLMResponse
+    from app.ai.errors import AITruncatedError
+
+    class TruncatingClient:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, operation, messages):
+            self.calls += 1
+            return LLMResponse(text='{"questions": [{"index": 1', model="fake",
+                               prompt_tokens=10, completion_tokens=8000, latency_ms=1000,
+                               finish_reason="length")
+
+    client = TruncatingClient()
+    with pytest.raises(AITruncatedError) as excinfo:
+        run(client, OPERATION_QUIZ, [], custom_validate=validator.validate_segment)
+    assert client.calls == 1, "截断不该被重试"
+    assert "max_tokens" in str(excinfo.value)
+    assert excinfo.value.raw_text == '{"questions": [{"index": 1'
 
 
 def test_pipeline_retries_then_fails_on_garbage() -> None:
@@ -321,3 +357,73 @@ def test_timeout_is_per_operation(monkeypatch) -> None:
     assert _timeout_for("vision") == 90
     assert _timeout_for(OPERATION_ANALYSIS) == 120
     assert _timeout_for(OPERATION_QUIZ) == 120
+
+
+# ---- 识图提取的宽松校验（05 §7.0 / BE-014）----
+
+
+def _extract_payload(*items: dict) -> dict:
+    return {"questions": list(items), "warnings": []}
+
+
+def _item(index: int, content: str, qtype: str = "solve", **over) -> dict:
+    return {"index": index, "content_md": content, "question_type": qtype, **over}
+
+
+def test_extraction_accepts_partial_page_and_marks_incomplete() -> None:
+    """一张 3 题的页面里有一题没认全，用户仍该拿到另外 2 题 + 一条可编辑的残缺条目。
+
+    这条是"提取校验必须比入库校验宽"的全部理由：照搬 validate_type_payload
+    （空位数=答案数、选择题 ≥2 项、答案非空）会让整张图判失败，用户什么也拿不到。
+    """
+    result = validator.validate_extraction(_extract_payload(
+        _item(1, "求 $f(x)=x^2$ 的极小值。"),
+        _item(2, "两个空：___ 和 ___。", "blank", blanks=[{"index": 1, "answer_md": "$1$"}]),
+        _item(3, "下面哪个是对的？（  ）", "choice",
+              options=[{"label": "A", "content_md": "$1$"}]),
+    ))
+    solve, blank, choice = result["questions"]
+    assert solve.incomplete is False
+    assert blank.incomplete is True and any("空位" in w for w in blank.warnings)
+    assert choice.incomplete is True and any("选项" in w for w in choice.warnings)
+
+
+def test_extraction_keeps_reading_order_even_when_the_model_numbers_wrong() -> None:
+    result = validator.validate_extraction(_extract_payload(
+        _item(7, "第一题"), _item(1, "第二题"),
+    ))
+    assert [q.index for q in result["questions"]] == [1, 2]
+
+
+def test_extraction_drops_a_broken_item_but_keeps_the_rest() -> None:
+    """单条坏输出不拖垮整张图：丢掉它、留一行说明。"""
+    result = validator.validate_extraction(_extract_payload(
+        {"index": 1, "content_md": "   ", "question_type": "solve"},
+        _item(2, "求 $f(x)=x$ 的导数。"),
+    ))
+    assert len(result["questions"]) == 1
+    assert any("题干为空" in w for w in result["warnings"])
+
+
+def test_extraction_of_a_blank_page_is_not_an_error() -> None:
+    """图里没题 → questions=[] + warnings，不是坏输出（探针实测模型就是这么答的）。"""
+    result = validator.validate_extraction({"questions": [], "warnings": ["这是一张值日表，没有题目"]})
+    assert result["questions"] == []
+    assert result["warnings"] == ["这是一张值日表，没有题目"]
+
+
+def test_extraction_normalizes_backslash_math() -> None:
+    r"""实测：DeepSeek 开了 response_format=json_object 之后更爱吐 \( \)。
+
+    同一张图不开 JSON 模式给的是 `$...$`。排版习惯不能变成失败条件，所以这里也规范化。
+    """
+    result = validator.validate_extraction(_extract_payload(
+        _item(1, r"求 \(f(x)=x^2\) 在 $[0,1]$ 上的最大值。"),
+    ))
+    assert "$f(x)=x^2$" in result["questions"][0].content_md
+
+
+def test_extraction_rejects_a_response_without_questions_list() -> None:
+    for bad in ({"questions": "没有列表"}, ["数组"], {"warning": "拼错字段"}):
+        with pytest.raises(ValueError, match="questions"):
+            validator.validate_extraction(bad)

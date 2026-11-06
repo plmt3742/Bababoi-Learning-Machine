@@ -48,9 +48,13 @@ class Settings(BaseSettings):
     task_workers_enabled: bool = True  # API 测试里关掉，worker 单测直接调同步函数
 
     # 图片（12号 §5；上传兜底 10MB，落库前压到 5MB/2000px）
+    upload_dir: str = "./uploads"
     image_max_upload_bytes: int = 10 * 1024 * 1024
     image_max_stored_bytes: int = 5 * 1024 * 1024
     image_max_edge_px: int = 2000
+    # 送多模态模型前的临时缩放（14 号 §5-3 实测：长边压到 1200 后 token/延迟明显下降、
+    # 质量不掉）。只在内存里做，不落第二份文件。
+    image_llm_max_edge_px: int = 1200
     image_allowed_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
 
     # 分页（05 §6.1）

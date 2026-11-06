@@ -23,7 +23,8 @@ from app.ai.errors import AIError
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
 from app.db.base import utcnow
-from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
+from app.models import GeneratedQuestion, GenerationTask, Question
+from app.services import ai_log
 from app.services.question_service import sync_tags, to_storage
 from app.services.task_service import segment_difficulty
 
@@ -34,6 +35,7 @@ _client_lock = threading.Lock()
 
 
 def _llm_client():
+    """worker 用的客户端；测试 monkeypatch 这个函数换替身。"""
     global _client
     with _client_lock:
         if _client is None:
@@ -105,30 +107,18 @@ def _write_call_log(
     error_code: str | None = None,
     raw_text: str | None = None,
 ) -> None:
-    """独立事务写 ai_call_logs（05 §9.3）：日志失败不影响主流程。"""
-    try:
-        with session_factory() as session:
-            session.add(
-                AiCallLog(
-                    user_id=task.user_id,
-                    question_id=task.question_id,
-                    operation=operation,
-                    model=usage.model if usage else settings.llm_model,
-                    prompt_version=prompts.prompt_version(operation),
-                    input_tokens=usage.prompt_tokens if usage else None,
-                    output_tokens=usage.completion_tokens if usage else None,
-                    latency_ms=usage.latency_ms if usage else 0,
-                    queue_wait_ms=int(
-                        (utcnow() - task.created_at).total_seconds() * 1000
-                    ),
-                    status=status,
-                    error_code=error_code,
-                    raw_response=(raw_text or "")[:8000],
-                )
-            )
-            session.commit()
-    except Exception:  # noqa: BLE001  # 日志写不进去不能拖垮任务
-        logger.exception("ai_call_logs 写入失败（task=%s）", task.id)
+    """任务侧的薄封装：归属和排队时长从 task 上取，写库规则交给 ai_log（05 §9.3）。"""
+    ai_log.write_call_log(
+        session_factory,
+        task.user_id,
+        operation,
+        status,
+        question_id=task.question_id,
+        usage=usage,
+        error_code=error_code,
+        raw_text=raw_text,
+        queue_wait_ms=int((utcnow() - task.created_at).total_seconds() * 1000),
+    )
 
 
 def execute_task(session_factory: sessionmaker, task_id: int) -> None:

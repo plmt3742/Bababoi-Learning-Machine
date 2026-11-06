@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, health, practice, questions, tasks
+from app.api.v1 import auth, health, images, practice, questions, tasks
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import register_observability, setup_logging
@@ -51,6 +51,8 @@ register_exception_handlers(app)
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(questions.router, prefix=settings.api_prefix)
+# images 里也有 /questions/from-image，放在 questions 之后，避免抢走 /questions/{id} 的形状
+app.include_router(images.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(practice.router, prefix=settings.api_prefix)
 

@@ -40,6 +40,18 @@ class AIInvalidOutputError(AIError):
     message = "AI 输出无法解析或未通过校验"
 
 
+class AITruncatedError(AIInvalidOutputError):
+    """输出被 `max_tokens` 掐断（finish_reason=length）。
+
+    单独一类是因为**重试没有意义**：同一段提示词再来一次还是会顶到上限，
+    白等 35s。真正要改的是"一次给多少内容"，所以这条错误要直接告诉用户怎么办。
+    实测触发面：一张真实教材照片 4 道题就用了 6776 输出 token（识图上限 8000）。
+    """
+
+    error_code = "AI_INVALID_OUTPUT"
+    message = "模型输出被长度上限截断"
+
+
 class AIInvalidImageError(AIError):
     error_code = "AI_INVALID_IMAGE"
     message = "图片无法识别为题目"
