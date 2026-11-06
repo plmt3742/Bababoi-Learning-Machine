@@ -255,8 +255,7 @@ export interface StatsOverview {
   total_questions: number
   total_generated_questions: number
   total_practice_records: number
-  /** Correct practice ratio across all records, in the 0–1 range; null when unknown. */
-  accuracy: number | null
+  accuracy: number
   mastered_count: number
   reviewing_count: number
   unmastered_count: number

@@ -14,6 +14,7 @@ from pydantic import (
     ConfigDict,
     Field,
     TypeAdapter,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -171,6 +172,29 @@ def validate_type_payload(
     TypeAdapter(QuestionInput).validate_python(payload)
 
 
+def structure_problem_zh(question_type: str, exc: ValidationError) -> str:
+    """把 `validate_type_payload` 的报错变成一句中文。
+
+    判据不在这里重复——只翻译文案。Pydantic 对数组长度给的是默认英文
+    （"List should have at least 2 items after validation, not 1"），原样透给用户
+    等于让他在题目卡片或错误提示里读一句英文；我们自己 raise 的那些本来就是中文，直接带走。
+
+    放在这里而不是 `ai/validator.py`，是因为识图降级和 PATCH 复核**都要用**这句话：
+    翻译逻辑跟着判据走才不会再分叉。
+    """
+    error = (exc.errors() or [{}])[0]
+    context = error.get("ctx") or {}
+    field_label = {"choice": "选项", "blank": "空位答案"}.get(question_type, "结构")
+    if error.get("type") == "too_short":
+        return f"{field_label}只有 {context.get('actual_length', '?')} 个（至少要 {context.get('min_length', '?')} 个）"
+    if error.get("type") == "too_long":
+        return f"{field_label}有 {context.get('actual_length', '?')} 个（最多 {context.get('max_length', '?')} 个）"
+    # 我们自己在 validator 里 raise 的 ValueError 会被 Pydantic 冠一句 "Value error, "，
+    # 那是框架的包装不是内容
+    message = str(error.get("msg") or "").removeprefix("Value error, ").strip()
+    return message or "结构不完整"
+
+
 def clean_tag_names(value: list[str]) -> list[str]:
     """去首尾空白、拒空名；tags.name 列宽是 64。"""
     names = []
@@ -223,9 +247,14 @@ class QuestionCreate(QuestionBase):
 
 
 class QuestionUpdate(BaseModel):
-    """PATCH /questions/{id}；05 §6.4 允许改：题干/答案/解析/学科/标签/analysis。
+    """PATCH /questions/{id}；05 §6.4 允许改：题干/答案/解析/学科/章节/标签/analysis/掌握状态
+    + **题型结构三字段 `question_type`/`options`/`blanks`**（issue #43 / BE-025）。
 
-    options/blanks 不在可改清单里——改题型等于换一道题，MVP 不支持。
+    题型结构原来明确写"不在可改清单里——改题型等于换一道题，MVP 不支持"。
+    这条被 FE-027 的完整三题型编辑器推翻了：前端已经能编辑选项/空位并 PATCH 上来，
+    后端不收就等于**用户改的结构静默丢失**（前端只能事后比对再提示"后端尚未支持"）。
+    判据不新写一份：改完仍由 `validate_type_payload` 整题复核，规则只有一处。
+
     mastery_status 也在可改清单里：前端自评后顺手 PATCH（确认单 B-5 定的口径），
     后端不做「答对 N 次自动升 reviewing」的流转，那属于 P1。
     """
@@ -238,6 +267,9 @@ class QuestionUpdate(BaseModel):
     mastery_status: MasterStatus | None = None
     tags: list[str] | None = Field(default=None, max_length=10)
     analysis: dict | None = None
+    question_type: Literal["choice", "blank", "solve"] | None = None
+    options: list[ChoiceOption] | None = None
+    blanks: list[BlankAnswer] | None = None
 
     @field_validator("tags")
     @classmethod

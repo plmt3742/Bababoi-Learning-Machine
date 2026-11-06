@@ -489,7 +489,9 @@ async function handleSubmit(): Promise<void> {
       })
 
       if (structureChanged() && !structureSaved(updated)) {
-        throw new Error('后端尚未支持题型结构编辑（BE-025），本次题型/选项/空位改动未保存。')
+        throw new Error(
+          '保存后题型结构校验不一致（可能是后端未按契约保存），请重试或联系后端。',
+        )
       }
 
       Message.success('修改已保存')
