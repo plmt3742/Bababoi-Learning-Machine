@@ -4,7 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { IconDown, IconPoweroff } from '@arco-design/web-vue/es/icon'
 import { useAuthStore } from '../../stores/auth'
 import BrandMark from './BrandMark.vue'
-import { topNavigation } from './navigation'
+import { accountNavigation, topNavigation } from './navigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +14,10 @@ const activeKey = computed(() => route.meta.navKey)
 const pageTitle = computed(() => route.meta.title ?? '错题学习机')
 const displayName = computed(() => auth.user?.username ?? '已登录')
 const initial = computed(() => displayName.value.slice(0, 1).toUpperCase())
+
+function handleNavigate(to: string): void {
+  void router.push(to)
+}
 
 async function handleLogout(): Promise<void> {
   auth.logout()
@@ -51,6 +55,16 @@ async function handleLogout(): Promise<void> {
           <IconDown class="user__chevron" aria-hidden="true" />
         </button>
         <template #content>
+          <a-doption
+            v-for="item in accountNavigation"
+            :key="item.key"
+            @click="handleNavigate(item.to)"
+          >
+            <template #icon>
+              <component :is="item.icon" />
+            </template>
+            {{ item.label }}
+          </a-doption>
           <a-doption @click="handleLogout">
             <template #icon>
               <IconPoweroff />
