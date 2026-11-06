@@ -49,12 +49,17 @@ def test_health_returns_503_when_database_unreachable(dead_engine) -> None:
     assert resp.json()["db"] == "unavailable"
 
 
-def test_ready_reports_llm_config_without_calling_llm(good_engine) -> None:
+def test_ready_reports_llm_config_without_calling_llm(good_engine, monkeypatch) -> None:
+    from app.core.config import settings
+
+    # 显式钉住 mock：本地 .env 可能配了真 Key（LLM_MOCK=false），
+    # 不能依赖环境默认值，否则这条测试在开发机上必挂
+    monkeypatch.setattr(settings, "llm_mock", True)
     resp = client.get("/api/v1/ready")
     assert resp.status_code == 200, resp.text
     checks = resp.json()["checks"]
     assert checks["db"] == "ok"
-    assert checks["llm"] == "mock"  # 测试环境不配 Key，mock 模式就是就绪的
+    assert checks["llm"] == "mock"
 
 
 def test_ready_returns_503_when_llm_key_missing(good_engine, monkeypatch) -> None:
