@@ -348,6 +348,61 @@ def test_prompt_versions_are_per_operation() -> None:
         prompts.prompt_version("unknown_op")
 
 
+@pytest.fixture()
+def client_stub():
+    """假 openai 客户端：把 create() 收到的 kwargs 存进 sink 供断言。"""
+    sink: dict = {}
+
+    class _Completions:
+        def create(self, **kwargs):
+            sink["kwargs"] = kwargs
+            message = type("M", (), {"content": '{"a":1}'})()
+            choice = type("C", (), {"message": message, "finish_reason": "stop"})()
+            usage = type("U", (), {"prompt_tokens": 1, "completion_tokens": 2})()
+            return type("R", (), {"choices": [choice], "model": "fake", "usage": usage})()
+
+    class _Chat:
+        completions = _Completions()
+
+    class _Stub:
+        chat = _Chat()
+
+        def with_options(self, timeout=None):
+            return self
+
+    stub = _Stub()
+    stub.sink = sink
+    return stub
+
+
+def test_vision_request_carries_thinking_switch(client_stub) -> None:
+    """识图请求要带上 thinking 开关，且只带在识图上（分析/生题的质量数据是开思考时测的）。
+
+    值本身来自实测：整页抄题开思考 28.9s / 5861 输出 token（其中 reasoning 14617 字符），
+    关思考 3.4s / 714，条目数与质量不降——见 05 §6.8。这条只验接线，不验模型行为。
+    """
+    from app.ai.client import OPERATION_VISION, DeepSeekClient
+
+    instance = DeepSeekClient.__new__(DeepSeekClient)  # 不建真的 httpx 连接池
+    instance._model = "deepseek-flash"
+    instance._client = client_stub
+
+    original = settings.vision_thinking
+    try:
+        settings.vision_thinking = False
+        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
+        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}
+
+        instance.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
+        assert client_stub.sink["kwargs"]["extra_body"] is None, "分析请求不该被顺手改行为"
+
+        settings.vision_thinking = True
+        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
+        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "enabled"}}
+    finally:
+        settings.vision_thinking = original
+
+
 def test_timeout_is_per_operation(monkeypatch) -> None:
     """05 §8：识图同步等 90s，后台任务 120s——之前两者共用 90s。"""
     from app.ai.client import _timeout_for

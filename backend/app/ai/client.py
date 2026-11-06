@@ -116,12 +116,18 @@ class DeepSeekClient:
     def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
         start = time.monotonic()
         sampling = SAMPLING.get(operation, {})
+        extra: dict = {}
+        if operation == OPERATION_VISION:
+            # 抄题不需要思考；开着的时候思考 token 会顶满 max_tokens，
+            # 表现成"输出被截断"而不是"模型不会"（05 §6.8 实测表）
+            extra["thinking"] = {"type": "enabled" if settings.vision_thinking else "disabled"}
         try:
             resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
                 model=self._model,
                 messages=messages,
-                response_format={"type": "json_object"},  # 实测 deepseek-flash 支持
+                response_format={"type": "json_object"},  # 实测 deepseek-flash 支持（与图片同用也可）
                 **sampling,
+                extra_body=extra or None,
             )
         except openai.APITimeoutError as exc:
             raise AITimeoutError(str(exc)) from None
