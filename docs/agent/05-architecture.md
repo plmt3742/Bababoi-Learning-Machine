@@ -598,6 +598,21 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - DeepSeek 官方限制（作为上限参考）：单图 inline ≤ 32 MiB、单边 ≤ 8192px、图片只能放 `user` 消息、支持 JPEG/PNG/GIF/WebP。我们控制在 5MB/2000px，避免超限和成本浪费。
 - 若 `has_figure=true`，当前阶段只提示“含图，暂只提取文字”；生成题仍要求“纯文本可作答”，不要生成依赖不存在图片的题。
 
+### 6.9 个人设置 / 用户自带 AI Key（P1）
+
+> ADR-007 / Issue #32。Key 只在后端加密存储，前端不落 localStorage/Pinia，不回显完整值。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/settings/ai` | 返回 `{configured, provider, base_url, model, api_key_masked, updated_at}`；不返回原始 Key |
+| PUT | `/settings/ai` | body `{provider, base_url?, model, api_key}`；返回 masked；`api_key` ≥8 |
+| DELETE | `/settings/ai` | 删除用户配置，回退系统 Key；204 |
+
+- `provider`: `deepseek` | `openai_compatible`；`openai_compatible` 的 `base_url` 必须 https 且建议 host 白名单（防 SSRF）。
+- 新表 `user_ai_settings`：`user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4`、`created_at`、`updated_at`；加密密钥从 `SETTINGS_ENCRYPTION_KEY` 读取。
+- 生成/分析取 Key 顺序：用户配置 → 系统 `.env` → mock；`ai_call_logs` 记录 `key_source=user|system`，不记录 Key。
+- 用户 Key 失效/额度不足要返回明确错误，不静默回退。
+
 ## 7. AI 流水线
 
 ### 7.0 图片文本提取（多模态直读，不做独立 OCR）

@@ -118,6 +118,15 @@ ID:
 | ADM-007 | 任务/AI logs 列表 + 失败重试 | 人机 | P1 | ADM-003/004 | 筛选、重试、错误码/延迟/tokens 可见 | TODO |
 | ADM-008 | 审计日志/导出 | 人机 | P2 | ADM-005/006/007 | 删除/重试/禁用留痕；导出脱敏 | TODO |
 
+### 1.7 个人设置 / BYOK（P1，不进入 11.29 演示关键路径）
+
+> 决策：`docs/adr/ADR-007-user-ai-key.md`；Issue #32。Key 只提交后端加密存储，前端不落库、不回显完整值。
+
+| ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
+|---|---|---|---|---|---|---|
+| FE-024 | 个人设置页 + AI API Key UI | 霹雳马桶 | P1 | 无 | `/settings`；账号信息 + AI 设置；masked 回显；密码输入/显示切换；不写 localStorage/Pinia | DOING（子任务实现中） |
+| BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | TODO |
+
 ## 2. M1：纵向切片（11.8–11.14）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
