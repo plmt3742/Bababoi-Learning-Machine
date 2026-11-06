@@ -566,7 +566,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 | POST | `/uploads/images` | multipart `file`（建议前端裁剪后上传）；服务端校验/压缩/去 EXIF；返回 `{image_path, url, width, height}` |
 | POST | `/questions/from-image` | `{image_path, subject?}` → `{image_path, questions: [...], warnings?}`；**只提取文本，不创建错题、不分析、不返回 bbox** |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
-| POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `task_id`；多选 P0 上限 3 道 |
+| POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选 P0 上限 3 道 |
 
 **提取响应（示例）**：
 
@@ -1023,6 +1023,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-06 | v0.4.2 | 生成题型口径落定：**软约束**（首选与原题一致，不一致照常入库，不引入 `TYPE_MISMATCH`）——与 14 号文档 D2/D7 的「硬约束」表述冲突，按前端 review 选的 A 统一；§7.2 第 3 条补「三题彼此只拒完全相同」的实测依据 | 人机 |
 | 2026-11-06 | v0.4.4 | BE-012：`PRACTICE_DUPLICATE` 错误码与防重复口径（§6.4）；`GET /practice-records` 附加 `generated_question_id` 过滤 | 人机 |
 | 2026-11-06 | v0.4.3 | BE-006/007 review 修复：重新生成整组改为替换（旧组软删）、任务不存在用 `TASK_NOT_FOUND`、生成校验补 05 §7.2 四条、超时按操作分档 | 人机 |
-| 2026-11-06 | v0.5.0 | **ADR-006 三段并发**（破坏性接口变更，11-08 冻结前一次切净）：一次生题排 3 段任务、每段 1 题；`POST /questions/{id}/generate` 返回 `tasks[]`（不再有单个 `task_id`）并收 `difficulties`/`target_index`+`difficulty`；`generated_questions.target_index` + `generation_task.difficulty` 两列（迁移 `3f9c1a7e5b24`）；按格替换（整组入队即软删旧组、单段只换自己那格）；requeue 前判 `TASK_REQUEUE_DEADLINE_S=90`；`TASK_MAX_CONCURRENCY` 2→6；prompt `generate_v2`、quiz `max_tokens` 8000→4000；§7.2/§7.3/§11 同步，§11 顺手改成 `config.py` 的真实键名（原 `AI_TIMEOUT_SECONDS` 等代码里不存在）；**§7.2 第 3 条判据改动（对 14 号 D3 的偏离，待前端确认）**：与原题的「相似度 <0.9」换成「归一化后逐字相同」——真模型 2 轮 ×3 段实测 4/9 与 3/9 被判死，而被判死的都是换了函数式的正常新题、18 段里 0 段真抄题；quiz `max_tokens` 4000→6000（单段实测 3589 token）；复现脚本 `backend/scripts/measure_segment_similarity.py` | 人机 |
+| 2026-11-06 | v0.5.0 | **ADR-006 三段并发**（破坏性接口变更，11-08 冻结前一次切净）：一次生题排 3 段任务、每段 1 题；`POST /questions/{id}/generate` 返回 `tasks[]`（不再有单个 `task_id`）并收 `difficulties`/`target_index`+`difficulty`；`generated_questions.target_index` + `generation_task.difficulty` 两列（迁移 `3f9c1a7e5b24`）；按格替换（整组入队即软删旧组、单段只换自己那格）；requeue 前判 `TASK_REQUEUE_DEADLINE_S=90`；`TASK_MAX_CONCURRENCY` 2→6；prompt `generate_v2`、quiz `max_tokens` 8000→4000（本行末又回到 6000，以最终值为准）；§7.2/§7.3/§11 同步，§11 顺手改成 `config.py` 的真实键名（原 `AI_TIMEOUT_SECONDS` 等代码里不存在）；**§7.2 第 3 条判据改动（对 14 号 D3 的偏离，待前端确认）**：与原题的「相似度 <0.9」换成「归一化后逐字相同」——真模型 2 轮 ×3 段实测 4/9 与 3/9 被判死，而被判死的都是换了函数式的正常新题、18 段里 0 段真抄题；quiz `max_tokens` 4000→6000（单段实测 3589 token）；复现脚本 `backend/scripts/measure_segment_similarity.py` | 人机 |
 | 2026-11-06 | v0.5.1 | 按前端《三段并发-前端意见单》落地：§7.2 写清「归一化后逐字相同」的归一化范围与**没覆盖**的部分（`\left(`/全半角/多余空格已归一，`\ln`vs`\log_e` 这类语义等价留给 P1 BE-022）；§5.2 迁移补**历史行回填 target_index**（软删行与第 4 条以后留 NULL）；§7.3 把 `generate_v2` 定权给三段版、禁止另一条复用同名；§6.4 明确响应只有 `tasks`、后端从未双发 `task_id`，前端可删 FE-023 的兜底分支 | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
