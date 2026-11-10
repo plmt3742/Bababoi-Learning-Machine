@@ -92,7 +92,7 @@ ID:
 | BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | DONE（PR #6；题型软约束，ADR-006 再改三段） |
 | BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DONE（PR #5；answer/explanation 写回 + 标签合并） |
 | BE-007 | 生成接口 | 人机 | P0 | BE-006 | content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；一次 3 道的旧形状已由 BE-021/ADR-006 取代） |
-| BE-008 | 种子脚本 | 人机 | P1 | BE-004 | 演示账号 + 10 道大学理科错题（3 道含图/公式）+ 20 条练习；可重复执行 | TODO；PR #60 review：easy 生成题答案错误 + 正态分布 D 也正确；种子缺 `generation_task`，三段面板无法演示；待修 |
+| BE-008 | 种子脚本 | 人机 | P1 | BE-004 | `backend/scripts/seed_demo.py`：两个演示账号 `student01`/`student02`（都是 `password123`，第二个用来验用户隔离与越权 403）；每账号 12 道错题（3 道依赖图形/公式）、3 格生成题（`target_index` 1/2/3 + `easy/medium/hard`）、21–24 条练习铺在最近 10 天；**每行入库前先过 `validate_type_payload`**，重复执行不重复插（父题按题干认，不按位置认） | 已完成（#60 已合；两个演示账号、3 格生成题、6 条 quiz 任务、21–24 条练习） |
 | BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
 
 ### 1.5 部署/运维（人机主导，林协助）
@@ -133,7 +133,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；切换题型清掉不适用的一半；四个结构输入任一变动都整题复核 `validate_type_payload`，不合法 400 且回滚；文案走 `structure_problem_zh`；Issue #43 | DONE（#55 已合） |
-| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | TODO；PR #58 待补 `generate_v3` + prompt 同题型；未合并前 strict 不启用 |
+| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | PR #58 已补 `generate_v3` + prompt 同题型（176 passed；真实 27/27）；待 rebase 合并；合并前 main 仍软 |
 | FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DONE（PR #51） |
 | FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端执行等 BE-026） |
 | FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DONE（PR #51） |

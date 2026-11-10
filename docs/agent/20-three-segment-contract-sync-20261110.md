@@ -70,33 +70,26 @@ read_when: 三段并发契约、target_index/difficulty、PR #58/#60 回馈、�
 
 复现要点：脚本指向一次性库（不要用 `backend/bababoi.db`）；跑第二遍确认行数不增长，再核对答案和 `generation_task` 计数。两处答案错误用求导/分布定义直接验算即可，不依赖模型。
 
-## 4. 后端 PR #58 回馈（BE-026 题型一致性）
+## 4. 后端 PR #58 更新（BE-026 题型一致性）：generate_v3 已落地
 
-实现本身干净：默认 `true`、worker 取用户偏好、记录 `type_policy`、任务级重试、没有新增 `TYPE_MISMATCH`。
+2026-11-10 更新：后端已按 review 补上 `generate_v3`。strict prompt 明写「题型必须与原题一致」，版本按策略分叉（strict=`generate_v3`，soft=`generate_v2`），`ai_call_logs` 与 `generated_questions` 都跟策略走；9 张 mock 卡按题型 × 难度，队列测试不再关开关。本地复跑 **176 passed**；真实 strict 复测 **27/27 题型一致、27/27 校验通过**，默认维持开启。
 
-**阻塞的设计问题**：`generate_v2` 的 prompt 仍是软措辞（「首选与原题一致，允许调整」），strict 模式却会判死不一致输出。strict 保持默认的话，prompt 必须写死「题型必须与原题一致」，并且 `prompt_version` 升到 `generate_v3`（文本变了，版本必须变）。
+### 4.1 仍成立的历史判断
 
-PR 描述里「生成题经常换题型」**没有真实数据支撑**：
+- `generate_v2` 的软 prompt 不能配 strict；这条是当时的阻塞，现已被 #58 修复。
+- 7 个红色队列测试是 mock 故意混题型，真实链路 3/3 solve、ADR-006 27/27；mock 失败率不是产品失败率。
+- 27/27 的独立复测支持默认 strict。
 
-- 7 个红色队列测试用的是故意混合题型的 mock（`blank/solve/choice`）；
-- 真实 DeepSeek 冒烟 3/3 solve；
-- ADR-006 记录 27/27 题型一致。
+### 4.2 合并前
 
-**mock 的失败率不是产品失败率**，不能拿它证明 strict 会导致大量失败。
+- PR #58 需要 rebase 到最新 main，解决 05 §6.9/§7.3/变更记录与 #61/#62 的文档重叠。
+- 当前 main 仍是 `generate_v2` 软约束，strict 在 #58 合并后才生效。
+- 演示不再需要默认关闭 strict；如果 #58 合并延后，才用关闭开关兜底。
 
-| 证据来源 | 样本 | 题型一致情况 |
-|---|---|---|
-| 真实 DeepSeek 冒烟 | 3 段 | 3/3 solve |
-| ADR-006 记录 | 27 段 | 27/27 一致 |
-| 红色队列测试 | 7 个 | 故意混合题型的 mock，不能当产品口径 |
+### 4.3 前端
 
-文档口径：
-
-- 产品决策仍是「默认 strict」，这条不变；
-- 但在 `generate_v3` + 同题型提示词落地前，**strict 不算已启用**；
-- 当前 main 仍是 `generate_v2` 软约束，PR #58 不得以「软 prompt + strict 默认」合并；
-- 11.29 时间不够时的兜底：演示默认关闭 strict，开关保留，行为回到 soft；
-- 之前记的「只加 `type_policy`、不升 `prompt_version`」对 strict **不再成立**；soft 仍不升。
+- 设置页已就绪；#58 合并后真实链路按 strict 执行。
+- 前端 mock 的 101-104 与 fallback 本来就是同题型、三段内容不同，不需要照搬后端 9 张卡；难度内容不随卡位变只是展示差异。
 
 ## 5. 文档/代码同步清单
 

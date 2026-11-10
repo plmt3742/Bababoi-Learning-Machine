@@ -13,24 +13,24 @@ read_when: 后端开工排期、前后端联调、前端切真实接口、stagin
 
 ## 0. 一句话
 
-后端按“修 #60 种子 → 定 #58 题型开关 → 统计 → 草稿 → OpenAPI → staging → staging 种子”推进；前端每个接口落地就切一个。11.14 staging 可访问，11.29 主流程可演示。
+后端按“合 #60 种子 → 合 #58 题型开关 → 统计 → 草稿 → OpenAPI → staging → staging 种子”推进；#60 已合，#58 已实现待 rebase。前端每个接口落地就切一个。11.14 staging 可访问，11.29 主流程可演示。
 
 ## 1. 后端开工顺序（按这个顺序做）
 
 | 顺序 | 动作 | 为什么先做 | 前置 | 交付/验收 | 前端何时切 |
 |---|---|---|---|---|---|
-| 1（P0） | 修 PR #60 种子脚本 | 演示数据的第一道门，答案错了比生成慢更难解释 | 无 | 连跑两遍不重复；两处数学答案正确；决定是否补 `generation_task`（演示三段面板就需要 3 条 `status=done` 的 quiz 任务）；顺手修软删过滤、时间排序与「如图」题 | 无需改代码；种子就绪即可演示 |
-| 2（P0） | 定 PR #58 题型策略 | strict 与 prompt 不一致，不能带病合并 | 产品确认演示默认（建议：`generate_v3` 落地前关闭 strict） | strict 有测试 + `prompt_version=generate_v3`；或演示默认 off | 设置页已就绪；若演示 off，后端种子把演示账号设为 `false`，前端不动产品默认 |
+| 1（P0，已合） | 合 PR #60 种子脚本 | 演示数据的第一道门，答案错了比生成慢更难解释 | 无 | 已复跑：连跑两遍不重复；两处数学答案正确；每个账号 3 条 `status=done` 的 quiz 任务 | 无需改代码；种子已就绪 |
+| 2（P0，实现已完成待合） | 合 PR #58 题型策略 | `generate_v3` + prompt 同题型已落地，真实 27/27；剩下是合并顺序 | rebase 最新 main；解决 05 文档重叠 | 176 passed；strict prompt/version/日志核对；PR rebase 后 CI 绿 | 设置页已就绪；#58 合并后 strict 生效，不需要演示默认 off |
 | 3（P1，按 P0 节奏） | BE-013 统计 overview | 前端统计页与首页一直 mock，是最容易切真接口的一块 | 形状按 §2.1 冻结 | pytest + 空/有数据/软删；用户隔离 | 前端切统计页与首页 |
 | 4（P0） | BE-018 草稿 | 任务中心草稿行和录入页双写等真实接口 | 契约按 §2.2 | 204/200/409/256KB；用户隔离 | 前端切草稿双写与任务中心 |
 | 5（P0） | BE-009 OpenAPI 导出 | 没有稳定 OpenAPI，前后端只能靠口头对字段 | 统计/草稿/任务/生成路由稳定 | `contracts/openapi/openapi.json`，CI 加 diff 检查 | 作为契约校验；不新增前端类型 |
 | 6（P0） | OPS-005 staging | 11.14 硬截止，所有真实联调都依赖它 | 机器/域名/`uploads/` 目标明确；SQLite+WAL 可接受 | HTTPS/HTTP 可访问；`/health`、`/ready` 200；`VITE_USE_MOCK=false` 可构建；CORS；uploads 持久化 | 前端对 staging 构建 |
-| 7（P0） | staging 种子 + 演示账号 | 联调和演示需要同一份数据 | staging URL + #60 修完 | `student01/password123`、`student02/password123`；各 12 题；3 道生成题；21-24 条练习；标签齐全；如需三段演示，3 条 done quiz 任务 | 前端走真实走查 |
+| 7（P0） | staging 种子 + 演示账号 | 联调和演示需要同一份数据 | staging URL + #60 已合 | `student01/password123`、`student02/password123`；各 12 题；3 道生成题；21-24 条练习；标签齐全；3 条 done quiz 任务 | 前端走真实走查 |
 | 8（P1） | BE-024 两步识图 | 提升识图稳定性，不阻塞主流程 | staging 稳定 | 同一接口/字段；180s；两行 `ai_call_logs` | 前端 loading 已就绪，直接切 |
 | 9（P1） | BE-020 BYOK | 用户自带 Key，演示可不依赖系统额度 | staging 稳定 | `/settings/ai` GET/PUT/DELETE；掩码；加密；回退；SSRF | 前端设置页切真实接口 |
 | 10（P0，11.29 前） | BE-011 MySQL | 部署目标库，但不阻塞 11.14 | staging 在 SQLite 上跑通 | MySQL 8 上 `alembic upgrade head`；无方言 SQL | 前端无感；切换后回归一轮 |
 
-说明：1-2 是 review 收口，3-7 是 11.14 前必须落地的联调链路（统计在 `04-todos` 里标 P1，但阻塞前端切换），8-10 是后置项。`#58`/`#60` 的完整 review 见 [20](20-three-segment-contract-sync-20261110.md)。
+说明：1 已合，2 待合，3-7 是 11.14 前必须落地的联调链路（统计在 `04-todos` 里标 P1，但阻塞前端切换），8-10 是后置项。`#58`/`#60` 的完整 review 见 [20](20-three-segment-contract-sync-20261110.md)。
 
 统计的状态以 `04-todos` 为准；这里只排先后。
 
@@ -267,14 +267,14 @@ error_code, error_message, created_at, started_at, finished_at
 
 ## 5. 需要产品/部署确认的三件事
 
-1. #58：演示默认 strict 还是 off？建议 `generate_v3` 落地前 off，落地后再开。
-2. #60：演示是否展示三段面板？展示就种 3 条 done 的 quiz 任务；不展示就写进演示脚本。
+1. #58：`generate_v3` 已落地并 27/27 复现，建议默认 strict；只剩 rebase/合并。若 11.14 前合不了，演示再临时关闭。
+2. #60 已按“展示三段面板”种了 6 条 done 任务；如果最终演示不展示，改脚本即可。
 3. staging 目标：机器/域名/证书/`uploads/` 目录。这三样不定，OPS-005 就动不了。
 
 ## 6. 本周完成定义
 
 - staging 可访问，演示账号能登录；
-- #60 答案正确，#58 决策有记录；
+- #60 已合、答案正确；#58 已实现待合；
 - 统计 + 草稿真实接口可用，OpenAPI 已导出；
 - 前端统计/草稿已切真实接口，并跑通一次端到端；
 - 不扩范围；P0 没完成前不做 MySQL、BYOK、两步识图。

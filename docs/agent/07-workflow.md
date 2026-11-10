@@ -231,7 +231,8 @@ docker compose -f deploy/docker-compose.dev.yml up -d
 - `.env` 不提交；`.env.example` 必须保持最新。
 - LLM 默认 DeepSeek：`LLM_BASE_URL=https://api.deepseek.com`、`LLM_MODEL=deepseek-flash`、`LLM_VISION_MODEL=deepseek-flash`；`deepseek-v4-pro` 不支持图片。
 - 新环境变量加入时，同时更新 `.env.example` + `05-architecture.md` 第 11 节 + 部署 README。
-- 本地数据库重置：删除 `backend/data/app.db` 后 `alembic upgrade head` + seed。
+- 本地数据库重置：删掉 `backend/bababoi.db`（默认路径来自 `app/db/session.py` 的 `DEV_DATABASE_URL`，
+  不是 `backend/data/app.db`）后跑 `alembic upgrade head`，再 `uv run python scripts/seed_demo.py` 灌演示数据。
 
 ### 5.3 依赖版本
 

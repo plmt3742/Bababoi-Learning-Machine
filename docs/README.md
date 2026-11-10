@@ -45,7 +45,7 @@
 | [agent/17-image-intake-alignment.md](agent/17-image-intake-alignment.md) | 图片录入接口对齐清单原文（三字段/三条规则/合并顺序）+ 后端逐条处置 | 图片录入 / 联调 / #38~#40 合并 |
 | [agent/18-backend-unfinished-api-sync-20261107.md](agent/18-backend-unfinished-api-sync-20261107.md) | 后端未完成接口设计同步：题型开关/三题型 PATCH/统计/草稿/BYOK/两步识图/seed/OpenAPI/staging；当前 SQLite、上云 MySQL | 后端实现 / 联调 / 上云前 |
 | [agent/19-project-stage-report-20261107.md](agent/19-project-stage-report-20261107.md) | 阶段性汇报：完成度、可演示范围、未完成项、风险与下一步（不含任务编号） | 汇报 / 交接 / 答辩准备 |
-| [agent/20-three-segment-contract-sync-20261110.md](agent/20-three-segment-contract-sync-20261110.md) | 三段并发契约同步 + PR #58/#60 回馈：target_index/difficulty、1–3 段、strict 需 generate_v3、种子缺 generation_task | 三段并发 / 联调 / 演示种子 |
+| [agent/20-three-segment-contract-sync-20261110.md](agent/20-three-segment-contract-sync-20261110.md) | 三段并发契约同步 + PR #58/#60 回馈：target_index/difficulty、1–3 段、strict 已补 generate_v3、种子已补 generation_task | 三段并发 / 联调 / 演示种子 |
 | [agent/21-backend-handoff-20261110.md](agent/21-backend-handoff-20261110.md) | 后端优先开工对接单：10 步顺序（#60/#58/统计/草稿/OpenAPI/staging/种子/P1）、前端所需接口契约、验收清单 | 后端排期 / 前端切真实接口 / staging 与演示准备 |
 
 ### 产品设计
