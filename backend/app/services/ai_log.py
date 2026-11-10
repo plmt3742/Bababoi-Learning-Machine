@@ -41,7 +41,7 @@ def write_call_log(
                     question_id=question_id,
                     operation=operation,
                     model=usage.model if usage else settings.llm_model,
-                    prompt_version=prompt_version(operation),
+                    prompt_version=prompt_version(operation, type_policy=type_policy),
                     type_policy=type_policy,
                     input_tokens=usage.prompt_tokens if usage else None,
                     output_tokens=usage.completion_tokens if usage else None,

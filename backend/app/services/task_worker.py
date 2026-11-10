@@ -148,7 +148,10 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         if is_analysis:
             messages = prompts.analysis_messages(payload)
         else:
-            messages = prompts.quiz_messages(payload, target_index=slot, difficulty=difficulty)
+            messages = prompts.quiz_messages(
+                payload, target_index=slot, difficulty=difficulty,
+                type_policy=type_policy or "soft",
+            )
             siblings = tuple(
                 row.content_md
                 for row in session.scalars(
@@ -190,7 +193,8 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         if is_analysis:
             _apply_analysis(session_factory, task_id, result)
         else:
-            _apply_segment(session_factory, task_id, result, user_id, slot, difficulty)
+            _apply_segment(session_factory, task_id, result, user_id, slot, difficulty,
+                           type_policy)
     except AIError as exc:
         # 坏输出的原文（pipeline 挂在 exc.raw_text 上）一定要落库：
         # 只记「AI_INVALID_OUTPUT」的话，没法定位是 prompt 的问题还是模型的问题
@@ -236,7 +240,7 @@ def _apply_analysis(session_factory: sessionmaker, task_id: int, result) -> None
 
 def _apply_segment(
     session_factory: sessionmaker, task_id: int, result, user_id: int,
-    slot: int, difficulty: str,
+    slot: int, difficulty: str, type_policy: str | None = None,
 ) -> None:
     """一段成功只写自己那一格（14 号 Q2-A 的按格替换）。
 
@@ -268,7 +272,9 @@ def _apply_segment(
                 blanks=to_storage(spec.blanks),
                 difficulty=difficulty,
                 model=result.usage.model,
-                prompt_version=prompts.prompt_version(OPERATION_QUIZ),
+                prompt_version=prompts.prompt_version(
+                    OPERATION_QUIZ, type_policy=type_policy or "soft"
+                ),
                 validation_status="valid",
             )
         )

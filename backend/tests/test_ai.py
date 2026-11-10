@@ -120,6 +120,28 @@ def test_quiz_prompt_carries_slot_knowledge_and_difficulty() -> None:
     assert "自己从题干判断" in prompts.quiz_messages(from_nothing, target_index=1, difficulty="easy")[1]["content"]
 
 
+def test_strict_prompt_states_type_rule_and_bumps_version() -> None:
+    """BE-026：strict 判死之前必须先把规则写进 prompt，且文本变了就要升版本。
+
+    前端 review 原话「不要合 soft prompt + strict 默认」：拿一个没告知题型规则的
+    prompt 去严格判死，失败率里分不清是模型偏好还是没被告知。
+    """
+    strict_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy", type_policy="strict")[0]["content"]
+    assert "题型必须与原题一致" in strict_system
+    assert "允许调整题型" not in strict_system
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="strict") == "generate_v3"
+
+    soft_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy")[0]["content"]
+    assert "允许调整题型" in soft_system
+    assert "题型必须与原题一致" not in soft_system
+    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v2"
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="soft") == "generate_v2"
+    # 其它操作的版本不受 type_policy 影响
+    assert prompts.prompt_version(OPERATION_ANALYSIS, type_policy="strict") == "analyze_v1"
+
+
 def test_pipeline_fails_fast_on_truncated_output() -> None:
     """finish_reason=length 的输出必然不是完整 JSON，重跑一次只会顶到同一个上限。
 

@@ -120,6 +120,8 @@ def test_strict_policy_rejects_type_mismatch_and_soft_allows(client, db, fake_ll
             GeneratedQuestion.parent_question_id == qid,
             GeneratedQuestion.deleted_at.is_(None))))
         assert [g.target_index for g in alive] == [2], "只有一格能落库"
+        assert [g.prompt_version for g in alive] == ["generate_v3"], \
+            "strict 的输出必须记成 generate_v3，否则日志分不清是哪版 prompt"
 
     # 关掉开关：同样三段输出全部入库
     assert _put_prefs(client, token, {"enforce_same_question_type": False}).status_code == 200
@@ -142,6 +144,8 @@ def test_call_log_records_type_policy(client, db, fake_llm) -> None:
         quiz_logs = list(s.scalars(select(AiCallLog).where(AiCallLog.operation == "quiz")))
         assert quiz_logs, "quiz 调用必须有日志"
         assert {log.type_policy for log in quiz_logs} == {"strict"}
+        assert {log.prompt_version for log in quiz_logs} == {"generate_v3"}, \
+            "strict 用的是 generate_v3 的 prompt 文本"
         analysis_logs = list(s.scalars(select(AiCallLog).where(AiCallLog.operation == "analysis")))
         assert all(log.type_policy is None for log in analysis_logs), "非 quiz 操作不写这一列"
 
@@ -153,4 +157,7 @@ def test_call_log_records_type_policy(client, db, fake_llm) -> None:
         task_worker.execute_task(db, t["task_id"])
     with db() as s:
         recent = list(s.scalars(select(AiCallLog).where(AiCallLog.operation == "quiz")))
-        assert any(log.type_policy == "soft" for log in recent), "关闭后必须记成 soft"
+        soft_logs = [log for log in recent if log.type_policy == "soft"]
+        assert soft_logs, "关闭后必须记成 soft"
+        assert {log.prompt_version for log in soft_logs} == {"generate_v2"}, \
+            "soft 的 prompt 没变，仍记 generate_v2"
