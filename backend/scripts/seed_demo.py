@@ -36,6 +36,7 @@ from app.db.base import utcnow  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.models import (  # noqa: E402
     GeneratedQuestion,
+    GenerationTask,
     PracticeRecord,
     Question,
     Tag,
@@ -57,9 +58,10 @@ QUESTIONS = [
     ("计算极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}= $ ___。", "blank", "高等数学", "函数与极限",
      "$3$", "等价无穷小 $\\sin 3x\\sim 3x$，故极限为 3。", "mastered",
      ["极限", "等价无穷小"], False),
-    ("如图，在三角形 $ABC$ 中，$CD$ 是 $AB$ 边上的高，$AC=4$，$BC=3$，求 $CD$。", "solve",
-     "高等数学", "几何应用", "需先求 $AB$ 与面积，再由 $CD=\\dfrac{2S}{AB}$ 得高。",
-     "本阶段只提取文字，图形信息未入库，作答时要看原图。", "unmastered", ["三角形", "高"], True),
+    ("在直角三角形 $ABC$ 中，$\\angle C=90^\\circ$，$AC=4$，$BC=3$，$CD$ 是斜边 $AB$ 上的高，求 $CD$。",
+     "solve", "高等数学", "几何应用",
+     "$AB=5$，由等面积 $CD=\\dfrac{AC\\cdot BC}{AB}=\\dfrac{12}{5}$。",
+     "先用勾股定理求斜边，再用面积法求斜边上的高。", "unmastered", ["三角形", "勾股定理"], False),
     ("设向量组 $a_1=(1,2,1)$，$a_2=(2,5,3)$，$a_3=(1,1,0)$，判断其线性相关性。", "solve",
      "线性代数", "向量空间", "行列式为 0，故线性相关。", "把三个向量排成矩阵求秩，秩小于 3 即相关。",
      "reviewing", ["线性相关", "矩阵的秩"], False),
@@ -92,7 +94,7 @@ CHOICE_OPTIONS = {
         ["$0$", "$2$", "$3$", "$4$"],
     "设随机变量 $X,Y$ 都服从标准正态分布，则（ ）。":
         ["$X+Y$ 服从 $N(0,1)$", "$X^2+Y^2$ 服从 $\\chi^2(1)$",
-         "$X^2+Y^2$ 服从 $\\chi^2(2)$", "$X/Y$ 服从 $t(1)$"],
+         "$X^2+Y^2$ 服从 $\\chi^2(2)$", "$X/Y$ 服从 $N(0,1)$"],
     "设 $X_1,\\dots,X_n$ 是来自总体 $X\\sim N(\\mu,2^2)$ 的样本，下列变量中（ ）不是统计量。":
         ["$\\sum_{i=1}^{n}(X_i-3)^2$", "$\\sum_{i=1}^{n}\\dfrac{(X_i-\\mu)^2}{4}$",
          "$\\min\\{X_1,\\dots,X_n\\}$", "$\\sum_{i=1}^{n}(X_i-\\bar X)^2$"],
@@ -146,11 +148,20 @@ def _seed_user(session, username: str) -> dict:
         created_user = False
 
     existing = set(session.scalars(
-        select(Question.content_md).where(Question.user_id == user.id)))
+        select(Question.content_md).where(
+            Question.user_id == user.id, Question.deleted_at.is_(None))))
     new_questions: list[Question] = []
+    # 时间锚点跟随父题（列表按 created_at 倒序，第 0 题必须排最前）：
+    # 用 utcnow() 的话，部分重跑时补插的题会顶到父题前面，
+    # 演示要点到列表底部才看得到挂着三格生成题的那道
+    existing_parent = session.scalar(select(Question).where(
+        Question.user_id == user.id, Question.content_md == QUESTIONS[0][0],
+        Question.deleted_at.is_(None)))
+    anchor = existing_parent.created_at if existing_parent else utcnow()
     # 第 9 项 _figure 不入库：questions 表没有 has_figure 列，含图题靠题干里的「如图」体现，
     # 而图本身按 ADR-004 不提取——留着这个标记是为了让读种子的人一眼看出哪道依赖图
-    for content, qtype, subject, chapter, answer, explanation, mastery, points, _figure in QUESTIONS:
+    for position, (content, qtype, subject, chapter, answer, explanation, mastery, points,
+                   _figure) in enumerate(QUESTIONS):
         if content in existing:
             continue
         options = None
@@ -176,10 +187,9 @@ def _seed_user(session, username: str) -> dict:
                                points, "概念边界没分清，按定义再走一遍", explanation),
             tags=_tags(session, points),
             # 含图题也不伪造 image_path：见模块 docstring 第 2 条
-            # 时间倒序铺开：列表按 created_at 倒序，第 0 题（挂着三格生成题的那道）
-            # 必须排在最前面，否则演示要点到列表底部才看得到生成题
-            created_at=utcnow() - timedelta(hours=len(new_questions)),
-            updated_at=utcnow() - timedelta(hours=len(new_questions)),
+            # 按题目定义顺序从锚点往前铺：父题（第 0 题）永远是列表首条
+            created_at=anchor - timedelta(hours=position),
+            updated_at=anchor - timedelta(hours=position),
         )
         session.add(question)
         new_questions.append(question)
@@ -189,18 +199,21 @@ def _seed_user(session, username: str) -> dict:
     # 父题按题干认，不按"最早/最新一条"认：位置会随用户后来新增的题漂移，
     # 一旦漂移，重复执行就会再插一组三格，"可重复执行"这条验收就废了
     parent = session.scalar(select(Question).where(
-        Question.user_id == user.id, Question.content_md == QUESTIONS[0][0]))
+        Question.user_id == user.id, Question.content_md == QUESTIONS[0][0],
+        Question.deleted_at.is_(None)))
     if parent is None:
         raise SystemExit("种子父题没找到，生成题无法挂靠——请检查库里 student 的错题是否被删过")
     made_generated = 0
-    slots = [("easy", "求 $2x^3-6x+1$ 的极值点与极值。", "$x=0$ 处极大值 1，$x=1$ 处极小值 $-1$。"),
+    slots = [("easy", "求 $2x^3-6x+1$ 的极值点与极值。",
+              "$x=-1$ 处极大值 $5$，$x=1$ 处极小值 $-3$。"),
              ("medium", "求 $g(x)=x^3-3x^2+2$ 的极值点与极值。", "$x=0$ 处极大值 2，$x=2$ 处极小值 $-2$。"),
              ("hard", "设 $h(x)=x^3-3ax+1$ 在 $x=1$ 处取极值，求 $a$ 与该点极值。",
               "$a=1$，极小值 $h(1)=-1$。")]
     for index, (difficulty, content, answer) in enumerate(slots, start=1):
         exists = session.scalar(select(GeneratedQuestion).where(
             GeneratedQuestion.parent_question_id == parent.id,
-            GeneratedQuestion.target_index == index))
+            GeneratedQuestion.target_index == index,
+            GeneratedQuestion.deleted_at.is_(None)))
         if exists is not None:
             continue
         # 三格都按解答题给：seed 不去模仿"换题型"，那是真模型的行为，
@@ -215,9 +228,30 @@ def _seed_user(session, username: str) -> dict:
         made_generated += 1
     session.flush()
 
+    # 三段面板的数据源：前端详情页用 `detail.tasks.some(isSegmentTask)` 决定渲染三段面板，
+    # 只插 generated_questions 不插 generation_task，演示会退回旧的 GenerationProgress，
+    # 任务中心也没有「生题 3/3」分组——结果对了、过程区却是空的
+    made_tasks = 0
+    for index, (difficulty, _content, _answer) in enumerate(slots, start=1):
+        exists_task = session.scalar(select(GenerationTask).where(
+            GenerationTask.question_id == parent.id,
+            GenerationTask.user_id == user.id,
+            GenerationTask.stage == "quiz",
+            GenerationTask.target_index == index))
+        if exists_task is not None:
+            continue
+        started = anchor - timedelta(minutes=index)
+        session.add(GenerationTask(
+            question_id=parent.id, user_id=user.id, stage="quiz", status="done",
+            target_index=index, difficulty=difficulty, retry_index=0,
+            created_at=started, started_at=started,
+            finished_at=started + timedelta(seconds=20)))
+        made_tasks += 1
+
     # 练习流水：铺在最近 10 天，recent_trend 才有形状
     gen_rows = list(session.scalars(select(GeneratedQuestion).where(
-        GeneratedQuestion.user_id == user.id)))
+        GeneratedQuestion.user_id == user.id,
+        GeneratedQuestion.deleted_at.is_(None))))
     already = session.scalar(select(PracticeRecord.id).where(
         PracticeRecord.user_id == user.id).limit(1))
     made_practice = 0
@@ -248,6 +282,7 @@ def _seed_user(session, username: str) -> dict:
         "questions_added": len(new_questions),
         "questions_total": total_questions,
         "generated_added": made_generated,
+        "tasks_added": made_tasks,
         "practice_added": made_practice,
         "practice_total": total_practice,
     }
@@ -265,7 +300,8 @@ def main() -> None:
             session.commit()
             print(f"[seed] {username}: 新建用户={summary['user_created']} "
                   f"新增错题={summary['questions_added']}（活跃共 {summary['questions_total']} 道）"
-                  f" 新增生成题={summary['generated_added']} 新增练习={summary['practice_added']}")
+                  f" 新增生成题={summary['generated_added']} 新增任务={summary['tasks_added']}"
+                  f" 新增练习={summary['practice_added']}")
         # 复核 issue 的验收项：三类掌握状态之和 == 活跃错题数（统计页那条断言）
         for username in wanted:
             counts = dict(session.execute(
