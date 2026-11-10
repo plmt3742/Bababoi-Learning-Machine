@@ -51,12 +51,6 @@ export function normalizeGenerateResponse(data: unknown): GenerateTasksResponse 
     if (tasks.length > 0) return { tasks }
   }
 
-  if (typeof data.task_id === 'number') {
-    return {
-      tasks: [{ task_id: data.task_id, target_index: null, difficulty: null }],
-    }
-  }
-
   throw new Error('生成接口返回格式不正确')
 }
 
