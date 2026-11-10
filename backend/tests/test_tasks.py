@@ -47,17 +47,6 @@ def _generate(client, token: str, qid: int, **body) -> list[dict]:
     return resp.json()["tasks"]
 
 
-def _soft_type_policy(client, token: str) -> None:
-    """关掉本题型的硬校验（BE-026 的开关默认开启）。
-
-    必须显式关：mock 的三段输出故意是 blank/solve/choice 三种题型，而这里大多数测试的
-    原题是 solve——开关开着的话第 1、3 段会被判死，测出来的是题型策略而不是队列行为。
-    题型策略本身在 tests/test_settings_api.py 里有专门的正反两组用例。
-    """
-    resp = client.put('/api/v1/settings/preferences', json={'enforce_same_question_type': False},
-                      headers=auth_headers(token))
-    assert resp.status_code == 200, resp.text
-
 def _generated_rows(db, qid: int, alive_only: bool = True) -> list[GeneratedQuestion]:
     with db() as s:
         stmt = select(GeneratedQuestion).where(GeneratedQuestion.parent_question_id == qid)
@@ -154,7 +143,6 @@ def test_single_segment_enqueue_only_touches_that_slot(client, db) -> None:
 def test_three_segments_fill_three_slots_in_order(client, db, fake_llm) -> None:
     """每段成功只写自己那一格；三段跑完详情页正好三张卡。"""
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
 
     for task in _generate(client, token, qid):
@@ -166,10 +154,11 @@ def test_three_segments_fill_three_slots_in_order(client, db, fake_llm) -> None:
     cards = detail["generated_questions"]
     assert [c["target_index"] for c in cards] == [1, 2, 3]
     assert [c["difficulty"] for c in cards] == ["easy", "medium", "hard"]
-    assert [c["question_type"] for c in cards] == ["blank", "solve", "choice"]
+    # mock 现在跟随原题题型（原题 solve → 三格都是 solve），默认开启的 strict 不再判死
+    assert [c["question_type"] for c in cards] == ["solve", "solve", "solve"]
     for card in cards:
         assert card["model"] == "mock"
-        assert card["prompt_version"] == "generate_v2"
+        assert card["prompt_version"] == "generate_v3"
 
 
 def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
@@ -187,7 +176,6 @@ def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
             return self.inner.complete(operation, messages)
 
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     tasks = _generate(client, token, qid)
     for task in tasks[:2]:
@@ -216,7 +204,6 @@ def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
 def test_group_regenerate_soft_deletes_old_group_on_enqueue(client, db, fake_llm) -> None:
     """14 号 Q2-A：整组重生成入队即软删旧组（产品接受"生成中看不到旧组"）。"""
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     for task in _generate(client, token, qid):
         task_worker.execute_task(db, task["task_id"])
@@ -231,7 +218,6 @@ def test_group_regenerate_soft_deletes_old_group_on_enqueue(client, db, fake_llm
 def test_single_segment_regenerate_keeps_other_slots(client, db, fake_llm) -> None:
     """单段重生成不许删整组——那是另外两段刚写好的成果。"""
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     for task in _generate(client, token, qid):
         task_worker.execute_task(db, task["task_id"])
@@ -306,7 +292,6 @@ def test_requeue_stops_after_requeue_deadline(client, db, fake_llm) -> None:
 
 def test_manual_retry_requeues_failed_task(client, db, fake_llm) -> None:
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     task_id = _generate(client, token, qid)[0]["task_id"]
     task_worker.execute_task(db, task_id)  # mock 正常输出
@@ -422,7 +407,6 @@ def test_quiz_copying_original_question_is_rejected(client, db, fake_llm) -> Non
 def test_segment_rejects_copy_of_a_sibling(client, db, fake_llm) -> None:
     """ADR-006：同组其它段的题干也要参与查重——否则两段可以逐字相同（14 号 §2.1-3）。"""
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     tasks = _generate(client, token, qid)
     task_worker.execute_task(db, tasks[0]["task_id"])  # 第 1 格先落库
@@ -442,7 +426,6 @@ def test_segment_rejects_copy_of_a_sibling(client, db, fake_llm) -> None:
 def test_write_back_failure_does_not_leave_task_running(client, db, fake_llm, monkeypatch) -> None:
     """落库异常也得有终态——任务停在 running 会白占并发位，重启前没人再碰它。"""
     token = register_user(client)["access_token"]
-    _soft_type_policy(client, token)  # 本测试验队列机制，题型策略见 test_settings_api.py
     qid = _create_question(client, token)["question"]["id"]
     task_id = _generate(client, token, qid)[0]["task_id"]
 

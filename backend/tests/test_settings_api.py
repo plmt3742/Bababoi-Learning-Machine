@@ -1,10 +1,13 @@
 """BE-026 生成偏好：设置接口 + 生成链路按偏好执行硬/软校验（issue #44）。"""
 from __future__ import annotations
 
+import json
+from dataclasses import replace
+
 import pytest
 from sqlalchemy import select
 
-from app.ai.client import MockLLMClient
+from app.ai.client import _MOCK_QUIZ_SEGMENTS, OPERATION_QUIZ, MockLLMClient
 from app.models import AiCallLog, GeneratedQuestion, GenerationTask
 from app.services import task_worker
 from tests.conftest import auth_headers, register_user
@@ -28,7 +31,7 @@ def _put_prefs(client, token, body):
 
 
 def _solve_question(client, token):
-    """原题是解答题——mock 的三段分别输出 blank/solve/choice，正好能验硬校验。"""
+    """原题是解答题。"""
     resp = client.post(
         "/api/v1/questions",
         json={
@@ -40,6 +43,25 @@ def _solve_question(client, token):
     )
     assert resp.status_code == 200, resp.text
     return resp.json()["question"]["id"]
+
+
+class _ForcedTypeClient(MockLLMClient):
+    """第 1 段强制出填空、第 3 段强制出选择。
+
+    mock 自 2026-11-10 起跟随原题题型，不再天然产生错配；验 strict 的判死能力
+    只能自己造——否则这个测试会在 mock 与开关同时"正确"时永远走不到失败分支。
+    """
+
+    def complete(self, operation, messages):
+        resp = super().complete(operation, messages)
+        if operation != OPERATION_QUIZ:
+            return resp
+        user = messages[-1]["content"]
+        forced = {"第 1 道": ("blank", "easy"), "第 3 道": ("choice", "hard")}
+        key = next((card for marker, card in forced.items() if marker in user), None)
+        if key is None:
+            return resp
+        return replace(resp, text=json.dumps(_MOCK_QUIZ_SEGMENTS[key], ensure_ascii=False))
 
 
 def test_preferences_default_true_for_new_user(client) -> None:
@@ -98,6 +120,7 @@ def test_strict_policy_rejects_type_mismatch_and_soft_allows(client, db, fake_ll
     """
     token = register_user(client)["access_token"]
     qid = _solve_question(client, token)
+    fake_llm["client"] = _ForcedTypeClient()
 
     def run_segments():
         tasks = client.post(
