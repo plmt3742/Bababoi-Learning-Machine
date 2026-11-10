@@ -248,16 +248,19 @@ function groupStatusTagClass(status: SegmentGroupStatus): string {
   return 'tag'
 }
 
+function groupSegmentTotal(group: QuizSegmentGroup): number {
+  return group.presentCount > 0 ? group.presentCount : 3
+}
+
 function groupTimeSub(group: QuizSegmentGroup): string {
   switch (group.status) {
     case 'queued':
     case 'running':
       return '自动刷新'
     case 'done':
-      return '3 / 3 段完成'
     case 'partial-failed':
     case 'failed':
-      return `${group.doneCount} / 3 段完成`
+      return `${group.doneCount} / ${groupSegmentTotal(group)} 段完成`
     default:
       return '等待开始'
   }
@@ -533,7 +536,9 @@ onMounted(() => {
                 </RouterLink>
               </div>
 
-              <div class="task-row__stage">生题 {{ row.group.doneCount }}/3</div>
+              <div class="task-row__stage">
+                生题 {{ row.group.doneCount }}/{{ groupSegmentTotal(row.group) }}
+              </div>
 
               <div class="task-row__status">
                 <span :class="groupStatusTagClass(row.group.status)">
@@ -580,7 +585,7 @@ onMounted(() => {
                 <div class="task-row__segments-head">
                   <span class="task-row__segments-title">三段并发生成</span>
                   <span class="task-row__segments-count">
-                    {{ row.group.doneCount }} / 3 段完成
+                    {{ row.group.doneCount }} / {{ groupSegmentTotal(row.group) }} 段完成
                     <template v-if="row.group.failedCount > 0">
                       · {{ row.group.failedCount }} 段失败
                     </template>

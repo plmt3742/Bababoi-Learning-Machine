@@ -16,9 +16,17 @@ describe('normalizeGenerateResponse', () => {
     ])
   })
 
-  it('falls back to the legacy task_id shape', () => {
-    expect(normalizeGenerateResponse({ task_id: 7 })).toEqual({
-      tasks: [{ task_id: 7, target_index: null, difficulty: null }],
+  it('rejects the legacy task_id shape', () => {
+    expect(() => normalizeGenerateResponse({ task_id: 7 })).toThrow('生成接口返回格式不正确')
+  })
+
+  it('keeps a single-segment task with its slot and difficulty', () => {
+    expect(
+      normalizeGenerateResponse({
+        tasks: [{ task_id: 9, target_index: 3, difficulty: 'easy' }],
+      }),
+    ).toEqual({
+      tasks: [{ task_id: 9, target_index: 3, difficulty: 'easy' }],
     })
   })
 

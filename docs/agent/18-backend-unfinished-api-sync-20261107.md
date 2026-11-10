@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-07
+last_updated: 2026-11-10
 status: active
 read_when: 后端实现未完成接口、前后端联调、演示前收尾、上云前数据库切换
 ---
@@ -12,6 +12,7 @@ read_when: 后端实现未完成接口、前后端联调、演示前收尾、上
 > 前端状态：FE-027 已完成并合入 main；真实后端测试环境已起（5173 + 8000，独立 SQLite 测试库，`LLM_MOCK=true`）
 > 用途：把前端已实现、当前仍等后端的接口一次性说清；字段名请勿改，若要改先在本文件/Issue 说明。
 > 2026-11-07 晚更新：后端已回复，见 §12；BE-025 已在 #55 完成，前端兜底文案已改为真正的错误上报。
+> 2026-11-10 补充：§1 与 §12 里「不升 `prompt_version`」只对 soft 成立。strict 已升 `generate_v3` 并在 prompt 明写「题型必须与原题一致」；#58 本地 176 passed、真实 27/27，默认维持开启。当前 main 仍是 `generate_v2` 软约束，待 #58 rebase/合并后 strict 生效。详见 `20-three-segment-contract-sync-20261110.md` §4。
 
 ## 0. 当前结论
 
@@ -87,8 +88,9 @@ enforce_same_question_type BOOLEAN NOT NULL DEFAULT TRUE
   - 不一致重试 1 次，仍不一致 → `AI_INVALID_OUTPUT`；
   - 不新增 `TYPE_MISMATCH`。
 - `false`：保持当前 #39 的软约束行为。
-- `generate_v2` 的 prompt 保持软措辞；
-- **已确认**：加 `ai_call_logs.type_policy`（strict|soft），不升 `prompt_version`；quiz 段写 strict/soft，其它操作为 null。
+- `generate_v2` 的 prompt 仍是软措辞（「首选与原题一致，允许调整」），只能配 soft；
+- strict 已按 review 补上：prompt 明写「题型必须与原题一致」并升 `generate_v3`（176 passed；真实 27/27）；**strict 在 main 上尚未启用，等 #58 合并**；
+- 加 `ai_call_logs.type_policy`（strict|soft），quiz 段写 strict/soft，其它操作为 null；soft 不升 `prompt_version`。
 
 ### 验收
 
@@ -350,7 +352,7 @@ DELETE /api/v1/settings/ai → 204
 |---|---|
 | BE-025 | **已完成 #55**；`chapter` 本来就在可改清单；切换题型清掉不适用的一半；不合法 400 且整笔回滚；前端兜底文案改为错误上报 |
 | BE-026 偏好存哪 | **users 加列**（本期只有一项布尔；第二项偏好出现时再抽 `user_settings`） |
-| 硬模式日志 | 加 `ai_call_logs.type_policy`（strict/soft），**不升 `prompt_version`**；现有任务级重试已经存在，**不要**在 pipeline 再叠一层 |
+| 硬模式日志 | soft 不升；**strict 已升 `generate_v3` + prompt 同题型**（#58 本地 176 passed，真实 27/27），待 rebase/合并；现有任务级重试已经存在，**不要**在 pipeline 再叠一层。证据：7 个红色队列测试用的是故意混合题型的 mock，真实 DeepSeek 冒烟 3/3 solve，ADR-006 记录 27/27 一致，mock 失败率不是产品失败率 |
 | BE-024 两步识图 | **本期就做两步**：第 1 跳 adaptive、第 2 跳 disabled；vision `max_tokens` 8000→≥16000；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→≥180；保留 `VISION_TWO_STEP` 一步回退 |
 | BE-024 验收 | “密页 4 题不丢末题”改为概率性：四张真图各跑 2 次，被裁末题至少 1 次返回且带 `incomplete=true` |
 | BE-013 | **只实现 `/stats/overview`**；`/stats/trends`、`/stats/weak-points` 从 05 删除；前端用 `overview.recent_trend` / `overview.weak_knowledge_points` |
