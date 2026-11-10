@@ -47,45 +47,45 @@ from app.schemas.question import count_blanks, validate_type_payload  # noqa: E4
 PASSWORD = "password123"
 DEMO_USERS = ("student01", "student02")
 
-# (题干, 题型, 学科, 章节, 答案, 解析, 掌握状态, [知识点], 是否含图题)
+# (题干, 题型, 学科, 章节, 答案, 解析, 掌握状态, [知识点])
 QUESTIONS = [
     ("求函数 $f(x)=x^3-3x+1$ 的极值。", "solve", "高等数学", "导数与极值",
      "极大值 $f(-1)=3$，极小值 $f(1)=-1$", "$f'(x)=3x^2-3$，令其为 0 得 $x=\\pm1$，列表判号得极值。",
-     "reviewing", ["导数", "极值", "单调性"], False),
+     "reviewing", ["导数", "极值", "单调性"]),
     ("设 $f(x)=x^2-2x+3$，则 $f(x)$ 的最小值为（ ）。", "choice", "高等数学", "函数与极限",
      "选 B", "配方 $f(x)=(x-1)^2+2$，最小值 2。", "unmastered",
-     ["二次函数", "配方法"], False),
+     ["二次函数", "配方法"]),
     ("计算极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}= $ ___。", "blank", "高等数学", "函数与极限",
      "$3$", "等价无穷小 $\\sin 3x\\sim 3x$，故极限为 3。", "mastered",
-     ["极限", "等价无穷小"], False),
+     ["极限", "等价无穷小"]),
     ("在直角三角形 $ABC$ 中，$\\angle C=90^\\circ$，$AC=4$，$BC=3$，$CD$ 是斜边 $AB$ 上的高，求 $CD$。",
      "solve", "高等数学", "几何应用",
      "$AB=5$，由等面积 $CD=\\dfrac{AC\\cdot BC}{AB}=\\dfrac{12}{5}$。",
-     "先用勾股定理求斜边，再用面积法求斜边上的高。", "unmastered", ["三角形", "勾股定理"], False),
+     "先用勾股定理求斜边，再用面积法求斜边上的高。", "unmastered", ["三角形", "勾股定理"]),
     ("设向量组 $a_1=(1,2,1)$，$a_2=(2,5,3)$，$a_3=(1,1,0)$，判断其线性相关性。", "solve",
      "线性代数", "向量空间", "行列式为 0，故线性相关。", "把三个向量排成矩阵求秩，秩小于 3 即相关。",
-     "reviewing", ["线性相关", "矩阵的秩"], False),
+     "reviewing", ["线性相关", "矩阵的秩"]),
     ("矩阵 $A=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}$ 的特征值为 ___ 和 ___。", "blank",
      "线性代数", "特征值", None, "解 $|A-\\lambda I|=0$ 得 $\\lambda_1=3$、$\\lambda_2=1$。",
-     "unmastered", ["特征值", "行列式"], False),
+     "unmastered", ["特征值", "行列式"]),
     ("设随机变量 $X,Y$ 都服从标准正态分布，则（ ）。", "choice", "概率论与数理统计", "多维随机变量",
      "选 C", "$X^2+Y^2$ 服从 $\\chi^2(2)$，选项里只有 C 成立。", "reviewing",
-     ["正态分布", "$\\chi^2$ 分布"], False),
+     ["正态分布", "$\\chi^2$ 分布"]),
     ("设总体 $X$ 的方差为 1，容量 $n=100$，样本均值为 5，求均值的 0.95 置信区间。", "solve",
      "概率论与数理统计", "参数估计", "$[4.804, 5.196]$。",
      "$\\bar x\\pm z_{0.025}\\dfrac{\\sigma}{\\sqrt n}=5\\pm1.96\\times0.1$。", "unmastered",
-     ["置信区间", "样本均值"], False),
+     ["置信区间", "样本均值"]),
     ("曲线 $y=\\ln x$ 在点 $(1,0)$ 处的切线方程为 ___。", "blank", "高等数学", "导数与极值",
-     None, "$y'=1/x$，斜率 1，切线 $y=x-1$。", "mastered", ["切线方程", "导数"], False),
+     None, "$y'=1/x$，斜率 1，切线 $y=x-1$。", "mastered", ["切线方程", "导数"]),
     ("从总体 $X\\sim N(60,15^2)$ 中抽取容量为 100 的样本，求样本均值与总体均值之差的绝对值大于 3 的概率。",
-     "solve", "概率论与数理统计", "参数估计", "约 $0.042$。",
-     "$\\bar X\\sim N(60, 15^2/100)$，标准化后查表。", "reviewing", ["正态分布", "标准化"], False),
+     "solve", "概率论与数理统计", "参数估计", "约 $0.046$。",
+     "$\\bar X\\sim N(60, 15^2/100)$，标准化后查表。", "reviewing", ["正态分布", "标准化"]),
     ("计算定积分 $\\int_0^1 x\\,e^{x}\\,dx$。", "solve", "高等数学", "不定积分与定积分",
      "$1$。", "分部积分：$\\int x e^x dx = (x-1)e^x + C$，代限得 1。", "mastered",
-     ["分部积分", "定积分"], False),
+     ["分部积分", "定积分"]),
     ("设 $X_1,\\dots,X_n$ 是来自总体 $X\\sim N(\\mu,2^2)$ 的样本，下列变量中（ ）不是统计量。",
      "choice", "概率论与数理统计", "基本概念", "选 B",
-     "统计量不能含未知参数，B 里出现了 $\\mu$。", "unmastered", ["统计量", "样本"], False),
+     "统计量不能含未知参数，B 里出现了 $\\mu$。", "unmastered", ["统计量", "样本"]),
 ]
 
 # 选择题的选项按题给，不共用一套：演示时人一眼就能看出"$0$/$2$/$3$/$4$ 和正态分布题不搭"。
@@ -158,10 +158,9 @@ def _seed_user(session, username: str) -> dict:
         Question.user_id == user.id, Question.content_md == QUESTIONS[0][0],
         Question.deleted_at.is_(None)))
     anchor = existing_parent.created_at if existing_parent else utcnow()
-    # 第 9 项 _figure 不入库：questions 表没有 has_figure 列，含图题靠题干里的「如图」体现，
-    # 而图本身按 ADR-004 不提取——留着这个标记是为了让读种子的人一眼看出哪道依赖图
-    for position, (content, qtype, subject, chapter, answer, explanation, mastery, points,
-                   _figure) in enumerate(QUESTIONS):
+    # 全部题目都是纯文本可作答：含图题在种子阶段没有配图，写「如图」等于演示时答不出来，
+    # 所以那道三角形的题已经改成自包含文本（斜边上的高）
+    for position, (content, qtype, subject, chapter, answer, explanation, mastery, points) in enumerate(QUESTIONS):
         if content in existing:
             continue
         options = None
@@ -186,7 +185,7 @@ def _seed_user(session, username: str) -> dict:
             analysis=_analysis(subject, {"solve": "medium", "choice": "easy", "blank": "medium"}[qtype],
                                points, "概念边界没分清，按定义再走一遍", explanation),
             tags=_tags(session, points),
-            # 含图题也不伪造 image_path：见模块 docstring 第 2 条
+            # 不伪造 image_path：见模块 docstring 第 2 条
             # 按题目定义顺序从锚点往前铺：父题（第 0 题）永远是列表首条
             created_at=anchor - timedelta(hours=position),
             updated_at=anchor - timedelta(hours=position),
