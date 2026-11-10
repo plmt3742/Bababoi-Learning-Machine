@@ -1,6 +1,6 @@
 ---
 owner: 人机 / 霹雳马桶
-last_updated: 2026-11-07
+last_updated: 2026-11-10
 status: draft
 read_when: 写前后端代码前；改 API/数据模型前；联调前
 ---
@@ -490,15 +490,18 @@ erDiagram
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/stats/overview` | `{total_questions, total_generated_questions, total_practice_records, accuracy, mastered_count, reviewing_count, unmastered_count, weak_knowledge_points, recent_trend, updated_at}` |
-| GET | `/stats/trends?days=30` | `[{date, practice_count, correct_count}]`（可选；前端当前用 `overview.recent_trend`） |
-| GET | `/stats/weak-points?limit=5` | `[{name, wrong_count, total_count, accuracy}]`（可选；前端当前用 `overview.weak_knowledge_points`） |
 | GET | `/tags?type=` | 标签列表 |
 
 统计口径：
 
+- 只实现 `/stats/overview`；`/stats/trends`、`/stats/weak-points` 两个可选端点取消（21号 §2.1 已定，前端只用 overview 里的两份数据）。
 - `accuracy = 正确练习数 / 总练习数`；无练习时返回 `0`，前端按 0 显示（不再使用 `null`）。
-- 薄弱知识点：按标签聚合，`wrong_count` 降序，其次 `accuracy` 升序；至少 1 次练习才纳入。
-- 趋势按 `Asia/Shanghai` 日期分组；在 Python 里把 UTC 转 +8 后聚合，避免 MySQL 时区表问题。
+- 薄弱知识点：按父题标签聚合，`wrong_count` 降序，其次 `accuracy` 升序；至少 1 次练习才纳入；取 Top 5。
+- 趋势按 `Asia/Shanghai` 日期分组；在 Python 里把 UTC 转 +8 后聚合，避免 MySQL 时区表问题。只返回最近 7 天内**有练习**的日期（不补齐空白天）。
+- 生成题按「父题未软删」过滤：`DELETE /questions/{id}` 不级联生成题（有意为之），只滤 `generated_questions.deleted_at` 会把删掉错题的题数继续算进去。
+- 练习流水没有软删列，`total_practice_records` 是流水总数；薄弱点聚合跳过父题已删的流水。
+- `updated_at` 返回带时区 UTC（`...Z`）：`DateTime` 列存的是 naive UTC，直接序列化没有 `Z`，前端 `new Date()` 会当成本地时间。
+- `mastered_count + reviewing_count + unmastered_count = total_questions`。
 
 ### 6.7 SSE 契约（P1；P0 用 `/tasks` 轮询）
 
@@ -1175,4 +1178,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-07 | v0.6.6 | **BE-025（Issue #43）：`PATCH /questions/{id}` 接受 `question_type`/`options`/`blanks`**。原来 §6.4 明写"options/blanks 不在可改清单里——改题型等于换一道题，MVP 不支持"，这条被 FE-027 的完整三题型编辑器推翻：前端已经能编辑选项/空位并 PATCH 上来，后端不收等于用户改的结构静默丢失（前端只能事后比对再提示"后端尚未支持"）。切换题型时清掉不适用的一半（solve 两项清空、choice 清 blanks、blank 清 options），未提交字段按 `exclude_unset` 保持原值；题型/题干/选项/空位四个输入任一变动都由 `validate_type_payload` 整题复核，不合法 400 **并整笔回滚**（不给"题型改了、结构没改"的中间态）。文案翻译 `_zh_structure_problem` 从 `ai/validator.py` 移到 `schemas/question.py::structure_problem_zh`——识图降级和 PATCH 复核共用一句，判据和翻译都只有一份。167 passed，无迁移（三列本来就有） | 人机 / agent |
 | 2026-11-07 | v0.6.5 | `image_path` 真落库并透出到 `QuestionListItem`；BE-024 分步形态冻结契约（形状 + 三条硬约束 + 超时 ≥180 前置）；06 后端树同步实际结构；164 passed | 人机 / agent |
 | 2026-11-07 | v0.6.6 | FE-027 收口：`/settings/preferences` + `enforce_same_question_type`（默认 true，按用户持久化）；PATCH 支持完整三题型（BE-025）；统计改 rich shape、无记录 `accuracy=0`；BE-024 两步识图本期采用（超时 ≥180s，前端 loading 已接）；删除旧 PRD 归档与 `PRD.md` 引用 | 霹雳马桶 / agent |
+| 2026-11-10 | v0.6.9 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
