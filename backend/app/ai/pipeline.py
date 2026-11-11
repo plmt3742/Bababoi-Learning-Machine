@@ -64,4 +64,4 @@ def run[T: BaseModel](
             last_error = exc
 
     detail = last_error.errors()[0]["msg"] if isinstance(last_error, ValidationError) else str(last_error)
-    raise AIInvalidOutputError(f"重试 {retry_limit} 次后输出仍不合法：{detail}", raw_text=last_raw)
+    raise AIInvalidOutputError(f"生成结果未通过校验：{detail}", raw_text=last_raw)

@@ -42,18 +42,20 @@ BababoiLearningMachine/
 │   ├── alembic.ini
 │   ├── alembic/versions/
 │   │   ├── 7d155a41e345_initial_schema.py
-│   │   └── 3f9c1a7e5b24_generated_slot_and_task_difficulty.py   # ADR-006 两列 + 历史格位回填
+│   │   ├── 3f9c1a7e5b24_generated_slot_and_task_difficulty.py   # ADR-006 两列 + 历史格位回填
+│   │   └── c8e1b6a4d902_generation_preferences_and_policy.py   # BE-026：偏好开关 + type_policy + 偏好时间
 │   ├── static/test-console.html   # 本地测试台：登录/录错题/分析/三段生成/练习/识图上传
 │   ├── scripts/
 │   │   ├── spike_llm.py                    # 真模型连通性与输出质量（不进 CI）
+│   │   ├── measure_type_consistency.py     # strict 题型一致率复测（要真 Key）
 │   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
 │   ├── app/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
 │   │   ├── core/                  # config / security / errors / observability
 │   │   ├── db/                    # base / session
 │   │   ├── models/                # user / question / generation / records / draft
-│   │   ├── schemas/               # auth / question / image / practice
-│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images
+│   │   ├── schemas/               # auth / question / image / practice / settings
+│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / settings
 │   │   ├── services/              # auth_service / question_service / task_service / task_worker
 │   │   │                          # / practice_service + image_service / extraction_service / ai_log
 │   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors

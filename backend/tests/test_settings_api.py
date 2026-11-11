@@ -122,35 +122,44 @@ def test_strict_policy_rejects_type_mismatch_and_soft_allows(client, db, fake_ll
     qid = _solve_question(client, token)
     fake_llm["client"] = _ForcedTypeClient()
 
-    def run_segments():
-        tasks = client.post(
+    def post_generate() -> list[int]:
+        return [t["task_id"] for t in client.post(
             f"/api/v1/questions/{qid}/generate", json={}, headers=auth_headers(token)
-        ).json()["tasks"]
-        for _ in range(2):
-            for t in tasks:
-                task_worker.execute_task(db, t["task_id"])
-        with db() as s:
-            rows = list(s.scalars(select(GenerationTask).where(GenerationTask.id.in_(
-                [t["task_id"] for t in tasks]))))
-        return tasks, {t.target_index: t.status for t in rows}
+        ).json()["tasks"]]
 
-    strict_tasks, strict_status = run_segments()
-    assert strict_status[2] == "done", "第 2 段 mock 输出就是 solve，与原题一致 → 必须成功"
-    assert strict_status[1] == "failed" and strict_status[3] == "failed", \
-        "第 1 段 blank、第 3 段 choice 与原题 solve 不一致 → 重试后失败"
+    def run_pass(task_ids: list[int]) -> None:
+        # 只消费 queued：done/failed 的段再跑一遍等于重复调 LLM，测不出 requeue
+        with db() as s:
+            queued = [tid for tid in task_ids if s.get(GenerationTask, tid).status == "queued"]
+        for tid in queued:
+            task_worker.execute_task(db, tid)
+
+    def segments_state(task_ids: list[int]) -> dict[int, tuple[str, int]]:
+        with db() as s:
+            rows = list(s.scalars(select(GenerationTask).where(GenerationTask.id.in_(task_ids))))
+        return {t.target_index: (t.status, t.retry_index) for t in rows}
+
+    strict_ids = post_generate()
+    run_pass(strict_ids)
+    first_pass = segments_state(strict_ids)
+    assert first_pass[2] == ("done", 0), "第 2 段 mock 输出就是 solve，与原题一致 → 必须成功"
+    assert first_pass[1] == ("queued", 1) and first_pass[3] == ("queued", 1),         "strict 判死后必须走任务级 requeue（queued + retry_index=1），而不是直接 failed"
+
+    run_pass(strict_ids)
+    second_pass = segments_state(strict_ids)
+    assert second_pass[1][0] == "failed" and second_pass[3][0] == "failed",         "重试一次后仍不一致 → failed"
     with db() as s:
         alive = list(s.scalars(select(GeneratedQuestion).where(
             GeneratedQuestion.parent_question_id == qid,
             GeneratedQuestion.deleted_at.is_(None))))
         assert [g.target_index for g in alive] == [2], "只有一格能落库"
-        assert [g.prompt_version for g in alive] == ["generate_v3"], \
-            "strict 的输出必须记成 generate_v3，否则日志分不清是哪版 prompt"
+        assert [g.prompt_version for g in alive] == ["generate_v3"],             "strict 的输出必须记成 generate_v3，否则日志分不清是哪版 prompt"
 
     # 关掉开关：同样三段输出全部入库
     assert _put_prefs(client, token, {"enforce_same_question_type": False}).status_code == 200
-    client.post(f"/api/v1/questions/{qid}/generate", json={}, headers=auth_headers(token))
-    _, soft_status = run_segments()
-    assert set(soft_status.values()) == {"done"}, soft_status
+    soft_ids = post_generate()
+    run_pass(soft_ids)
+    assert {status for status, _ in segments_state(soft_ids).values()} == {"done"}
 
 
 def test_call_log_records_type_policy(client, db, fake_llm) -> None:
@@ -184,3 +193,19 @@ def test_call_log_records_type_policy(client, db, fake_llm) -> None:
         assert soft_logs, "关闭后必须记成 soft"
         assert {log.prompt_version for log in soft_logs} == {"generate_v2"}, \
             "soft 的 prompt 没变，仍记 generate_v2"
+
+def test_preferences_updated_at_ignores_login(client, db, fake_llm) -> None:
+    """设置页"最近更新"只跟偏好写入走；登录写 last_login_at 不能让它跳变。"""
+    data = register_user(client)
+    token = data["access_token"]
+    before = _get_prefs(client, token)["updated_at"]
+
+    resp = client.post("/api/v1/auth/login", json={
+        "username": data["user"]["username"], "password": "p@ssw0rd9",
+    })
+    assert resp.status_code == 200, resp.text
+    assert _get_prefs(client, token)["updated_at"] == before
+
+    put = _put_prefs(client, token, {"enforce_same_question_type": False})
+    assert put.status_code == 200
+    assert put.json()["updated_at"] != before, "PUT 必须刷新偏好自己的时间戳"

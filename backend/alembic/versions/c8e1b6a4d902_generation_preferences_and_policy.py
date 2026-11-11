@@ -36,6 +36,11 @@ def upgrade() -> None:
                 server_default=sa.text('1'),
             )
         )
+        # 偏好自己的写入时间；与 TimestampMixin.updated_at 分开，避免登录写
+        # last_login_at 时把"最近更新"一起刷新。老行留 NULL，接口回退 created_at。
+        batch_op.add_column(
+            sa.Column('preference_updated_at', sa.DateTime(), nullable=True)
+        )
 
     with op.batch_alter_table('ai_call_logs', schema=None) as batch_op:
         batch_op.add_column(
@@ -47,4 +52,5 @@ def downgrade() -> None:
     with op.batch_alter_table('ai_call_logs', schema=None) as batch_op:
         batch_op.drop_column('type_policy')
     with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.drop_column('preference_updated_at')
         batch_op.drop_column('enforce_same_question_type')

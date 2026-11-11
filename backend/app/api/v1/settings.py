@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
+from app.db.base import utcnow
 from app.db.session import get_session
 from app.models import User
 from app.schemas.settings import PreferencesOut, PreferencesUpdate
@@ -18,7 +19,7 @@ def _as_out(owner: User) -> PreferencesOut:
     return PreferencesOut(
         enforce_same_question_type=True if owner.enforce_same_question_type is None
         else bool(owner.enforce_same_question_type),
-        updated_at=owner.updated_at,
+        updated_at=owner.preference_updated_at or owner.created_at,
     )
 
 
@@ -44,6 +45,7 @@ def put_preferences(
     """
     owner = session.get(User, user.id)
     owner.enforce_same_question_type = data.enforce_same_question_type
+    owner.preference_updated_at = utcnow()
     session.add(owner)
     session.commit()
     session.refresh(owner)

@@ -24,3 +24,7 @@ class User(Base, TimestampMixin):
     enforce_same_question_type: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
     )
+    # 偏好的最后写入时间单独记：TimestampMixin.updated_at 会因为登录写 last_login_at
+    # 被 onupdate 刷新，设置页的"最近更新"会在每次登录后跳变。
+    # NULL = 迁移后从未改过偏好，接口回退到 created_at。
+    preference_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

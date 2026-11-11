@@ -385,7 +385,7 @@ def validate_segment(
         # 自动生效，终态仍是 AI_INVALID_OUTPUT（你们 §8 要求不新增同义错误码）。
         raise ValueError(
             f"这一段是{TYPE_ZH.get(spec.question_type, spec.question_type)}，"
-            f"原题是{TYPE_ZH.get(original_question_type, original_question_type)}；"
-            "当前设置要求与原题同题型，请在个人设置里关闭该开关或按原题题型重出"
+            f"原题是{TYPE_ZH.get(original_question_type, original_question_type)}，"
+            "未能按原题题型出题"
         )
     return spec
