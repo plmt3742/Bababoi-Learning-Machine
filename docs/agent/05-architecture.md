@@ -1113,6 +1113,10 @@ IMAGE_ALLOWED_TYPES=["image/jpeg","image/png","image/webp"]
 
 PAGE_SIZE_DEFAULT=20
 PAGE_SIZE_MAX=100
+
+# --- 演示种子（scripts/seed_demo.py，BE-008）---
+APP_ENV=development        # production 时 seed 拒绝运行；非 development/local 的 --reset 需加 --yes
+DEMO_PASSWORD=             # 演示账号口令（仅 seed 用）；必填、无默认值，真口令只写演示手册
 ```
 
 前端 `.env.example`：
