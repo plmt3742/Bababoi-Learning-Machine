@@ -165,7 +165,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
-| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 只实现 `/stats/overview`（trends/weak-points 从 05 删除）；rich shape：total_*、mastery counts、weak_knowledge_points、recent_trend；无记录 accuracy=0 | TODO（Issue #45） |
+| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 只实现 `/stats/overview`（trends/weak-points 从 05 删除）；rich shape：total_*、mastery counts、weak_knowledge_points、recent_trend；无记录 accuracy=0 | 已完成（PR #62 待前端合；含「父题活着 + 生成题软删」用例） |
 | BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | DONE（PR #42 已合；`subject/chapter/difficulty` 可空；空结果 200 + `questions[]`；`image_path` 落库并透出列表） |
 | BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | 「重排该段」已由 `POST /questions/{id}/generate` + `target_index` 覆盖（ADR-006）；剩下是 `/generated-questions/{id}/regenerate` 与质量反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
