@@ -46,6 +46,7 @@ BababoiLearningMachine/
 │   ├── static/test-console.html   # 本地测试台：登录/录错题/分析/三段生成/练习/识图上传
 │   ├── scripts/
 │   │   ├── spike_llm.py                    # 真模型连通性与输出质量（不进 CI）
+│   │   ├── export_openapi.py               # 导出 contracts/openapi/openapi.json（--check 给 CI）
 │   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
 │   ├── app/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
@@ -64,7 +65,7 @@ BababoiLearningMachine/
 │                                  # tasks + conftest
 ├── contracts/
 │   ├── README.md
-│   ├── openapi/README.md          # openapi.json 待 BE-009 导出
+│   ├── openapi/README.md + openapi.json   # FastAPI 导出快照（BE-009；CI 比对防漂移）
 │   └── examples/README.md
 ├── deploy/
 │   └── README.md                  # compose/nginx 待 OPS-001
