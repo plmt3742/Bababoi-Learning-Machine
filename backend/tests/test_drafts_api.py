@@ -139,3 +139,50 @@ def test_requires_auth(client: TestClient, method: str, body: dict | None) -> No
     call = getattr(client, method)
     resp = call(ENDPOINT, json=body) if method == "put" else call(ENDPOINT)
     assert resp.status_code == 401
+
+
+def test_get_exposes_openapi_schema(client: TestClient, user) -> None:
+    """GET 必须出现在 OpenAPI 的 200 schema 里（#65 快照与前端类型生成都靠它）。"""
+    token, _ = user
+    _put(client, token, {"content": {"a": 1}, "base_version": 0})
+    spec = client.app.openapi()
+    operation = spec["paths"]["/api/v1/drafts/me"]["get"]
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"]
+
+
+def test_concurrent_same_base_version_one_wins(client: TestClient, db, user) -> None:
+    """两个会话拿同一 base_version 原子更新：数据库判 rowcount，只能有一个成功。"""
+    from app.schemas.drafts import DraftSaveRequest
+    from app.services import draft_service
+
+    token, user_id = user
+    _put(client, token, {"content": {"v": 1}, "base_version": 0})
+
+    req = DraftSaveRequest(content={"v": 2}, base_version=1)
+    with db() as first, db() as second:
+        draft_service.save(first, user_id, req)
+        with pytest.raises(Exception) as caught:
+            draft_service.save(second, user_id, req)
+    assert "409" in str(caught.value) or getattr(caught.value, "http_status", None) == 409
+
+
+def test_concurrent_first_save_conflicts_not_500(client: TestClient, db, user, monkeypatch) -> None:
+    """并发首次保存：唯一约束挡住的一方必须回 409，而不是 IntegrityError → 500。"""
+    from app.services import draft_service
+
+    token, user_id = user
+    _put(client, token, {"content": {"first": True}, "base_version": 0})
+
+    # 模拟竞态窗口：服务层拿到「没有草稿」，但提交前另一个请求已经插入。
+    # 只还原这一处 patch，别 undo 掉 client fixture 的 settings monkeypatch
+    real_get = draft_service.get
+    monkeypatch.setattr(draft_service, "get", lambda session, uid: None)
+    resp = client.put(ENDPOINT, json={"content": {"second": True}, "base_version": 0},
+                      headers=auth_headers(token))
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "DRAFT_VERSION_CONFLICT"
+
+    monkeypatch.setattr(draft_service, "get", real_get)
+    got = client.get(ENDPOINT, headers=auth_headers(token))
+    assert got.status_code == 200
+    assert got.json()["content"] == {"first": True}

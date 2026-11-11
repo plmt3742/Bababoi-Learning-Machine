@@ -486,7 +486,7 @@ erDiagram
 > 草稿口径（BE-018，与前端 mock 逐字对齐）：
 >
 > - `content` 必须是 **JSON 对象**，后端原样存取、不解析内部字段；非对象 400。序列化后超过 `DRAFT_MAX_BYTES`（默认 256 KB，§11）→ 400 + 中文文案。
-> - 每账号 1 份；`version` 单调递增。库里**无草稿**时 `base_version` 不参与判断，直接建 v1（mock 同款）；有草稿时 `version != base_version`（含 `base_version=null`）→ **409 `DRAFT_VERSION_CONFLICT`**，走统一错误信封、**不回传服务端草稿**（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）。
+> - 每账号 1 份；`version` 单调递增。并发用**条件 UPDATE（`WHERE user_id AND version=?`）判 rowcount**，不是读-比较-写；并发首次保存由 `user_id` 唯一约束兜底，输家同样回 409（不能落成 500）。库里**无草稿**时 `base_version` 不参与判断，直接建 v1（mock 同款）；有草稿时 `version != base_version`（含 `base_version=null`）→ **409 `DRAFT_VERSION_CONFLICT`**，走统一错误信封、**不回传服务端草稿**（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）。
 > - `client_updated_at` 收下但不参与任何判断——乐观锁只认 version，浏览器时钟不可信。
 > - `updated_at` 返回带时区 UTC（`...Z`）：前端拿它和 localStorage 的时间串比"哪边更新"，naive 串会被按本地时区解析。
 > - 删除后再保存，`version` 从 1 重新计。

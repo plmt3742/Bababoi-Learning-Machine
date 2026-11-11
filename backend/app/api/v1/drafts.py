@@ -25,15 +25,15 @@ def _out(draft) -> DraftOut:
     )
 
 
-@router.get("/me")
+@router.get("/me", response_model=DraftOut, responses={204: {"description": "当前账号没有草稿"}})
 def get_draft(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
-) -> Response:
+) -> DraftOut | Response:
     draft = draft_service.get(session, user.id)
     if draft is None:
         return Response(status_code=204)
-    return Response(content=_out(draft).model_dump_json(), media_type="application/json")
+    return _out(draft)
 
 
 @router.put("/me", response_model=DraftOut)

@@ -15,13 +15,17 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
+from app.db.base import utcnow
 from app.models import Draft
 from app.schemas.drafts import DraftSaveRequest
+
+_CONFLICT_MESSAGE = "草稿已在其他位置更新，请刷新后重试"
 
 
 def get(session: Session, user_id: int) -> Draft | None:
@@ -30,6 +34,10 @@ def get(session: Session, user_id: int) -> Draft | None:
 
 def _content_size(content: dict) -> int:
     return len(json.dumps(content, ensure_ascii=False).encode("utf-8"))
+
+
+def _conflict() -> ApiError:
+    return ApiError(ErrorCode.DRAFT_VERSION_CONFLICT, _CONFLICT_MESSAGE, 409)
 
 
 def save(session: Session, user_id: int, data: DraftSaveRequest) -> Draft:
@@ -46,13 +54,25 @@ def save(session: Session, user_id: int, data: DraftSaveRequest) -> Draft:
     if draft is None:
         draft = Draft(user_id=user_id, content_json=data.content, version=1)
         session.add(draft)
-    else:
-        if draft.version != data.base_version:
-            raise ApiError(
-                ErrorCode.DRAFT_VERSION_CONFLICT, "草稿已在其他位置更新，请刷新后重试", 409
-            )
-        draft.content_json = data.content
-        draft.version += 1
+        try:
+            session.commit()
+        except IntegrityError:
+            # 并发首次保存：唯一约束挡住输家。回读后按版本冲突返回，不能让它变成 500
+            session.rollback()
+            raise _conflict() from None
+        session.refresh(draft)
+        return draft
+
+    # 乐观锁必须是原子的：读-比较-写之间另一个请求也可能通过。
+    # 条件 UPDATE 由数据库判 rowcount，输的一方（含 base_version=null）拿到 0 → 409。
+    result = session.execute(
+        update(Draft)
+        .where(Draft.user_id == user_id, Draft.version == data.base_version)
+        .values(content_json=data.content, version=Draft.version + 1, updated_at=utcnow())
+    )
+    if result.rowcount != 1:
+        session.rollback()
+        raise _conflict()
     session.commit()
     session.refresh(draft)
     return draft
