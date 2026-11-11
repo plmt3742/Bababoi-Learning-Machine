@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     api_prefix: str = "/api/v1"
 
+    # 运行环境：development / local / staging / production。
+    # scripts/seed_demo.py 用它做危险操作守卫（production 拒绝运行；--reset 需 --yes）
+    app_env: str = "development"
+    # 演示账号口令：只给 seed_demo.py 用，必须由 .env / 环境变量注入，代码里不给默认值
+    demo_password: str = ""
+
     # CORS：只列允许的来源，不用 *（05 §9.4）
     cors_origins: list[str] = ["http://localhost:5173"]
 
