@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, lazyload, load_only, selectinload
 
 from app.db.base import utcnow
 from app.models import GeneratedQuestion, GenerationTask, PracticeRecord, Question
@@ -88,11 +88,16 @@ def _recent_trend(records: list[PracticeRecord]) -> list[TrendPoint]:
 
 
 def overview(session: Session, user_id: int) -> StatsOverview:
+    # load_only 只取统计要用的列（题干全文不拉），noload 掐掉 PracticeRecord 的
+    # selectin 关系——模型上那条 lazy="selectin" 会给每条练习再补一次生成题查询
     questions = list(
         session.scalars(
             select(Question)
             .where(Question.user_id == user_id, Question.deleted_at.is_(None))
-            .options(selectinload(Question.tags))
+            .options(
+                load_only(Question.id, Question.mastery_status, Question.updated_at),
+                selectinload(Question.tags),
+            )
         )
     )
     alive_ids = {question.id for question in questions}
@@ -100,7 +105,16 @@ def overview(session: Session, user_id: int) -> StatsOverview:
     # 一次取全量生成题（含软删）：软删行还要用来把练习流水认回父题
     generated = list(
         session.scalars(
-            select(GeneratedQuestion).where(GeneratedQuestion.user_id == user_id)
+            select(GeneratedQuestion)
+            .where(GeneratedQuestion.user_id == user_id)
+            .options(
+                load_only(
+                    GeneratedQuestion.id,
+                    GeneratedQuestion.parent_question_id,
+                    GeneratedQuestion.deleted_at,
+                    GeneratedQuestion.updated_at,
+                )
+            )
         )
     )
     visible_generated = [
@@ -111,7 +125,19 @@ def overview(session: Session, user_id: int) -> StatsOverview:
     parent_by_generated = {item.id: item.parent_question_id for item in generated}
 
     records = list(
-        session.scalars(select(PracticeRecord).where(PracticeRecord.user_id == user_id))
+        session.scalars(
+            select(PracticeRecord)
+            .where(PracticeRecord.user_id == user_id)
+            .options(
+                load_only(
+                    PracticeRecord.id,
+                    PracticeRecord.generated_question_id,
+                    PracticeRecord.is_correct,
+                    PracticeRecord.created_at,
+                ),
+                lazyload(PracticeRecord.generated_question),
+            )
+        )
     )
     correct_records = sum(1 for record in records if record.is_correct)
 

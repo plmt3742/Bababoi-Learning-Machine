@@ -276,3 +276,19 @@ def test_user_isolation(client: TestClient, db, user) -> None:
 
 def test_requires_auth(client: TestClient) -> None:
     assert client.get("/api/v1/stats/overview").status_code == 401
+
+
+def test_soft_deleted_generated_excluded_from_count(client: TestClient, db, user) -> None:
+    """父题活着、生成题自己软删：题数不计；练习流水照算，薄弱点仍按父题聚合。"""
+    token, user_id = user
+    with db() as s:
+        parent = _question(s, user_id, tags=[_tag(s, "导数")])
+        gone = _generated(s, user_id, parent, deleted=True)
+        _record(s, user_id, gone, is_correct=False)
+        s.commit()
+
+    body = _overview(client, token)
+    assert body["total_questions"] == 1
+    assert body["total_generated_questions"] == 0
+    assert body["total_practice_records"] == 1
+    assert [point["name"] for point in body["weak_knowledge_points"]] == ["导数"]
