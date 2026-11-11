@@ -1,11 +1,19 @@
 """BE-008 演示种子（Issue #48）。可重复执行，不重复插数据。
 
     cd backend
-    uv run python scripts/seed_demo.py            # 两个演示账号都灌
-    uv run python scripts/seed_demo.py student01  # 只灌一个
+    DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py            # 两个演示账号都灌
+    DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py student01  # 只灌一个
+    DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py --reset    # 删掉演示账号名下数据后重建
 
-账号：`student01 / password123`、`student02 / password123`。
+账号：`student01`、`student02`。口令由 `DEMO_PASSWORD` 注入，不设则用代码里的本地默认——
+那只是本机开发用；staging/线上必须覆盖，真口令只写演示手册，不进仓库、不进聊天。
 第二个账号不是凑数——同组查重、用户隔离、越权 403 这些都得有两个账号才验得出来。
+
+⚠️ 本脚本是「只插不更新」：已存在的用户/题目一概不碰，所以改了 `DEMO_PASSWORD`
+或改了题目答案后，重跑对老库**不生效**（口令还是旧的、答案还是旧的）。
+要让老库对齐到脚本当前定义的状态，用 `--reset` 重建——它会删掉演示账号名下的
+全部数据（题目/生成题/任务/练习/草稿/AI 日志）再重新插，共享标签保留。
+`APP_ENV=production` 时脚本直接拒绝运行，防止把演示数据灌进生产库。
 
 不调用真实 LLM：analysis 与生成题都是手写的固定内容，所以跑这个脚本不花钱、也不会
 因为模型抖动导致两次演示的数据不一样。
@@ -19,6 +27,7 @@
 """
 from __future__ import annotations
 
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -28,23 +37,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # backend/
 # Windows 控制台默认 GBK，中文汇总会打成乱码（和 scripts/spike_llm.py 同一个坑）
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8")
+if sys.stderr.encoding and sys.stderr.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
-from sqlalchemy import func, select  # noqa: E402
+from sqlalchemy import delete, func, select  # noqa: E402
 
 from app.core.security import hash_password  # noqa: E402
 from app.db.base import utcnow  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 from app.models import (  # noqa: E402
+    AiCallLog,
+    Draft,
     GeneratedQuestion,
     GenerationTask,
     PracticeRecord,
     Question,
+    QuestionTag,
     Tag,
     User,
 )
 from app.schemas.question import count_blanks, validate_type_payload  # noqa: E402
 
-PASSWORD = "password123"
+if os.getenv("APP_ENV") == "production":
+    raise SystemExit("seed_demo 禁止在生产环境运行（APP_ENV=production）")
+
+PASSWORD = os.getenv("DEMO_PASSWORD", "password123")  # 本地默认；staging/线上必须覆盖
 DEMO_USERS = ("student01", "student02")
 
 # (题干, 题型, 学科, 章节, 答案, 解析, 掌握状态, [知识点])
@@ -287,13 +304,43 @@ def _seed_user(session, username: str) -> dict:
     }
 
 
+def _reset_user(session, username: str) -> None:
+    """删掉演示账号名下全部数据（含账号本身），让下一次 _seed_user 重建为当前一致状态。
+
+    只动演示账号：真人账号一个字节都不会碰。共享标签（tags 表）是全局的，
+    重建后按名字取回或重建，不在这里删。
+    """
+    user = session.scalar(select(User).where(User.username == username))
+    if user is None:
+        return
+    own_questions = select(Question.id).where(Question.user_id == user.id)
+    # 先删子表再删主表：练习指向生成题、任务/题目/草稿/日志指向用户
+    session.execute(delete(PracticeRecord).where(PracticeRecord.user_id == user.id))
+    session.execute(delete(GenerationTask).where(GenerationTask.user_id == user.id))
+    session.execute(delete(Draft).where(Draft.user_id == user.id))
+    session.execute(delete(AiCallLog).where(AiCallLog.user_id == user.id))
+    session.execute(delete(QuestionTag).where(QuestionTag.question_id.in_(own_questions)))
+    session.execute(delete(GeneratedQuestion).where(GeneratedQuestion.user_id == user.id))
+    session.execute(delete(Question).where(Question.user_id == user.id))
+    session.delete(user)
+    session.flush()
+
+
 def main() -> None:
-    wanted = sys.argv[1:] or list(DEMO_USERS)
+    args = sys.argv[1:]
+    do_reset = "--reset" in args
+    wanted = [a for a in args if a != "--reset"] or list(DEMO_USERS)
     unknown = [u for u in wanted if u not in DEMO_USERS]
     if unknown:
         raise SystemExit(f"只允许演示账号 {DEMO_USERS}，收到 {unknown}——"
                          "种子不往真实账号上灌数据")
     with SessionLocal() as session:
+        if do_reset:
+            for username in wanted:
+                _reset_user(session, username)
+            session.commit()
+            print(f"[reset] 已重建演示账号名下数据：{', '.join(wanted)}"
+                  f"（口令按 DEMO_PASSWORD 当前值）")
         for username in wanted:
             summary = _seed_user(session, username)
             session.commit()
@@ -312,7 +359,7 @@ def main() -> None:
             total = sum(counts.values())
             print(f"[check] {username} 掌握度分布={counts} 合计={total} "
                   f"（{'OK' if total >= 10 else '题数不足 10'}）")
-    print("[seed] 完成。重复执行本脚本不会重复插数据。")
+    print("[seed] 完成。重复执行本脚本不会重复插数据；改口令/答案后要让老库生效，用 --reset。")
 
 
 if __name__ == "__main__":
