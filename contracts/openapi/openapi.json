@@ -273,6 +273,22 @@
         "title": "GenerateRequest",
         "type": "object"
       },
+      "GenerateTasksOut": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedTaskRef"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "GenerateTasksOut",
+        "type": "object"
+      },
       "GeneratedQuestionOut": {
         "description": "一道 AI 相似题（05 §5.2 generated_questions，US-4 的展示字段）。",
         "properties": {
@@ -402,6 +418,49 @@
           "created_at"
         ],
         "title": "GeneratedQuestionOut",
+        "type": "object"
+      },
+      "GeneratedTaskRef": {
+        "description": "POST /questions/{id}/generate 的 `tasks[]` 元素（ADR-006）。",
+        "properties": {
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "target_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Index"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "target_index",
+          "difficulty"
+        ],
+        "title": "GeneratedTaskRef",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1397,6 +1456,37 @@
         "title": "TagOut",
         "type": "object"
       },
+      "TaskIdOut": {
+        "description": "POST /questions/{id}/analyze：只回一个入队任务 id。",
+        "properties": {
+          "task_id": {
+            "title": "Task Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "TaskIdOut",
+        "type": "object"
+      },
+      "TaskListOut": {
+        "description": "GET /tasks 的信封（此前返回裸 dict，OpenAPI 只能写成 additionalProperties）。",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TaskListOut",
+        "type": "object"
+      },
       "TaskOut": {
         "description": "任务中心/详情页要展示的字段（05 §3.1 generation_task）。",
         "properties": {
@@ -2272,9 +2362,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Analyze Question Api V1 Questions  Question Id  Analyze Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TaskIdOut"
                 }
               }
             },
@@ -2339,9 +2427,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Generate Question Api V1 Questions  Question Id  Generate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/GenerateTasksOut"
                 }
               }
             },
@@ -2429,9 +2515,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Tasks Api V1 Tasks Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TaskListOut"
                 }
               }
             },

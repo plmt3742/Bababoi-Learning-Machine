@@ -19,9 +19,13 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-# 只 import app，不跑 lifespan，所以不会校验 JWT/数据库；固定 mock 开关是让导出
-# 只取决于代码，不受本机 .env 影响（CI 与开发机生成的必须是同一份）
-os.environ.setdefault("LLM_MOCK", "true")
+# 只 import app，不跑 lifespan，所以不会校验 JWT/数据库。
+# 导出必须只取决于代码：PROJECT_NAME/VERSION/API_PREFIX 也会进快照，本机 .env 里
+# 若设了这些键（或环境里导出过），生成物就和 CI 不一致——这里直接覆盖，不留后门。
+os.environ["LLM_MOCK"] = "true"
+os.environ["PROJECT_NAME"] = "Bababoi Learning Machine"
+os.environ["VERSION"] = "0.1.0"
+os.environ["API_PREFIX"] = "/api/v1"
 
 from app.main import app  # noqa: E402
 

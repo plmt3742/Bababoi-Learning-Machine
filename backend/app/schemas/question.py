@@ -311,6 +311,30 @@ class TaskOut(BaseModel):
     finished_at: datetime | None
 
 
+class TaskListOut(BaseModel):
+    """GET /tasks 的信封（此前返回裸 dict，OpenAPI 只能写成 additionalProperties）。"""
+
+    items: list[TaskOut]
+
+
+class TaskIdOut(BaseModel):
+    """POST /questions/{id}/analyze：只回一个入队任务 id。"""
+
+    task_id: int
+
+
+class GeneratedTaskRef(BaseModel):
+    """POST /questions/{id}/generate 的 `tasks[]` 元素（ADR-006）。"""
+
+    task_id: int
+    target_index: int | None
+    difficulty: SegmentDifficulty | None
+
+
+class GenerateTasksOut(BaseModel):
+    tasks: list[GeneratedTaskRef]
+
+
 class GenerateRequest(BaseModel):
     """生题入队参数（14 号 D1/Q4）。
 
