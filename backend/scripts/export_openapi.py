@@ -19,13 +19,19 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
-# 只 import app，不跑 lifespan，所以不会校验 JWT/数据库。
-# 导出必须只取决于代码：PROJECT_NAME/VERSION/API_PREFIX 也会进快照，本机 .env 里
-# 若设了这些键（或环境里导出过），生成物就和 CI 不一致——这里直接覆盖，不留后门。
+# 默认值从 app.core.meta 读（该模块不实例化 Settings，import 它不会读 .env）。
+# 不能先 import app.core.config 再覆写 env：config.py 在 import 时就建好 settings 单例，
+# 之后再改 os.environ 对已缓存的 settings 无效，.env 里的 VERSION/API_PREFIX 仍会漏进快照。
+from app.core.meta import API_PREFIX as _DEFAULT_API_PREFIX  # noqa: E402
+from app.core.meta import PROJECT_NAME as _DEFAULT_PROJECT_NAME  # noqa: E402
+from app.core.meta import VERSION as _DEFAULT_VERSION  # noqa: E402
+
+# 导出必须只取决于代码：PROJECT_NAME/VERSION/API_PREFIX 也会进快照，
+# 本机 .env 若设了这些键（或环境里导出过），生成物就和 CI 不一致——这里直接覆盖。
 os.environ["LLM_MOCK"] = "true"
-os.environ["PROJECT_NAME"] = "Bababoi Learning Machine"
-os.environ["VERSION"] = "0.1.0"
-os.environ["API_PREFIX"] = "/api/v1"
+os.environ["PROJECT_NAME"] = _DEFAULT_PROJECT_NAME
+os.environ["VERSION"] = _DEFAULT_VERSION
+os.environ["API_PREFIX"] = _DEFAULT_API_PREFIX
 
 from app.main import app  # noqa: E402
 

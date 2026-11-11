@@ -24,3 +24,9 @@ FastAPI 会自动给带 body 的路由加 `422 HTTPValidationError`。本项目*
 `{"detail":{"code","message","request_id"}}`（05 §6.2）；401/403/404/409 也是同一信封，
 不逐路由建模。所以：**错误形状以 05 §6.2 为准，生成物里的 422 只当生成器行为**；
 前端从快照生成类型时只取 200 的 schema。
+
+## 元数据来源与漂移检查
+
+- title / version / 路径前缀取自 `backend/app/core/meta.py` 的常量；`config.py` 的字段默认值也引用它们——**只有一份真源**，不是脚本里另抄一遍。
+- 导出脚本在 import `app` 之前用这三个默认值覆盖环境变量，所以本机 `backend/.env` 里写了 `VERSION`/`API_PREFIX` 也不会污染快照。
+- 反过来，**部署环境**若用 `.env` 覆盖这两个值，运行时与快照会分叉：`backend/tests/test_openapi_snapshot.py` 会拦下，需要同步快照或在部署侧固定这两个值。

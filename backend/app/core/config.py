@@ -3,15 +3,18 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.meta import API_PREFIX, PROJECT_NAME, VERSION
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    project_name: str = "Bababoi Learning Machine"
-    version: str = "0.1.0"
-    api_prefix: str = "/api/v1"
+    # 默认值取自 app/core/meta.py，与导出脚本共用同一份（不写字面量两次）
+    project_name: str = PROJECT_NAME
+    version: str = VERSION
+    api_prefix: str = API_PREFIX
 
     # CORS：只列允许的来源，不用 *（05 §9.4）
     cors_origins: list[str] = ["http://localhost:5173"]
