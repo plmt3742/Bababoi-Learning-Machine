@@ -57,7 +57,7 @@ backend/
 ```bash
 uv sync
 uv run alembic upgrade head
-uv run python scripts/seed_demo.py   # 灌演示数据（可重复执行）
+DEMO_PASSWORD='<演示口令>' uv run python scripts/seed_demo.py   # 灌演示数据（可重复执行；口令必填）
 uv run uvicorn app.main:app --reload --port 8000
 uv run pytest
 ```

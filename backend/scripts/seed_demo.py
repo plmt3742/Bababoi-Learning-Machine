@@ -3,17 +3,25 @@
     cd backend
     DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py            # 两个演示账号都灌
     DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py student01  # 只灌一个
-    DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py --reset    # 删掉演示账号名下数据后重建
+    DEMO_PASSWORD='口令' uv run python scripts/seed_demo.py --reset --yes  # 删掉演示账号名下数据后重建
 
-账号：`student01`、`student02`。口令由 `DEMO_PASSWORD` 注入，不设则用代码里的本地默认——
-那只是本机开发用；staging/线上必须覆盖，真口令只写演示手册，不进仓库、不进聊天。
-第二个账号不是凑数——同组查重、用户隔离、越权 403 这些都得有两个账号才验得出来。
+配置从 `backend/.env` 读（`DEMO_PASSWORD` / `APP_ENV`，见 .env.example），也可以走进程环境变量。
+**口令必填，没有内置默认值**：缺失或空串直接退出，不建空密码账号。真口令只写演示手册，
+不进仓库、不进聊天。
+
+账号：`student01`、`student02`。第二个不是凑数——同组查重、用户隔离、越权 403 都得有两个
+账号才验得出来。
 
 ⚠️ 本脚本是「只插不更新」：已存在的用户/题目一概不碰，所以改了 `DEMO_PASSWORD`
 或改了题目答案后，重跑对老库**不生效**（口令还是旧的、答案还是旧的）。
 要让老库对齐到脚本当前定义的状态，用 `--reset` 重建——它会删掉演示账号名下的
 全部数据（题目/生成题/任务/练习/草稿/AI 日志）再重新插，共享标签保留。
-`APP_ENV=production` 时脚本直接拒绝运行，防止把演示数据灌进生产库。
+删除与重建在**同一个事务**里提交，中途失败会整体回滚，不会留下空账号。
+`APP_ENV=production` 时脚本直接拒绝运行；`APP_ENV` 不是 development/local 时，
+`--reset` 必须显式加 `--yes`。
+
+不种草稿：草稿结构与前端编辑器强耦合，种一条假草稿会在「恢复未完成草稿」里
+弹出用户没写过的内容；演示时现场录入生成即可。
 
 不调用真实 LLM：analysis 与生成题都是手写的固定内容，所以跑这个脚本不花钱、也不会
 因为模型抖动导致两次演示的数据不一样。
@@ -27,7 +35,7 @@
 """
 from __future__ import annotations
 
-import os
+import re
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -42,6 +50,7 @@ if sys.stderr.encoding and sys.stderr.encoding.lower() not in ("utf-8", "utf8"):
 
 from sqlalchemy import delete, func, select  # noqa: E402
 
+from app.core.config import settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.base import utcnow  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
@@ -58,10 +67,19 @@ from app.models import (  # noqa: E402
 )
 from app.schemas.question import count_blanks, validate_type_payload  # noqa: E402
 
-if os.getenv("APP_ENV") == "production":
+# 配置一律从 Settings 读（pydantic-settings 会解析 backend/.env）：
+# 用 os.getenv 只认进程环境变量，.env 里写的 APP_ENV/DEMO_PASSWORD 会被静默忽略——
+# 守卫看似在、实际 fail-open，这是审核抓到的阻断项。
+if settings.app_env == "production":
     raise SystemExit("seed_demo 禁止在生产环境运行（APP_ENV=production）")
 
-PASSWORD = os.getenv("DEMO_PASSWORD", "password123")  # 本地默认；staging/线上必须覆盖
+PASSWORD = settings.demo_password.strip()
+if not PASSWORD:
+    # 空值按缺失处理：否则会建出空密码账号（LoginRequest 没有最小长度校验）
+    raise SystemExit(
+        "缺少 DEMO_PASSWORD：演示口令必须由 backend/.env 或环境变量注入。\n"
+        "本地在 .env 写 DEMO_PASSWORD=... ；真口令只写演示手册，不进仓库。"
+    )
 DEMO_USERS = ("student01", "student02")
 
 # (题干, 题型, 学科, 章节, 答案, 解析, 掌握状态, [知识点])
@@ -264,17 +282,20 @@ def _seed_user(session, username: str) -> dict:
             finished_at=started + timedelta(seconds=20)))
         made_tasks += 1
 
-    # 练习流水：铺在最近 10 天，recent_trend 才有形状
+    # 练习流水：铺在最近 10 天，recent_trend 才有形状。
+    # 按「数量补齐」而不是「有就跳过」：staging 上只要点过一次练习，后者会让整批种子的
+    # 练习永远补不上、趋势只剩一天。补到 plan 条为止，重跑不超量。
     gen_rows = list(session.scalars(select(GeneratedQuestion).where(
         GeneratedQuestion.user_id == user.id,
         GeneratedQuestion.deleted_at.is_(None))))
-    already = session.scalar(select(PracticeRecord.id).where(
-        PracticeRecord.user_id == user.id).limit(1))
+    plan = PRACTICE_PLAN.get(username, 20)
+    existing_practice = session.scalar(
+        select(func.count(PracticeRecord.id)).where(PracticeRecord.user_id == user.id)
+    ) or 0
     made_practice = 0
-    if already is None and gen_rows:
-        plan = PRACTICE_PLAN.get(username, 20)
+    if existing_practice < plan and gen_rows:
         base = utcnow()
-        for i in range(plan):
+        for i in range(existing_practice, plan):
             target = gen_rows[i % len(gen_rows)]
             correct = (i % 3) != 0          # 约 2/3 正确，看起来像真在进步
             session.add(PracticeRecord(
@@ -326,22 +347,33 @@ def _reset_user(session, username: str) -> None:
     session.flush()
 
 
+def _masked_dsn(url: str) -> str:
+    """打印目标库时不泄露口令（MySQL DSN 里可能带密码）。"""
+    return re.sub(r"://([^:/@]+):[^@]*@", r"://\1:***@", url) if url else "(默认库)"
+
+
 def main() -> None:
-    args = sys.argv[1:]
-    do_reset = "--reset" in args
-    wanted = [a for a in args if a != "--reset"] or list(DEMO_USERS)
+    raw_args = sys.argv[1:]
+    do_reset = "--reset" in raw_args
+    confirmed = "--yes" in raw_args
+    wanted = [a for a in raw_args if a not in ("--reset", "--yes")] or list(DEMO_USERS)
     unknown = [u for u in wanted if u not in DEMO_USERS]
     if unknown:
         raise SystemExit(f"只允许演示账号 {DEMO_USERS}，收到 {unknown}——"
                          "种子不往真实账号上灌数据")
+    if do_reset and settings.app_env not in ("development", "local") and not confirmed:
+        raise SystemExit(
+            f"--reset 会删除演示账号名下全部数据（APP_ENV={settings.app_env}）；"
+            "确认目标库后加 --yes 重跑"
+        )
+    print(f"[seed] 目标库 {_masked_dsn(settings.database_url)} | APP_ENV={settings.app_env}")
     with SessionLocal() as session:
         if do_reset:
-            for username in wanted:
-                _reset_user(session, username)
-            session.commit()
-            print(f"[reset] 已重建演示账号名下数据：{', '.join(wanted)}"
-                  f"（口令按 DEMO_PASSWORD 当前值）")
+            print(f"[reset] 将重建：{', '.join(wanted)}（口令按 DEMO_PASSWORD 当前值）")
         for username in wanted:
+            # 删除与重建在同一个事务里（下面这一次 commit）：中途失败整体回滚，不留空账号
+            if do_reset:
+                _reset_user(session, username)
             summary = _seed_user(session, username)
             session.commit()
             print(f"[seed] {username}: 新建用户={summary['user_created']} "
