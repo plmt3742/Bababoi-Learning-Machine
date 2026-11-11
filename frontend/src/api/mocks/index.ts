@@ -53,11 +53,6 @@ const SEGMENT_DIFFICULTIES: Record<GenerationTargetIndex, Difficulty> = {
   2: 'medium',
   3: 'hard',
 }
-const SEGMENT_INDEX_BY_DIFFICULTY: Record<Difficulty, GenerationTargetIndex> = {
-  easy: 1,
-  medium: 2,
-  hard: 3,
-}
 const MOCK_FAILING_SEGMENT: GenerationTargetIndex = 2
 const MOCK_FAILING_QUESTION_ID = 104
 
@@ -575,7 +570,7 @@ function isDifficulty(value: unknown): value is Difficulty {
   return value === 'easy' || value === 'medium' || value === 'hard'
 }
 
-function isSegmentIndex(value: number | null): value is GenerationTargetIndex {
+function isSegmentIndex(value: unknown): value is GenerationTargetIndex {
   return value === 1 || value === 2 || value === 3
 }
 
@@ -778,6 +773,10 @@ interface SegmentTarget {
   difficulty: Difficulty
 }
 
+type SegmentTargetResult =
+  | { ok: true; targets: SegmentTarget[] }
+  | { ok: false; error: string }
+
 function defaultSegmentTargets(): SegmentTarget[] {
   return SEGMENT_INDEXES.map((index) => ({
     index,
@@ -785,27 +784,64 @@ function defaultSegmentTargets(): SegmentTarget[] {
   }))
 }
 
-function readSegmentTargets(config: AxiosRequestConfig): SegmentTarget[] | null {
+function readSegmentTargets(config: AxiosRequestConfig): SegmentTargetResult {
   const body = readBody<Record<string, unknown>>(config)
-  if (!body) return null
+  if (!body || Object.keys(body).length === 0) {
+    return { ok: true, targets: defaultSegmentTargets() }
+  }
 
-  const targets: SegmentTarget[] = []
-  const seen = new Set<Difficulty>()
+  const hasTargetIndex = body.target_index !== undefined && body.target_index !== null
+  const hasDifficulties = body.difficulties !== undefined && body.difficulties !== null
+  const hasDifficulty = body.difficulty !== undefined && body.difficulty !== null
 
-  if (Array.isArray(body.difficulties)) {
-    for (const item of body.difficulties) {
-      if (!isDifficulty(item) || seen.has(item)) continue
-      seen.add(item)
-      targets.push({ index: SEGMENT_INDEX_BY_DIFFICULTY[item], difficulty: item })
+  if (hasDifficulty && !hasTargetIndex) {
+    return {
+      ok: false,
+      error: '整组生成请用 difficulties；difficulty 只在指定 target_index 时给',
     }
-    if (targets.length > 0) return targets.sort((left, right) => left.index - right.index)
   }
 
-  if (isDifficulty(body.difficulty)) {
-    return [{ index: SEGMENT_INDEX_BY_DIFFICULTY[body.difficulty], difficulty: body.difficulty }]
+  if (hasTargetIndex && hasDifficulties) {
+    return { ok: false, error: 'target_index 与 difficulties 不能同时提交' }
   }
 
-  return null
+  if (hasTargetIndex) {
+    const targetIndex = body.target_index
+    if (!isSegmentIndex(targetIndex)) {
+      return { ok: false, error: 'target_index 必须是 1、2 或 3' }
+    }
+
+    let difficulty = SEGMENT_DIFFICULTIES[targetIndex]
+    if (hasDifficulty) {
+      const requestedDifficulty = body.difficulty
+      if (!isDifficulty(requestedDifficulty)) {
+        return { ok: false, error: 'difficulty 必须是 easy、medium 或 hard' }
+      }
+      difficulty = requestedDifficulty
+    }
+
+    return { ok: true, targets: [{ index: targetIndex, difficulty }] }
+  }
+
+  if (hasDifficulties) {
+    const rawDifficulties = body.difficulties
+    if (!Array.isArray(rawDifficulties) || rawDifficulties.length !== 3) {
+      return { ok: false, error: '整组生成需要长度为 3 的 difficulties 数组' }
+    }
+
+    const targets: SegmentTarget[] = []
+    for (let offset = 0; offset < rawDifficulties.length; offset += 1) {
+      const item = rawDifficulties[offset]
+      if (!isDifficulty(item)) {
+        return { ok: false, error: 'difficulties 中的难度必须是 easy、medium 或 hard' }
+      }
+      targets.push({ index: SEGMENT_INDEXES[offset], difficulty: item })
+    }
+
+    return { ok: true, targets }
+  }
+
+  return { ok: true, targets: defaultSegmentTargets() }
 }
 
 export function setupMocks(): void {
@@ -1247,8 +1283,10 @@ export function setupMocks(): void {
     const question = match ? findQuestion(state, Number.parseInt(match[1], 10)) : undefined
     if (!question) return apiError(404, 'QUESTION_NOT_FOUND', '错题不存在或已删除')
 
-    const requestedTargets = readSegmentTargets(config)
-    const targets = requestedTargets ?? defaultSegmentTargets()
+    const targetResult = readSegmentTargets(config)
+    if (!targetResult.ok) return apiError(400, 'VALIDATION_ERROR', targetResult.error)
+
+    const targets = targetResult.targets
     const singleSlot = targets.length === 1
     const timestamp = nowIso()
 

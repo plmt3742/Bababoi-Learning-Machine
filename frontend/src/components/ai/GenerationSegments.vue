@@ -60,6 +60,9 @@ const emit = defineEmits<{
 
 const analysisTask = computed(() => latestTask(props.tasks, 'analysis'))
 const segmentSummary = computed(() => summarizeSegments(props.tasks))
+const displaySegmentTotal = computed(() =>
+  segmentSummary.value.presentCount > 0 ? segmentSummary.value.presentCount : 3,
+)
 const segmentSlots = computed(() =>
   SEGMENT_INDEXES.map((index) => ({ index, task: latestSegmentTask(props.tasks, index) })),
 )
@@ -156,15 +159,15 @@ const progressNote = computed(() => {
     return '已暂停自动刷新；服务器任务仍在继续，可点击「刷新一次」查看最新状态。'
   }
   if (props.polling || generationActive.value) {
-    return '3 段并发生成，每 1.5 秒自动刷新；单段失败不影响其余两段，可单独重试。'
+    return '各生成段相互独立，每 1.5 秒自动刷新；某一段失败不影响其余段，可单独重试。'
   }
   if (segmentSummary.value.failedCount > 0) {
     return '生成已结束，失败段可单独重试；其余段的结果会保留。'
   }
   if (segmentSummary.value.status === 'done') {
-    return '3 段均已完成，可去练习或整组重新生成。'
+    return '已请求的生成段均已完成，可去练习或整组重新生成。'
   }
-  return '生成相似题后，3 段任务会各自更新状态；失败段可单独重试。'
+  return '生成相似题后，各段任务会各自更新状态；失败段可单独重试。'
 })
 
 function analysisIcon(state: AnalysisState): Component {
@@ -255,8 +258,10 @@ function retryAnalysis(): void {
     </div>
 
     <div class="segments-head">
-      <h3>相似题 · 3 段并发</h3>
-      <span class="segments-head__count">{{ segmentSummary.doneCount }} / 3 段完成</span>
+      <h3>相似题 · 分段生成（最多 3 段）</h3>
+      <span class="segments-head__count"
+        >{{ segmentSummary.doneCount }} / {{ displaySegmentTotal }} 段完成</span
+      >
     </div>
 
     <div class="segment-stack">
@@ -324,7 +329,7 @@ function retryAnalysis(): void {
         :title="analysisReady ? undefined : 'AI 分析完成后即可生成相似题'"
         @click="emit('generate')"
       >
-        {{ segmentSummary.failedCount > 0 ? '重新生成 3 题' : '生成 3 道相似题' }}
+        {{ segmentSummary.failedCount > 0 ? '重新生成整组（最多 3 道）' : '生成相似题（最多 3 道）' }}
       </button>
       <button
         v-if="canPractice && !generationActive"

@@ -41,3 +41,16 @@
 - Issue #44：`BE-026 用户生成偏好 + 题型一致性开关`
 - Issue #43：`BE-025 完整三题型编辑 PATCH 扩展`
 - 前端 PR：FE-027
+
+## 6. 2026-11-10 补充（strict 落地前置）
+
+> 本节追加，不改上面的决策。
+
+- 默认 strict 仍是产品决策；strict 的实现已在 #58 落地：
+  1. 生成 prompt 明写「题型必须与原题一致」；strict 不再复用软措辞。
+  2. `prompt_version` 按策略分叉：strict=`generate_v3`，soft=`generate_v2`；`ai_call_logs` 与 `generated_questions` 都跟策略走。
+- #58 本地复跑 176 passed；真实 strict 复测 27/27 题型一致、27/27 校验通过。合并前只需 rebase 最新 main；当前 main 仍是软约束，合并后才启用 strict。
+- 真实数据口径：PR 里「生成题经常换题型」不成立。7 个红色队列测试用的是故意混合题型的 mock（`blank/solve/choice`）；真实 DeepSeek 冒烟 3/3 solve；ADR-006 记录 27/27 题型一致。**mock 的失败率不能当产品失败率**。
+- 兜底：如果 #58 合并延后到演示前，才临时关闭 strict；默认 strict 不再需要改。
+- 之前「只记 `type_policy`、不升 `prompt_version`」的说法对 strict 作废；soft 仍不升。
+- 同步位置：`docs/agent/05-architecture.md` §6.9/§7.3、`docs/agent/18-backend-unfinished-api-sync-20261107.md` §1/§12、`docs/agent/20-three-segment-contract-sync-20261110.md` §4。
