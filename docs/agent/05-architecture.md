@@ -1,12 +1,13 @@
 ---
 owner: 人机 / 霹雳马桶
-last_updated: 2026-11-10
+last_updated: 2026-11-11
 status: draft
 read_when: 写前后端代码前；改 API/数据模型前；联调前
 ---
 
 # 05 · 架构与契约
 
+> 状态：**v0.6.11 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
 > 状态：**v0.6.10 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
@@ -477,11 +478,19 @@ erDiagram
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/drafts/me` | 200 草稿 / 204 无草稿；见 `docs/product/06-draft-dual-write.md` |
-| PUT | `/drafts/me` | `{content, base_version, client_updated_at}`；409 版本冲突 |
-| DELETE | `/drafts/me` | 保存/放弃后清理 |
+| GET | `/drafts/me` | 200 `{content, version, updated_at}` / 204 无草稿；见 `docs/product/06-draft-dual-write.md` |
+| PUT | `/drafts/me` | `{content, base_version, client_updated_at}` → 200 新的 `{content, version, updated_at}`；409 `DRAFT_VERSION_CONFLICT` |
+| DELETE | `/drafts/me` | 保存/放弃后清理；204 |
 | GET | `/tasks?question_id=&status=` | 任务列表；P0 进度来源（1.5s 轮询）；任务中心跨题展示 |
 | POST | `/tasks/{id}/retry` | 失败重试 |
+
+> 草稿口径（BE-018，与前端 mock 逐字对齐）：
+>
+> - `content` 必须是 **JSON 对象**，后端原样存取、不解析内部字段；非对象 400。序列化后超过 `DRAFT_MAX_BYTES`（默认 256 KB，§11）→ 400 + 中文文案。
+> - 每账号 1 份；`version` 单调递增。并发用**条件 UPDATE（`WHERE user_id AND version=?`）判 rowcount**，不是读-比较-写；并发首次保存由 `user_id` 唯一约束兜底，输家同样回 409（不能落成 500）。库里**无草稿**时 `base_version` 不参与判断，直接建 v1（mock 同款）；有草稿时 `version != base_version`（含 `base_version=null`）→ **409 `DRAFT_VERSION_CONFLICT`**，走统一错误信封、**不回传服务端草稿**（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）。
+> - `client_updated_at` 收下但不参与任何判断——乐观锁只认 version，浏览器时钟不可信。
+> - `updated_at` 返回带时区 UTC（`...Z`）：前端拿它和 localStorage 的时间串比"哪边更新"，naive 串会被按本地时区解析。
+> - 删除后再保存，`version` 从 1 重新计。
 
 > `TaskOut` 必须含 `question_id`；P0 用 `GET /tasks` 轮询，SSE 为 P1。
 
@@ -1117,6 +1126,8 @@ PAGE_SIZE_MAX=100
 # --- 演示种子（scripts/seed_demo.py，BE-008）---
 APP_ENV=development        # production 时 seed 拒绝运行；非 development/local 的 --reset 需加 --yes
 DEMO_PASSWORD=             # 演示账号口令（仅 seed 用）；必填、无默认值，真口令只写演示手册
+# --- 录入草稿（05 §6.5b / BE-018）---
+DRAFT_MAX_BYTES=262144     # PUT /drafts/me 的 content 序列化字节上限（256 KB）
 ```
 
 前端 `.env.example`：
@@ -1185,4 +1196,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-07 | v0.6.6 | FE-027 收口：`/settings/preferences` + `enforce_same_question_type`（默认 true，按用户持久化）；PATCH 支持完整三题型（BE-025）；统计改 rich shape、无记录 `accuracy=0`；BE-024 两步识图本期采用（超时 ≥180s，前端 loading 已接）；删除旧 PRD 归档与 `PRD.md` 引用 | 霹雳马桶 / agent |
 | 2026-11-10 | v0.6.8 | **三段并发契约同步 + PR #58/#60 回馈**：§6.4 写明整组=3 段、单段 `target_index` + 可选 `difficulty`、格位与难度独立、任务数可为 1–3、响应只有 `tasks`，FE-023 已删旧 `task_id` 兜底；§7.3/§6.9 更正 `generate_v2` 只配 soft，strict 必须升 `generate_v3` 且在 prompt 明写「题型必须与原题一致」，当前 main 仍是软、PR #58 已补 generate_v3（176 passed / 27/27）待合；新增 `20-three-segment-contract-sync-20261110.md`（含 PR #60 种子数学错误与缺 `generation_task`） | 霹雳马桶 / agent |
 | 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
+| 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
