@@ -314,15 +314,23 @@ export interface ImageExtractionResult {
 
 /* -------------------------------------------------------------------------
  * FE-023 · three-segment concurrent generation (ADR-006)
- * Legacy `{ task_id }` responses stay supported via the API normalizer.
+ * The backend answers with `{ tasks: [...] }` only; there is no top-level `task_id`.
  * ---------------------------------------------------------------------- */
 
 export type GenerationTargetIndex = 1 | 2 | 3
 
 export interface GenerateQuestionsPayload {
-  /** Whole-group generation: one task per difficulty. */
+  /**
+   * Whole-group generation: exactly 3 difficulty tiers, duplicates allowed.
+   * Cannot be combined with `target_index`.
+   */
   difficulties?: Difficulty[]
-  /** Single-segment regeneration. */
+  /**
+   * Single-segment regeneration: the card slot (1–3). `difficulty` is an
+   * independent tier, so `target_index: 3, difficulty: 'easy'` is valid.
+   */
+  target_index?: GenerationTargetIndex
+  /** Difficulty tier for a single `target_index`; never valid on its own. */
   difficulty?: Difficulty
 }
 

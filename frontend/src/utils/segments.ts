@@ -16,6 +16,8 @@ export interface SegmentGroupSummary {
   doneCount: number
   failedCount: number
   activeCount: number
+  /** Number of card slots that actually have a task (1–3). */
+  presentCount: number
   status: SegmentGroupStatus
 }
 
@@ -88,23 +90,24 @@ export function summarizeSegments(tasks: Task[]): SegmentGroupSummary {
   const activeCount = present.filter(
     (task) => task.status === 'queued' || task.status === 'running',
   ).length
+  const presentCount = present.length
 
   let status: SegmentGroupStatus = 'waiting'
-  if (present.length === 0) {
+  if (presentCount === 0) {
     status = 'waiting'
   } else if (present.some((task) => task.status === 'running')) {
     status = 'running'
   } else if (present.some((task) => task.status === 'queued')) {
     status = 'queued'
-  } else if (doneCount === SEGMENT_INDEXES.length) {
-    status = 'done'
   } else if (failedCount > 0 && doneCount === 0) {
     status = 'failed'
   } else if (failedCount > 0) {
     status = 'partial-failed'
+  } else if (doneCount > 0) {
+    status = 'done'
   }
 
-  return { doneCount, failedCount, activeCount, status }
+  return { doneCount, failedCount, activeCount, presentCount, status }
 }
 
 export function groupQuizSegmentTasks(tasks: Task[]): QuizSegmentGroup[] {

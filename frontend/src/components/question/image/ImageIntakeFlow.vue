@@ -433,7 +433,7 @@ async function handleGenerate(questionIds: number[]): Promise<void> {
   for (const questionId of pending) {
     try {
       const result = await generateQuestions(questionId)
-      if (result.tasks.length === 0) throw new Error('生成任务未返回 task_id')
+      if (result.tasks.length === 0) throw new Error('生成任务未返回 tasks')
       created.push({
         questionId,
         taskIds: result.tasks.map((task) => task.task_id),

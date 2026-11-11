@@ -48,12 +48,15 @@ backend/
 - 测试不调真实 LLM；用 mock/fixture。
 - 共享工具放 `app/core/`；业务规则放 `app/services/`；AI 相关放 `app/ai/`。
 - `fixtures/` 只放合成数据，不放真实学生题目/图片。
+- 演示数据：`uv run python scripts/seed_demo.py` 灌 `student01 / password123` 与 `student02 / password123`（两个账号是为了能验用户隔离和越权 403）。
+  脚本不调真实 LLM，重复执行不会重复插数据。
 
 ## 完成后命令
 
 ```bash
 uv sync
 uv run alembic upgrade head
+uv run python scripts/seed_demo.py   # 灌演示数据（可重复执行）
 uv run uvicorn app.main:app --reload --port 8000
 uv run pytest
 ```
