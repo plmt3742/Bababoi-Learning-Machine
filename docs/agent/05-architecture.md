@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.8 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.6.10 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -41,7 +41,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 | 草稿 | `/drafts/me` | 服务端草稿 GET/PUT/DELETE |
 | 生成题 | `/generated-questions/{id}`、`/regenerate`、`/feedback` | 详情、单题重生成、质量反馈 |
 | 练习 | `/practice-records` | 作答记录 |
-| 统计 | `/stats/overview`、`/stats/trends`、`/stats/weak-points` | 概览、趋势、薄弱点（P1） |
+| 统计 | `/stats/overview` | 概览（趋势/薄弱点都在 overview 里，见 §6.6） |
 | 标签 | `/tags` | 知识点/自定义标签 |
 | 健康 | `/health` | 部署检查 |
 
@@ -971,13 +971,13 @@ src/
 | 页面 | 主要 API | 关键状态 |
 |---|---|---|
 | 登录/注册 | `/auth/login`、`/auth/register` | 校验错误、登录中、token 失效 |
-| 首页/概览 | `/stats/overview`、`/stats/weak-points` | 空数据、加载、部分失败 |
+| 首页/概览 | `/stats/overview` | 空数据、加载、部分失败 |
 | 错题列表 | `/questions` | 空、筛选无结果、分页、删除确认 |
 | 录入（文本） | `/questions`、`/questions/{id}/analyze` | 提交中、分析中、AI 失败、草稿 |
 | 录入（图片） | `/uploads/images`、`/questions/from-image`、`/questions`、`/questions/{id}/analyze` | 裁剪中、上传中、提取中、多题条目待确认、单条编辑、失败重试、退回文本 |
 | 详情 | `/questions/{id}?include=generated`、`/questions/{id}/generate` | 分析中、生成中、部分题、重试、删除 |
 | 练习 | `/questions/{id}?include=generated`、`/practice-records` | 计时、未作答、已揭晓、提交失败 |
-| 统计 | `/stats/overview`、`/stats/trends`、`/stats/weak-points` | 空、加载、图表无数据 |
+| 统计 | `/stats/overview` | 空、加载、图表无数据 |
 
 ### 8.4 Arco Design Vue 集成注意（2026-11 调研）
 
@@ -1179,6 +1179,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-07 | v0.6.6 | **BE-025（Issue #43）：`PATCH /questions/{id}` 接受 `question_type`/`options`/`blanks`**。原来 §6.4 明写"options/blanks 不在可改清单里——改题型等于换一道题，MVP 不支持"，这条被 FE-027 的完整三题型编辑器推翻：前端已经能编辑选项/空位并 PATCH 上来，后端不收等于用户改的结构静默丢失（前端只能事后比对再提示"后端尚未支持"）。切换题型时清掉不适用的一半（solve 两项清空、choice 清 blanks、blank 清 options），未提交字段按 `exclude_unset` 保持原值；题型/题干/选项/空位四个输入任一变动都由 `validate_type_payload` 整题复核，不合法 400 **并整笔回滚**（不给"题型改了、结构没改"的中间态）。文案翻译 `_zh_structure_problem` 从 `ai/validator.py` 移到 `schemas/question.py::structure_problem_zh`——识图降级和 PATCH 复核共用一句，判据和翻译都只有一份。167 passed，无迁移（三列本来就有） | 人机 / agent |
 | 2026-11-07 | v0.6.5 | `image_path` 真落库并透出到 `QuestionListItem`；BE-024 分步形态冻结契约（形状 + 三条硬约束 + 超时 ≥180 前置）；06 后端树同步实际结构；164 passed | 人机 / agent |
 | 2026-11-07 | v0.6.6 | FE-027 收口：`/settings/preferences` + `enforce_same_question_type`（默认 true，按用户持久化）；PATCH 支持完整三题型（BE-025）；统计改 rich shape、无记录 `accuracy=0`；BE-024 两步识图本期采用（超时 ≥180s，前端 loading 已接）；删除旧 PRD 归档与 `PRD.md` 引用 | 霹雳马桶 / agent |
-| 2026-11-10 | v0.6.9 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
-| 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-10 | v0.6.8 | **三段并发契约同步 + PR #58/#60 回馈**：§6.4 写明整组=3 段、单段 `target_index` + 可选 `difficulty`、格位与难度独立、任务数可为 1–3、响应只有 `tasks`，FE-023 已删旧 `task_id` 兜底；§7.3/§6.9 更正 `generate_v2` 只配 soft，strict 必须升 `generate_v3` 且在 prompt 明写「题型必须与原题一致」，当前 main 仍是软、PR #58 已补 generate_v3（176 passed / 27/27）待合；新增 `20-three-segment-contract-sync-20261110.md`（含 PR #60 种子数学错误与缺 `generation_task`） | 霹雳马桶 / agent |
+| 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
+| 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
