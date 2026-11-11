@@ -1121,6 +1121,9 @@ PAGE_SIZE_MAX=100
 
 # --- 录入草稿（05 §6.5b / BE-018）---
 DRAFT_MAX_BYTES=262144     # PUT /drafts/me 的 content 序列化字节上限（256 KB）
+# --- 演示种子（scripts/seed_demo.py，BE-008）---
+APP_ENV=development        # production 时 seed 拒绝运行；非 development/local 的 --reset 需加 --yes
+DEMO_PASSWORD=             # 演示账号口令（仅 seed 用）；必填、无默认值，真口令只写演示手册
 ```
 
 前端 `.env.example`：
