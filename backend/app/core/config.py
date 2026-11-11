@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     page_size_default: int = 20
     page_size_max: int = 100
 
+    # 录入草稿（05 §6.5b / 21号 §2.2）：PUT 的 content 序列化后字节上限（256 KB）
+    draft_max_bytes: int = 256 * 1024
+
     def validate_for_startup(self) -> None:
         """启动时把密钥类配置一次性查完，而不是等第一个请求 500（13号 §4 / issue #11）。"""
         if len(self.jwt_secret.encode("utf-8")) < 32:
