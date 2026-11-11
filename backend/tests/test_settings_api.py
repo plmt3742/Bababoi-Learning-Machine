@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import datetime
 
 import pytest
 from sqlalchemy import select
 
+import app.api.v1.settings as settings_api
 from app.ai.client import _MOCK_QUIZ_SEGMENTS, OPERATION_QUIZ, MockLLMClient
 from app.models import AiCallLog, GeneratedQuestion, GenerationTask
 from app.services import task_worker
@@ -194,8 +196,11 @@ def test_call_log_records_type_policy(client, db, fake_llm) -> None:
         assert {log.prompt_version for log in soft_logs} == {"generate_v2"}, \
             "soft 的 prompt 没变，仍记 generate_v2"
 
-def test_preferences_updated_at_ignores_login(client, db, fake_llm) -> None:
-    """设置页"最近更新"只跟偏好写入走；登录写 last_login_at 不能让它跳变。"""
+def test_preferences_updated_at_ignores_login(client, db, fake_llm, monkeypatch) -> None:
+    """设置页"最近更新"只跟偏好写入走；登录写 last_login_at 不能让它跳变。
+
+    PUT 后的时间戳用固定值断言，不靠"两次 utcnow 必然不同"——高速 CI 上那是 flaky。
+    """
     data = register_user(client)
     token = data["access_token"]
     before = _get_prefs(client, token)["updated_at"]
@@ -206,6 +211,9 @@ def test_preferences_updated_at_ignores_login(client, db, fake_llm) -> None:
     assert resp.status_code == 200, resp.text
     assert _get_prefs(client, token)["updated_at"] == before
 
+    fixed = datetime(2030, 1, 2, 3, 4, 5, 123456)
+    monkeypatch.setattr(settings_api, "utcnow", lambda: fixed)
     put = _put_prefs(client, token, {"enforce_same_question_type": False})
     assert put.status_code == 200
-    assert put.json()["updated_at"] != before, "PUT 必须刷新偏好自己的时间戳"
+    assert put.json()["updated_at"] == "2030-01-02T03:04:05.123456"
+    assert _get_prefs(client, token)["updated_at"] == "2030-01-02T03:04:05.123456"

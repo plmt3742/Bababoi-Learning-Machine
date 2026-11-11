@@ -37,10 +37,17 @@ def upgrade() -> None:
             )
         )
         # 偏好自己的写入时间；与 TimestampMixin.updated_at 分开，避免登录写
-        # last_login_at 时把"最近更新"一起刷新。老行留 NULL，接口回退 created_at。
+        # last_login_at 时把"最近更新"一起刷新。
         batch_op.add_column(
             sa.Column('preference_updated_at', sa.DateTime(), nullable=True)
         )
+
+    # 老行回填：用 created_at 而不是 updated_at——后者可能已被登录刷新，
+    # 回填它等于把这列重新变成"最后活动时间"，正是这列要避免的语义。
+    op.execute(
+        "UPDATE users SET preference_updated_at = created_at "
+        "WHERE preference_updated_at IS NULL"
+    )
 
     with op.batch_alter_table('ai_call_logs', schema=None) as batch_op:
         batch_op.add_column(
@@ -51,6 +58,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     with op.batch_alter_table('ai_call_logs', schema=None) as batch_op:
         batch_op.drop_column('type_policy')
+    # 回填不可逆地改写过老行；downgrade 只负责把列删掉（原始 NULL 分布不再保留）
     with op.batch_alter_table('users', schema=None) as batch_op:
         batch_op.drop_column('preference_updated_at')
         batch_op.drop_column('enforce_same_question_type')

@@ -24,12 +24,13 @@ def _as_out(owner: User) -> PreferencesOut:
 
 
 @router.get("/preferences", response_model=PreferencesOut)
-def get_preferences(
-    user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-) -> PreferencesOut:
-    """只读当前用户自己的偏好；未登录由 get_current_user 统一 401。"""
-    return _as_out(session.get(User, user.id))
+def get_preferences(user: User = Depends(get_current_user)) -> PreferencesOut:
+    """只读当前用户自己的偏好；未登录由 get_current_user 统一 401。
+
+    `user` 已经是本请求 Session 里的托管对象（get_current_user 与路由共用同一个
+    get_session 实例），再 `session.get(User, user.id)` 只是重复查一次同一行。
+    """
+    return _as_out(user)
 
 
 @router.put("/preferences", response_model=PreferencesOut)
@@ -43,10 +44,8 @@ def put_preferences(
     用 PUT 不用 PATCH 是有意的：偏好是"当前用户的一份设置"，不是可增量合并的资源，
     以后加第二项时前端必须把两项一起提交，避免出现"只改一项、另一项被默认值悄悄重置"。
     """
-    owner = session.get(User, user.id)
-    owner.enforce_same_question_type = data.enforce_same_question_type
-    owner.preference_updated_at = utcnow()
-    session.add(owner)
+    user.enforce_same_question_type = data.enforce_same_question_type
+    user.preference_updated_at = utcnow()
     session.commit()
-    session.refresh(owner)
-    return _as_out(owner)
+    session.refresh(user)
+    return _as_out(user)
