@@ -54,10 +54,11 @@ BababoiLearningMachine/
 │   │   ├── core/                  # config / security / errors / observability
 │   │   ├── db/                    # base / session
 │   │   ├── models/                # user / question / generation / records / draft
-│   │   ├── schemas/               # auth / question / image / practice / settings
-│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / settings
+│   │   ├── schemas/               # auth / question / image / practice / drafts / stats / settings
+│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / drafts / stats / settings
 │   │   ├── services/              # auth_service / question_service / task_service / task_worker
 │   │   │                          # / practice_service + image_service / extraction_service / ai_log
+│   │   │                          # / draft_service / stats_service
 │   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors
 │   │   └── utils/                 # client_ip（反代后取真实来源 IP）
 │   ├── fixtures/                  # 目前为空；识图实拍样本在 _scratch/images/（不入库）

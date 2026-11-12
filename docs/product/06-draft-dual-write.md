@@ -40,7 +40,7 @@ GET /api/v1/drafts/me
 PUT /api/v1/drafts/me
 ← { content: {...}, base_version: 3, client_updated_at: "..." }
 → 200 { content, version: 4, updated_at }
-→ 409 版本冲突（返回服务端最新草稿，前端提示选择保留哪份）
+→ 409 版本冲突（不回传服务端草稿；前端收到 409 后自行 GET 最新，再提示选择保留哪份）
 
 DELETE /api/v1/drafts/me
 → 204（保存入库/主动放弃后清理）
@@ -95,7 +95,7 @@ DELETE /api/v1/drafts/me
 | 断网编辑 | 本地照写；联网后重试 PUT；不阻塞编辑 |
 | 保存入库成功但 DELETE 草稿失败 | 下次进入时服务端草稿仍在；前端提示“已保存，是否清理草稿？” |
 | 换账号 | 按 userId 隔离 localStorage key；退出时清理 |
-| 草稿过大 | 限制 `content_json` ≤ 200KB；超出提示精简内容 |
+| 草稿过大 | 限制 `content` 序列化后 ≤ 256KB（`DRAFT_MAX_BYTES`）；超出提示精简内容 |
 | 隐私 | 草稿只存题目内容，不存密码/token；日志不打印全文 |
 
 ## 8. 验收清单
