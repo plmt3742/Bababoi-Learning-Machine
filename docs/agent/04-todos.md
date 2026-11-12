@@ -136,7 +136,7 @@ ID:
 | BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；切换题型清掉不适用的一半；四个结构输入任一变动都整题复核 `validate_type_payload`，不合法 400 且回滚；文案走 `structure_problem_zh`；Issue #43 | DONE（#55 已合） |
 | BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | PR #58 已补 `generate_v3` + prompt 同题型（176 passed；真实 27/27）；#58 已合（`06e29e7`，2026-11-12），strict 默认开启 |
 | FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DONE（PR #51） |
-| FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端执行等 BE-026） |
+| FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端 #58 已合，strict 执行生效） |
 | FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DONE（PR #51） |
 | FE-030 | 前端 Vitest 单元测试 | 霹雳马桶 | P0 | FE-001 | 覆盖 API 归一化、错误码、草稿、图片映射、统计、设置；`pnpm test` 可跑并接入 CI | DONE（PR #51；7 files / 20 tests） |
 | FE-031 | PRD 清理与文档同步 | 霹雳马桶 | P1 | 无 | 删除 PRD-v0.8 归档；移除 PRD.md 描述；05/04/README 同步 | DONE（PR #51） |
