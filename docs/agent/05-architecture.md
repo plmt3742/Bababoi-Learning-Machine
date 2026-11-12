@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.13 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.6.14 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -577,7 +577,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`（前端裁剪后上传）；**201** 返回 `{image_path, url, width, height}`。服务端按字节嗅格式 → EXIF 转正 → 剥元数据 → 压到长边 ≤2000px JPEG（q85，体积退让到 ≤5MB）；返回的 width/height 是**落盘那份的实际尺寸**，前端按它占位防跳版 |
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
-| POST | `/questions/from-image` | `{image_path, subject?}` → `{image_path, questions:[...], warnings}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT` |
+| POST | `/questions/from-image` | `{image_path, subject?}` → `{image_path, questions:[...], warnings}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」） |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
 | POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选 P0 上限 3 道 |
 
@@ -823,6 +823,18 @@ POST /questions/from-image
 - 验收口径（21号 §2.6）达成：每张图末题至少 1 次返回且残缺可见。
 - **p4 第 1 次在 `max_tokens=16000` 被截断**（输出正好 16000 token）；抬到 **24000** 后单跑完整返回 4 条、17251 输出 token / 90.2s。转录跳上限因此定为 24000。
 - 结构化跳稳定在 2.5–3.8s / 541–1166 token；转录跳占墙钟大头（8.8–90.2s），`RECOGNIZE_CLIENT_TIMEOUT_S=180` 有足够余量。
+
+**结果缓存（2026-11-12，BE-024）**
+
+- 表 `vision_extract_cache`（迁移 `b7c2f4a91d30`）；键 = `user_id + image_sha + subject_key + hop1_version + hop2_version`。
+  `image_sha` 取自内容寻址文件名；`subject_key` 用空串不用 NULL（MySQL 唯一索引里 NULL 互不相等）。
+- 只缓存**两跳成功且有题**的结果（含 `incomplete`）；空结果与失败不缓存。
+- 命中直接返回原出参：
+  - 读之前仍先 `resolve_user_file`——缓存不是绕过 404 的旁路；
+  - 命中**不写 `ai_call_logs`**（否则成本/延迟统计虚增），命中次数记在 `hit_count` / `last_hit_at`；
+  - **响应形状不变**（本期不加 `cached` / `extracted_at`，避免动前端类型与 OpenAPI 快照）。
+- 同一张图重试返回同一结果（同输入同输出，边缘裁切问题重试本来就救不回来）；要拿不同结果应重新裁剪/上传——新内容 → 新 sha → 不命中。`force_refresh` 等前端接入时再加。
+- 测速前必须清缓存或改 prompt 版本号，否则测到的是命中。
 
 代价与前置：识图墙钟从 1.4–3.9s 变成 **17–60s**，所以 `RECOGNIZE_CLIENT_TIMEOUT_S` 已提到 **180**，
 且前端要加分段 loading（17 号 §四 + PR #41 的清单第 3 条）。**这两件没就位之前不要上线**——
@@ -1211,4 +1223,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
 | 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
 | 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
+| 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

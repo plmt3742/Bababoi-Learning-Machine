@@ -7,20 +7,31 @@
    而识图失败用户本来就能立刻"重传/改文本"。
 2. **只有坏输出重试 1 次**（05 §7.0）。解析不出来、整个 JSON 形状不对，重抛一次是划算的；
    这一层由 pipeline 的 `retry_limit=1` 承担。
-3. **校验失败对外报 `AI_INVALID_IMAGE`，不是 `AI_INVALID_OUTPUT`**。对用户来说这两件事
+3. **校验失败对外报 `AI_INVALID_IMAGE`，不是 `AI_INVALID_OUTPUT`**。
+4. **命中缓存不写 `ai_call_logs`**（BE-024）：命中不是一次模型调用，写进去会让
+   成本/延迟统计虚增；命中次数记在 `vision_extract_cache.hit_count`。对用户来说这两件事
    是同一句"这张图没认出来"，而后者的措辞会把排查方向带偏到 prompt 上。
 """
 from __future__ import annotations
 
+import logging
 import threading
 
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app.ai import prompts, validator
 from app.ai.client import OPERATION_VISION, build_llm_client
 from app.ai.errors import AIError, AIInvalidImageError, AIInvalidOutputError, AITruncatedError
 from app.ai.pipeline import run as pipeline_run
+from app.db.base import utcnow
+from app.models import VisionExtractCache
+from app.schemas.image import ImageExtractionOut
 from app.services import ai_log, image_service
+
+logger = logging.getLogger(__name__)
 
 _client = None
 _client_lock = threading.Lock()
@@ -38,6 +49,76 @@ def _llm_client():
         return _client
 
 
+def _cache_key(
+    user_id: int, image_path: str, subject: str | None
+) -> tuple[int, str, str, str, str] | None:
+    """(user_id, image_sha, subject_key, hop1 版本, hop2 版本)；路径不合法就不缓存。"""
+    match = image_service.IMAGE_PATH_RE.match(image_path or "")
+    if match is None or int(match.group(1)) != user_id:
+        return None
+    image_sha = match.group(2).split(".", 1)[0]
+    return (
+        user_id,
+        image_sha,
+        (subject or "").strip(),
+        prompts.PROMPT_VERSION_VISION_TEXT,
+        prompts.PROMPT_VERSION_VISION_STRUCTURE,
+    )
+
+
+def _cache_load(session_factory: sessionmaker, key) -> dict | None:
+    user_id, image_sha, subject_key, hop1, hop2 = key
+    with session_factory() as session:
+        row = session.scalar(
+            select(VisionExtractCache).where(
+                VisionExtractCache.user_id == user_id,
+                VisionExtractCache.image_sha == image_sha,
+                VisionExtractCache.subject_key == subject_key,
+                VisionExtractCache.hop1_version == hop1,
+                VisionExtractCache.hop2_version == hop2,
+            )
+        )
+        if row is None:
+            return None
+        try:
+            payload = ImageExtractionOut.model_validate(row.payload).model_dump()
+        except ValidationError:
+            # 旧结构/脏数据：删掉当未命中，别让一次 500 教用户清缓存
+            session.delete(row)
+            session.commit()
+            return None
+        row.hit_count += 1
+        row.last_hit_at = utcnow()
+        session.commit()
+        return payload
+
+
+def _cache_store(session_factory: sessionmaker, key, result: dict) -> None:
+    questions = result.get("questions") or []
+    if not questions:
+        # 空结果不缓存：更可能是传错图，钉死一次误操作没意义
+        return
+    user_id, image_sha, subject_key, hop1, hop2 = key
+    with session_factory() as session:
+        session.add(
+            VisionExtractCache(
+                user_id=user_id,
+                image_sha=image_sha,
+                subject_key=subject_key,
+                hop1_version=hop1,
+                hop2_version=hop2,
+                payload=result,
+                question_count=len(questions),
+                has_incomplete=any(item.get("incomplete") for item in questions),
+            )
+        )
+        try:
+            session.commit()
+        except IntegrityError:
+            # 并发同图：唯一键只留一行，后写的丢掉即可
+            session.rollback()
+
+
 def extract_from_image(
     session_factory: sessionmaker,
     user_id: int,
@@ -49,6 +130,22 @@ def extract_from_image(
     两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
     （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
     """
+    # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
+    image_service.resolve_user_file(user_id, image_path)
+    key = _cache_key(user_id, image_path, subject)
+    if key is not None:
+        try:
+            cached = _cache_load(session_factory, key)
+        except Exception:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
+            logger.exception("识图缓存读取失败（user=%s），按未命中处理", user_id)
+            cached = None
+        if cached is not None:
+            logger.info(
+                "识图缓存命中（user=%s sha=%s subject=%r）", user_id, key[1], key[2]
+            )
+            cached["image_path"] = image_path
+            return cached
+
     data_url = image_service.data_url_for_llm(user_id, image_path)
     client = _llm_client()
 
@@ -98,13 +195,19 @@ def extract_from_image(
     validator.attach_transcript_warnings(
         transcript["warnings"], items, transcript_count=len(transcript["questions"])
     )
-    return {
+    result = {
         "image_path": image_path,
         # 出 model_dump 而不是 validator 的模型对象：响应模型是 schemas.image 那一套，
         # 跨模块的 pydantic 实例不会自动互认，直接把服务返回值变成可序列化的 dict 更干净
         "questions": [item.model_dump() for item in items],
         "warnings": list(transcript["warnings"]) + list(structure["warnings"]),
     }
+    if key is not None:
+        try:
+            _cache_store(session_factory, key, result)
+        except Exception:  # noqa: BLE001 缓存写失败不能把已经识别成功的请求变成 500
+            logger.exception("识图缓存写入失败（user=%s）", user_id)
+    return result
 
 
 def _hop(

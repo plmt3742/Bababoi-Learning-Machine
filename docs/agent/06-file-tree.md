@@ -51,7 +51,7 @@ BababoiLearningMachine/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
 │   │   ├── core/                  # config / security / errors / observability
 │   │   ├── db/                    # base / session
-│   │   ├── models/                # user / question / generation / records / draft
+│   │   ├── models/                # user / question / generation / records / draft / cache
 │   │   ├── schemas/               # auth / question / image / practice / drafts / stats
 │   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / drafts / stats
 │   │   ├── services/              # auth_service / question_service / task_service / task_worker

@@ -23,6 +23,7 @@ EXPECTED_TABLES = {
     "draft",
     "practice_records",
     "ai_call_logs",
+    "vision_extract_cache",
 }
 
 
