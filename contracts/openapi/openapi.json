@@ -53,6 +53,71 @@
         "title": "ChoiceOption",
         "type": "object"
       },
+      "DraftOut": {
+        "description": "GET/PUT 的响应体；`updated_at` 由路由层补时区（带 Z 的 UTC）。",
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content",
+          "version",
+          "updated_at"
+        ],
+        "title": "DraftOut",
+        "type": "object"
+      },
+      "DraftSaveRequest": {
+        "description": "PUT /drafts/me。\n\n`base_version` 可为 null（前端本地没有服务端版本号时）；\n`client_updated_at` 收下但不参与任何判断——乐观锁只认 version，\n浏览器时钟不可信（draft 模型 docstring 同款理由）。",
+        "properties": {
+          "base_version": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version"
+          },
+          "client_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Updated At"
+          },
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "DraftSaveRequest",
+        "type": "object"
+      },
       "ExtractedBlankOut": {
         "properties": {
           "answer_md": {
@@ -1433,6 +1498,71 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "StatsOverview": {
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "mastered_count": {
+            "title": "Mastered Count",
+            "type": "integer"
+          },
+          "recent_trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Recent Trend",
+            "type": "array"
+          },
+          "reviewing_count": {
+            "title": "Reviewing Count",
+            "type": "integer"
+          },
+          "total_generated_questions": {
+            "title": "Total Generated Questions",
+            "type": "integer"
+          },
+          "total_practice_records": {
+            "title": "Total Practice Records",
+            "type": "integer"
+          },
+          "total_questions": {
+            "title": "Total Questions",
+            "type": "integer"
+          },
+          "unmastered_count": {
+            "title": "Unmastered Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "weak_knowledge_points": {
+            "items": {
+              "$ref": "#/components/schemas/WeakKnowledgePoint"
+            },
+            "title": "Weak Knowledge Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total_questions",
+          "total_generated_questions",
+          "total_practice_records",
+          "accuracy",
+          "mastered_count",
+          "reviewing_count",
+          "unmastered_count",
+          "weak_knowledge_points",
+          "recent_trend",
+          "updated_at"
+        ],
+        "title": "StatsOverview",
+        "type": "object"
+      },
       "TagOut": {
         "properties": {
           "id": {
@@ -1628,6 +1758,30 @@
         "title": "TokenResponse",
         "type": "object"
       },
+      "TrendPoint": {
+        "description": "某一天（Asia/Shanghai）的练习数；`date` 固定 `YYYY-MM-DD`。",
+        "properties": {
+          "correct_count": {
+            "title": "Correct Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "practice_count": {
+            "title": "Practice Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "practice_count",
+          "correct_count"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
+      },
       "UserResponse": {
         "description": "/auth/me 与登录响应里嵌的用户信息。密码散列绝不进这里。",
         "properties": {
@@ -1703,6 +1857,35 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WeakKnowledgePoint": {
+        "description": "父题标签聚合出的一条薄弱点；`accuracy` 与总览同口径（0–1）。",
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "wrong_count": {
+            "title": "Wrong Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "wrong_count",
+          "total_count",
+          "accuracy"
+        ],
+        "title": "WeakKnowledgePoint",
         "type": "object"
       }
     },
@@ -1824,6 +2007,96 @@
         "summary": "Register",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/drafts/me": {
+      "delete": {
+        "operationId": "delete_draft_api_v1_drafts_me_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "get": {
+        "operationId": "get_draft_api_v1_drafts_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "当前账号没有草稿"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "put": {
+        "operationId": "save_draft_api_v1_drafts_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Draft",
+        "tags": [
+          "drafts"
         ]
       }
     },
@@ -2470,6 +2743,32 @@
           }
         },
         "summary": "Ready"
+      }
+    },
+    "/api/v1/stats/overview": {
+      "get": {
+        "operationId": "stats_overview_api_v1_stats_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stats Overview",
+        "tags": [
+          "stats"
+        ]
       }
     },
     "/api/v1/tasks": {
