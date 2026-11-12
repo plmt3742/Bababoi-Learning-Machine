@@ -640,3 +640,23 @@ def test_extraction_rejects_a_response_without_questions_list() -> None:
     for bad in ({"questions": "没有列表"}, ["数组"], {"warning": "拼错字段"}):
         with pytest.raises(ValueError, match="questions"):
             validator.validate_extraction(bad)
+
+
+def test_step1_warnings_are_attached_by_question_number() -> None:
+    """第 1 跳的「第 N 题被裁掉」要落到条目上并置 incomplete，前端才拦得住。"""
+    from app.ai.validator import ExtractedQuestion
+
+    questions = [ExtractedQuestion(index=1, content_md="题一"), ExtractedQuestion(index=2, content_md="题二")]
+    validator.attach_transcript_warnings(
+        ["第2题的公式被页边裁掉，未能完整辨认"], questions, transcript_count=2
+    )
+    assert questions[0].incomplete is False
+    assert questions[1].incomplete is True
+    assert any("裁掉" in w for w in questions[1].warnings)
+
+    # 数量对不上就不猜（第 2 跳可能丢/并条目，下标会漂）
+    drifted = [ExtractedQuestion(index=1, content_md="题一")]
+    validator.attach_transcript_warnings(
+        ["第2题的公式被页边裁掉"], drifted, transcript_count=2
+    )
+    assert drifted[0].incomplete is False and drifted[0].warnings == []

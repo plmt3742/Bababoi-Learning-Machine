@@ -262,6 +262,35 @@ def validate_transcript(raw: dict) -> dict:
     return {"chapter": chapter or None, "questions": items, "warnings": warnings}
 
 
+_WARNING_ITEM_POINTER = re.compile(r"第\s*(\d+)\s*[题条]")
+
+
+def attach_transcript_warnings(
+    warnings: list[str], questions: list, *, transcript_count: int
+) -> None:
+    """把第 1 跳里点得到题号的警告下沉到条目（05 §6.8 三条硬约束的配套）。
+
+    第 1 跳的顶层 warning（如「第5题的密度函数表达式被截断」）原本只留在响应
+    顶层横幅上；前端确认步骤看的是**条目**的 `incomplete`（17 号 §四-4），
+    光有横幅等于没拦住用户提交。这里按题号挂到对应条目并置 `incomplete`。
+
+    `transcript_count != len(questions)` 时**不猜**：第 2 跳丢/并过条目后下标会漂，
+    挂错题比不挂更糟（15 号踩过同款坑），此时保留顶层警告。
+    """
+    if not warnings or not questions or transcript_count != len(questions):
+        return
+    by_index = {item.index: item for item in questions}
+    for warning in warnings:
+        match = _WARNING_ITEM_POINTER.search(warning)
+        if not match:
+            continue
+        item = by_index.get(int(match.group(1)))
+        if item is None or warning in item.warnings:
+            continue
+        item.warnings.append(warning)
+        item.incomplete = True
+
+
 # 实测模型转录真图时把空位写成 \underline{\qquad} / \underline{\hspace{...}}，
 # count_blanks 数出来是 0，填空题会因"空位数≠答案数"被降级。第 2 跳的提示词已要求
 # 统一成 ___，这里再兜一层（提示词是概率保证，格式归一必须是确定性的）。

@@ -809,6 +809,8 @@ POST /questions/from-image
 3. **`ai_call_logs` 一次识图写两行**，`prompt_version` 分别是 `vision_text_v1` / `vision_structure_v1`；
    读成本与延迟统计时要按"一次识图 = 两行"，别把两行当成两次识图。
 
+4. **第 1 跳的「第 N 题被裁掉」类警告要下沉到条目**：顶层横幅用户不会看，确认步骤只看条目的 `incomplete`（17 号 §四-4）。服务层按「第 N 题/条」把警告挂到对应条目并置 `incomplete`；**条目数对不上时不猜**（第 2 跳丢/并条目后下标会漂，挂错题比不挂更糟），保留顶层警告。
+
 **2026-11-12 四张实拍复核（每张 2 次，真模型 deepseek-flash，`scripts/measure_two_step_vision.py`）**
 
 | 图 | 条数（次1/次2） | `chapter` | 末题返回 | incomplete | 墙钟 |
@@ -1208,5 +1210,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.8 | **三段并发契约同步 + PR #58/#60 回馈**：§6.4 写明整组=3 段、单段 `target_index` + 可选 `difficulty`、格位与难度独立、任务数可为 1–3、响应只有 `tasks`，FE-023 已删旧 `task_id` 兜底；§7.3/§6.9 更正 `generate_v2` 只配 soft，strict 必须升 `generate_v3` 且在 prompt 明写「题型必须与原题一致」，当前 main 仍是软、PR #58 已补 generate_v3（176 passed / 27/27）待合；新增 `20-three-segment-contract-sync-20261110.md`（含 PR #60 种子数学错误与缺 `generation_task`） | 霹雳马桶 / agent |
 | 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
 | 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
-| 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
+| 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

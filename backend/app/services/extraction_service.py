@@ -94,6 +94,10 @@ def extract_from_image(
         if chosen:
             # 17 号 §三 规则 1：用户已经选了学科，就别让模型猜的值覆盖它
             item.subject = chosen
+    # 第 1 跳的「第 N 题被裁掉」类警告要落到条目上，前端确认步骤才拦得住
+    validator.attach_transcript_warnings(
+        transcript["warnings"], items, transcript_count=len(transcript["questions"])
+    )
     return {
         "image_path": image_path,
         # 出 model_dump 而不是 validator 的模型对象：响应模型是 schemas.image 那一套，
