@@ -49,6 +49,25 @@ def test_upgrade_head_creates_every_table(tmp_path, monkeypatch) -> None:
     assert EXPECTED_TABLES <= tables, f"缺表：{EXPECTED_TABLES - tables}"
 
 
+def test_upgrade_from_published_cache_revision_adds_columns(tmp_path, monkeypatch) -> None:
+    """`b7c2f4a91d30` 已发布过：跑过旧版的人必须能靠前向迁移补列，而不是重建库。"""
+    db = tmp_path / "patched.db"
+    monkeypatch.setenv("ALEMBIC_DATABASE_URL", f"sqlite:///{db.as_posix()}")
+    cfg = _config(db)
+    command.upgrade(cfg, "b7c2f4a91d30")
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(db)
+    columns = {row[1] for row in conn.execute("pragma table_info(vision_extract_cache)")}
+    assert {"model", "last_forced_at"} <= columns
+
+    table_sql = conn.execute(
+        "select sql from sqlite_master where type='table' and name='vision_extract_cache'"
+    ).fetchone()[0]
+    normalized = " ".join(table_sql.split())
+    assert "subject_key, model" in normalized, "唯一键必须扩成含 model"
+
+
 def test_downgrade_to_base_empties_the_schema(tmp_path, monkeypatch) -> None:
     """迁移必须可逆，否则生产上出错就只能手工删表。"""
     db = tmp_path / "rolled.db"

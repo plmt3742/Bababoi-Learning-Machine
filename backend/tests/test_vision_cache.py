@@ -218,10 +218,33 @@ def test_force_refresh_skips_cache_and_overwrites(client, db, user, monkeypatch)
         rows = list(s.scalars(select(VisionExtractCache)))
         assert len(rows) == 1, "覆盖写而不是再插一行"
         assert rows[0].hit_count == 0 and rows[0].last_hit_at is None
+        assert rows[0].last_forced_at is not None
 
     again = _extract(client, token, image_path)
     assert again.status_code == 200
     assert fake.calls == 4 and again.json()["cached"] is True, "覆盖后的新结果照常命中"
+
+
+def test_force_refresh_has_cooldown(client, db, user, monkeypatch) -> None:
+    """每次强刷都是一次 17–90s 的两跳调用；连点/脚本刷必须被冷却挡住。"""
+    token, _ = user
+    fake = CountingClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    image_path = _upload(client, token)
+
+    assert _extract(client, token, image_path).status_code == 200
+    assert _extract(client, token, image_path, force_refresh=True).status_code == 200
+    assert fake.calls == 4
+
+    blocked = _extract(client, token, image_path, force_refresh=True)
+    assert blocked.status_code == 429, blocked.text
+    assert blocked.json()["detail"]["code"] == "VISION_REFRESH_COOLDOWN"
+    assert fake.calls == 4, "冷却期内不得再调用模型"
+
+    # 冷却归零后允许再刷（配置可调，演示前也可调大）
+    monkeypatch.setattr(settings, "vision_force_refresh_cooldown_s", 0)
+    assert _extract(client, token, image_path, force_refresh=True).status_code == 200
+    assert fake.calls == 6
 
 
 def test_model_change_is_a_new_key(client, db, user, monkeypatch) -> None:

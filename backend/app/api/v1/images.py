@@ -94,7 +94,11 @@ def extract_from_image(
     """图片 → 1..N 条可编辑题目条目。不建错题、不分析、不返回 bbox（ADR-004）。"""
     try:
         result = extraction_service.extract_from_image(
-            session_factory, user.id, body.image_path, body.subject, body.force_refresh
+            session_factory,
+            user.id,
+            body.image_path,
+            subject=body.subject,
+            force_refresh=body.force_refresh,
         )
     except AIError as exc:
         raise ApiError(ErrorCode(exc.error_code), exc.message,

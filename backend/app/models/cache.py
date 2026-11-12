@@ -61,3 +61,5 @@ class VisionExtractCache(Base):
     hit_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     last_hit_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # 上一次 force_refresh 的时间：只用来算冷却，普通的首次识别不占冷却额度
+    last_forced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

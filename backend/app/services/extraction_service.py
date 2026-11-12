@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from datetime import UTC, datetime
 from typing import NamedTuple
@@ -30,6 +31,7 @@ from app.ai.client import OPERATION_VISION, build_llm_client
 from app.ai.errors import AIError, AIInvalidImageError, AIInvalidOutputError, AITruncatedError
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
+from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
 from app.models import VisionExtractCache
 from app.schemas.image import ImageExtractionOut
@@ -112,6 +114,25 @@ def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
         return payload
 
 
+def _refresh_cooldown_remaining(session_factory: sessionmaker, key: _CacheKey) -> int:
+    """force_refresh 的冷却剩余秒数；没强刷过或已过冷却返回 0。"""
+    with session_factory() as session:
+        last = session.scalar(
+            select(VisionExtractCache.last_forced_at).where(
+                VisionExtractCache.user_id == key.user_id,
+                VisionExtractCache.image_sha == key.image_sha,
+                VisionExtractCache.subject_key == key.subject_key,
+                VisionExtractCache.model == key.model,
+                VisionExtractCache.hop1_version == key.hop1_version,
+                VisionExtractCache.hop2_version == key.hop2_version,
+            )
+        )
+    if last is None:
+        return 0
+    remaining = settings.vision_force_refresh_cooldown_s - (utcnow() - last).total_seconds()
+    return max(0, math.ceil(remaining))
+
+
 def _payload_for_storage(result: dict) -> dict:
     """JSON 列只认可序列化的值；extracted_at 这种 datetime 要转 ISO 字符串。"""
     return ImageExtractionOut.model_validate(result).model_dump(mode="json")
@@ -153,6 +174,7 @@ def _cache_store(
                 row.created_at = created_at
                 row.hit_count = 0
                 row.last_hit_at = None
+                row.last_forced_at = utcnow()
                 session.commit()
                 return
         session.add(
@@ -167,6 +189,7 @@ def _cache_store(
                 question_count=len(questions),
                 has_incomplete=any(item.get("incomplete") for item in questions),
                 created_at=created_at,
+                last_forced_at=utcnow() if overwrite else None,
             )
         )
         try:
@@ -180,6 +203,7 @@ def extract_from_image(
     session_factory: sessionmaker,
     user_id: int,
     image_path: str,
+    *,
     subject: str | None = None,
     force_refresh: bool = False,
 ) -> dict:
@@ -188,27 +212,41 @@ def extract_from_image(
 
     两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
     （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
-    `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）。
+    `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）；
+    连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`），否则一次重跑 17–90s 就是成本放大器。
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
     key = _cache_key(user_id, image_path, subject)
-    if key is not None and not force_refresh:
-        try:
-            cached = _cache_load(session_factory, key)
-        except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
-            # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
-            logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
-            cached = None
-        if cached is not None:
-            logger.info(
-                "识图缓存命中（user=%s sha=%s subject=%r）",
-                user_id,
-                key.image_sha,
-                key.subject_key,
-            )
-            cached["image_path"] = image_path
-            return cached
+    if key is not None:
+        if force_refresh:
+            try:
+                wait_s = _refresh_cooldown_remaining(session_factory, key)
+            except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
+                logger.warning("识图缓存冷却检查失败（user=%s）：%s", user_id, exc)
+                wait_s = 0
+            if wait_s > 0:
+                raise ApiError(
+                    ErrorCode.VISION_REFRESH_COOLDOWN,
+                    f"刚重新识别过，请 {wait_s} 秒后再试",
+                    429,
+                )
+        else:
+            try:
+                cached = _cache_load(session_factory, key)
+            except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
+                # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
+                logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
+                cached = None
+            if cached is not None:
+                logger.info(
+                    "识图缓存命中（user=%s sha=%s subject=%r）",
+                    user_id,
+                    key.image_sha,
+                    key.subject_key,
+                )
+                cached["image_path"] = image_path
+                return cached
 
     extracted_at = datetime.now(UTC)
     data_url = image_service.data_url_for_llm(user_id, image_path)

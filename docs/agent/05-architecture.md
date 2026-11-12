@@ -29,7 +29,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 | `ai_call_logs` | AI 调用日志 | `operation`、`model`、`latency_ms`、`status`、`error_code`、`queue_wait_ms` |
 | `draft` | 每账号 1 份录入草稿 | `user_id` UNIQUE、`content_json`、`version`、`updated_at` |
 | `generation_task` | 后台整理/生题任务 | `question_id`、`stage`、`status`、`retry_index`、`timestamps` |
-| `vision_extract_cache` | 识图结果缓存（BE-024） | `user_id`、`image_sha`、`subject_key`、`model`、`hop1_version`、`hop2_version`、`payload`、`hit_count` |
+| `vision_extract_cache` | 识图结果缓存（BE-024） | `user_id`、`image_sha`、`subject_key`、`model`、`hop1_version`、`hop2_version`、`payload`、`hit_count`、`last_forced_at` |
 
 ### 0.2 API 分组
 
@@ -381,6 +381,7 @@ erDiagram
 | 415 | `UPLOAD_UNSUPPORTED_TYPE` | 图片格式不支持 |
 | 429 | `AUTH_RATE_LIMITED` | 登录失败过于频繁（5 次/分钟/IP；BE-003 新增） |
 | 429 | `AI_RATE_LIMITED` | AI 调用过于频繁 |
+| 429 | `VISION_REFRESH_COOLDOWN` | 识图「重新识别」冷却中（`force_refresh` 默认 60s 一次；BE-024） |
 | 502 | `AI_PROVIDER_ERROR` | LLM 供应商错误 |
 | 504 | `AI_TIMEOUT` | LLM 超时 |
 | 422 | `AI_INVALID_OUTPUT` | AI 输出无法解析/校验失败 |
@@ -578,7 +579,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`（前端裁剪后上传）；**201** 返回 `{image_path, url, width, height}`。服务端按字节嗅格式 → EXIF 转正 → 剥元数据 → 压到长边 ≤2000px JPEG（q85，体积退让到 ≤5MB）；返回的 width/height 是**落盘那份的实际尺寸**，前端按它占位防跳版 |
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
-| POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回 |
+| POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`） |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
 | POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选 P0 上限 3 道 |
 
@@ -827,13 +828,17 @@ POST /questions/from-image
 
 **结果缓存（2026-11-12，BE-024）**
 
-- 表 `vision_extract_cache`（迁移 `b7c2f4a91d30`）；键 = `user_id + image_sha + subject_key + model + hop1_version + hop2_version`。
+- 表 `vision_extract_cache`（迁移 `b7c2f4a91d30`；`model` / `last_forced_at` 两列由前向迁移 `c4e8a1d62f37` 补，不改已发布的那条）；
+  键 = `user_id + image_sha + subject_key + model + hop1_version + hop2_version`。
   `image_sha` 取自内容寻址文件名；`subject_key` 用空串不用 NULL（MySQL 唯一索引里 NULL 互不相等）；
   `model` 记产出这份结果的模型身份（`LLM_MOCK=true` 记 `mock`）——换模型不换版本号也不会命中旧模型的结果，
   mock 与真模型的结果也互不认，避免本地假结果污染演示库。
 - 只缓存**两跳成功且有题**的结果（含 `incomplete`）；空结果与失败不缓存。
 - 请求带 `force_refresh=true` 时跳过缓存读，成功后**覆盖写回同一行**（`hit_count` / `last_hit_at` 归零）。
   这是"重新识别"的出口：含 `incomplete` 的结果进缓存后，不给出口就再也拿不到别的结果。
+- 强刷有冷却：`VISION_FORCE_REFRESH_COOLDOWN_S=60`，从上一次强刷（`last_forced_at`）算起；
+  冷却内再强刷返回 429 `VISION_REFRESH_COOLDOWN`，不再调模型。**首次重新识别不受影响**——
+  刚识别完的普通结果不占冷却额度，挡的是"点一下没变化再点一下"的成本放大。
 - 命中返回原出参，另带两个字段区分"秒回"和"真快"：
   - `cached=true` + `extracted_at`（首次识别时间，aware UTC）；非命中时 `cached=false`、`extracted_at` 为本次生成时间。
   - 读之前仍先 `resolve_user_file`——缓存不是绕过 404 的旁路；
@@ -1230,6 +1235,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
 | 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
 | 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
-| 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零）；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；缓存读写失败降级为一行 warning（本地未迁移时不再每请求刷 traceback）。10 条缓存测试，206 passed | 人机 |
+| 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零），并加 60s 冷却（冷区内 429 `VISION_REFRESH_COOLDOWN`）；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；新列走**前向迁移** `c4e8a1d62f37`（`b7c2f4a91d30` 已推过，不就地改）；缓存读写失败降级为一行 warning。11 条缓存 + 4 条迁移测试，208 passed | 人机 |
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
