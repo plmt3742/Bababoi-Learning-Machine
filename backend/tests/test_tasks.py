@@ -154,10 +154,11 @@ def test_three_segments_fill_three_slots_in_order(client, db, fake_llm) -> None:
     cards = detail["generated_questions"]
     assert [c["target_index"] for c in cards] == [1, 2, 3]
     assert [c["difficulty"] for c in cards] == ["easy", "medium", "hard"]
-    assert [c["question_type"] for c in cards] == ["blank", "solve", "choice"]
+    # mock 现在跟随原题题型（原题 solve → 三格都是 solve），默认开启的 strict 不再判死
+    assert [c["question_type"] for c in cards] == ["solve", "solve", "solve"]
     for card in cards:
         assert card["model"] == "mock"
-        assert card["prompt_version"] == "generate_v2"
+        assert card["prompt_version"] == "generate_v3"
 
 
 def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:

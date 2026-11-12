@@ -133,7 +133,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；切换题型清掉不适用的一半；四个结构输入任一变动都整题复核 `validate_type_payload`，不合法 400 且回滚；文案走 `structure_problem_zh`；Issue #43 | DONE（#55 已合） |
-| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | PR #58 已补 `generate_v3` + prompt 同题型（176 passed；真实 27/27）；待 rebase 合并；合并前 main 仍软 |
+| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移 `c8e1b6a4d902` 靠 server_default 回填默认 TRUE；`GET/PUT /settings/preferences`（PUT 整份覆盖、请求体 `StrictBool`、非法值 400）；worker **执行时**读偏好而不是入队快照；硬校验在 `validate_segment(original_question_type, type_policy)`，重试走现有任务级 requeue、不在 pipeline 叠二层；`ai_call_logs.type_policy` 记 strict/soft；Issue #44 | 已完成（PR #58 待合；generate_v3 + prompt 同题型已补，176 passed，真实 strict 27/27 题型一致），默认维持开启 |
 | FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DONE（PR #51） |
 | FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端执行等 BE-026） |
 | FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DONE（PR #51） |

@@ -54,6 +54,10 @@ class AiCallLog(Base, TimestampMixin):
     )  # vision | analyze | generate | judge
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     prompt_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # BE-026：这一格按"题型必须一致"（strict）还是"允许换题型"（soft）校验。
+    # 记在日志里而不是只记在代码路径里，是因为"默认开启值不值"这个问题只能靠
+    # 按策略分组统计失败率来回答——没有这一列就量不出来。非 quiz 操作为 null。
+    type_policy: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

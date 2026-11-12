@@ -23,6 +23,9 @@ from app.schemas.question import (
 
 Difficulty = Literal["easy", "medium", "hard"]
 
+# 报错文案里要说人话：给用户看 "choice" 不如给"选择题"（BE-026 的题型不一致提示用）
+TYPE_ZH = {"choice": "选择题", "blank": "填空题", "solve": "解答题"}
+
 # 05 §5.2：生成题题干 ≤3000（比错题的 5000 更严，AI 长篇输出本身就是要拦的信号）
 GENERATED_CONTENT_MD_MAX = 3000
 
@@ -341,6 +344,8 @@ def validate_segment(
     difficulty: str | None = None,
     original_content_md: str | None = None,
     sibling_content_mds: tuple[str, ...] = (),
+    original_question_type: str | None = None,
+    type_policy: str = "soft",
 ) -> GeneratedQuestionSpec:
     """校验**一段**的输出（ADR-006：一次调用只出 1 道题）。
 
@@ -370,4 +375,17 @@ def validate_segment(
         raise ValueError("这一段与同组其它段完全相同，换个数值或情境重出")
     if original_content_md and normalized == _normalize_for_compare(original_content_md):
         raise ValueError("这一段与原题逐字相同，换个数值或情境重出")
+    if (
+        type_policy == "strict"
+        and original_question_type
+        and spec.question_type != original_question_type
+    ):
+        # BE-026（issue #44）：开关开启时题型必须与原题一致。抛 ValueError 而不是新增
+        # TYPE_MISMATCH 错误码——pipeline 会把它归成"坏输出"，于是任务级那一次重试
+        # 自动生效，终态仍是 AI_INVALID_OUTPUT（你们 §8 要求不新增同义错误码）。
+        raise ValueError(
+            f"这一段是{TYPE_ZH.get(spec.question_type, spec.question_type)}，"
+            f"原题是{TYPE_ZH.get(original_question_type, original_question_type)}，"
+            "未能按原题题型出题"
+        )
     return spec
