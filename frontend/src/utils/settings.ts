@@ -1,4 +1,5 @@
 import type { AiProvider, AiSettingsUpdate } from '../api/types'
+import { parseApiTime } from './time'
 
 export const DEFAULT_AI_MODEL = 'deepseek-flash'
 export const MIN_API_KEY_LENGTH = 8
@@ -72,7 +73,7 @@ export function toAiSettingsUpdate(input: AiSettingsFormInput): AiSettingsUpdate
 export function formatSettingsTime(value: string | null): string {
   if (!value) return ''
 
-  const date = new Date(value)
+  const date = parseApiTime(value)
   if (Number.isNaN(date.getTime())) return ''
 
   return new Intl.DateTimeFormat('zh-CN', {

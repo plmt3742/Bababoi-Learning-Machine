@@ -15,6 +15,7 @@ import { normalizeApiError } from '../api/errors'
 import type { Draft, GenerationTargetIndex, Task, TaskStatus } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
 import { taskFailureMessage, taskStageLabel, taskStatusLabel } from '../utils/task'
+import { parseApiTime } from '../utils/time'
 import {
   SEGMENT_INDEXES,
   groupQuizSegmentTasks,
@@ -180,7 +181,7 @@ const draftUpdatedAt = computed(() =>
 
 function toDate(value: string | null | undefined): Date | null {
   if (!value) return null
-  const date = new Date(value)
+  const date = parseApiTime(value)
   return Number.isNaN(date.getTime()) ? null : date
 }
 

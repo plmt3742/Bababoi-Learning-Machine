@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import type { FieldRule, FormInstance } from '@arco-design/web-vue'
@@ -585,8 +585,22 @@ function handleCancel(): void {
   void router.push('/questions')
 }
 
+function handleSaveShortcut(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return
+  if (submitting.value || editLoading.value) return
+  if (document.querySelector('.arco-modal-wrapper, [role="dialog"]')) return
+
+  event.preventDefault()
+  void handleSubmit()
+}
+
 onMounted(() => {
   if (isEditing.value) void loadEditingQuestion()
+  window.addEventListener('keydown', handleSaveShortcut)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleSaveShortcut)
 })
 </script>
 
@@ -1010,6 +1024,7 @@ onMounted(() => {
               ? '保存后会更新原题；如需重新分析，请在详情页发起。'
               : '保存后将自动创建分析任务，可在任务中心查看进度。'
           }}
+          · Ctrl / ⌘ + Enter 保存
         </p>
         <div class="sticky-actions__buttons">
           <button

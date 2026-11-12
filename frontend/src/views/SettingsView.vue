@@ -45,6 +45,7 @@ const settings = ref<AiSettings | null>(null)
 const loading = ref(true)
 const loadError = ref('')
 const loadErrorCode = ref('')
+const byokUnavailable = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 const showKey = ref(false)
@@ -56,6 +57,7 @@ const preferenceSaving = ref(false)
 const preferenceError = ref('')
 const preferenceFeedback = ref('')
 const preferenceUpdatedAt = ref<string | null>(null)
+const preferenceUnavailable = ref(false)
 const errors = reactive(emptyAiSettingsErrors())
 const form = reactive<{
   provider: AiProvider
@@ -144,6 +146,7 @@ async function loadSettings(): Promise<void> {
   loading.value = true
   loadError.value = ''
   loadErrorCode.value = ''
+  byokUnavailable.value = false
   feedback.value = null
 
   try {
@@ -151,8 +154,12 @@ async function loadSettings(): Promise<void> {
   } catch (cause) {
     const apiError = normalizeApiError(cause)
     settings.value = null
-    loadError.value = apiError.message
-    loadErrorCode.value = apiError.code
+    if (apiError.status === 404) {
+      byokUnavailable.value = true
+    } else {
+      loadError.value = apiError.message
+      loadErrorCode.value = apiError.code
+    }
   } finally {
     loading.value = false
   }
@@ -167,13 +174,19 @@ async function loadPreferences(): Promise<void> {
   preferenceLoading.value = true
   preferenceError.value = ''
   preferenceFeedback.value = ''
+  preferenceUnavailable.value = false
 
   try {
     const preferences = await getPreferences()
     enforceSameType.value = preferences.enforce_same_question_type
     preferenceUpdatedAt.value = preferences.updated_at
   } catch (cause) {
-    preferenceError.value = errorText(cause)
+    const apiError = normalizeApiError(cause)
+    if (apiError.status === 404) {
+      preferenceUnavailable.value = true
+    } else {
+      preferenceError.value = errorText(cause)
+    }
   } finally {
     preferenceLoading.value = false
   }
@@ -186,7 +199,12 @@ function retryPreferences(): void {
 
 async function handlePreferenceChange(value: unknown): Promise<void> {
   const next = value === true
-  if (preferenceSaving.value || next === enforceSameType.value) return
+  if (
+    preferenceUnavailable.value ||
+    preferenceSaving.value ||
+    next === enforceSameType.value
+  )
+    return
 
   const previous = enforceSameType.value
   enforceSameType.value = next
@@ -329,10 +347,15 @@ onBeforeUnmount(() => {
           </div>
           <a-checkbox
             :model-value="enforceSameType"
-            :disabled="preferenceLoading || preferenceSaving || Boolean(preferenceError)"
+            :disabled="
+              preferenceLoading ||
+              preferenceSaving ||
+              preferenceUnavailable ||
+              Boolean(preferenceError)
+            "
             @update:model-value="handlePreferenceChange"
           >
-            {{ enforceSameType ? '已开启' : '已关闭' }}
+            {{ preferenceUnavailable ? '后端未启用' : enforceSameType ? '已开启' : '已关闭' }}
           </a-checkbox>
         </div>
 
@@ -345,6 +368,15 @@ onBeforeUnmount(() => {
             <p>生成偏好读取失败：{{ preferenceError }}</p>
             <button class="btn btn--outline btn--sm" type="button" @click="retryPreferences">
               重试
+            </button>
+          </div>
+        </div>
+        <div v-else-if="preferenceUnavailable" class="settings-alert" role="status">
+          <span class="settings-alert__mark" aria-hidden="true"></span>
+          <div class="settings-alert__body">
+            <p>当前后端版本暂未提供生成偏好接口；后端更新后可在此切换。</p>
+            <button class="btn btn--outline btn--sm" type="button" @click="retryPreferences">
+              重新检测
             </button>
           </div>
         </div>
@@ -426,6 +458,7 @@ onBeforeUnmount(() => {
               <p class="ai-status__text" role="status" aria-live="polite">
                 <template v-if="loading">正在读取当前设置…</template>
                 <template v-else-if="loadError">设置读取失败</template>
+                <template v-else-if="byokUnavailable">个人 Key 后端未启用</template>
                 <template v-else-if="configured">
                   已配置个人 Key（<code class="ai-status__key">{{ maskedKey || '已保存' }}</code
                   >）
@@ -433,11 +466,14 @@ onBeforeUnmount(() => {
                 <template v-else>使用系统默认 Key</template>
               </p>
               <p v-if="!loading && configured && aiMeta" class="ai-status__meta">{{ aiMeta }}</p>
-              <p v-else-if="!loading && !loadError" class="ai-status__meta">
+              <p v-else-if="!loading && !loadError && !byokUnavailable" class="ai-status__meta">
                 未配置个人 Key 时，由后端使用系统默认 Key。
               </p>
             </div>
-            <span v-if="!loading && !loadError && configured" class="tag tag--ok ai-status__badge">
+            <span
+              v-if="!loading && !loadError && !byokUnavailable && configured"
+              class="tag tag--ok ai-status__badge"
+            >
               个人 Key
             </span>
           </div>
@@ -458,6 +494,11 @@ onBeforeUnmount(() => {
                 重试
               </button>
             </div>
+          </div>
+
+          <div v-else-if="byokUnavailable" class="settings-alert" role="status">
+            <span class="settings-alert__mark" aria-hidden="true"></span>
+            <span>BYOK 属于 P1，后端接口尚未上线；上线后可在此保存个人 API Key。生成暂用系统默认 Key。</span>
           </div>
 
           <template v-else>
