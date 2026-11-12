@@ -206,16 +206,20 @@ def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
     assert "answer_md" not in solve and "explanation_md" not in solve
     # 17 号对齐清单 §三 规则 1：请求带了 subject 就一律用请求值，模型猜的（mock 第 2 条写"线性代数"）被覆盖
     assert {q["subject"] for q in body["questions"]} == {"高等数学"}
-    # 初判另两项：好值透出、非法档位降级成 None
-    assert (solve["chapter"], solve["difficulty"]) == ("习题 7.1", "medium")
-    assert blank["chapter"] == "复习题六"
+    # 硬约束 1：chapter 只认第 1 跳（页眉）——第 2 跳 mock 里各自写了不同章节，必须被覆盖
+    assert {q["chapter"] for q in body["questions"]} == {"复习题六"}
+    # 初判难度留在第 2 跳：好值透出、非法档位降级成 None
+    assert solve["difficulty"] == "medium"
     assert blank["difficulty"] is None, "非法档位必须降级成 None，而不是把整条题目丢掉"
-    assert (figure["chapter"], figure["difficulty"]) == (None, None)
+    assert figure["difficulty"] is None
 
     with db() as s:
         logs = s.scalars(select(AiCallLog).where(AiCallLog.operation == "vision")).all()
-        assert logs[-1].status == "success"
-        assert logs[-1].prompt_version == "vision_extract_v2"
+        # BE-024：一次识图两行日志，prompt_version 按跳分开
+        assert [log.prompt_version for log in logs] == [
+            "vision_text_v1", "vision_structure_v1"
+        ]
+        assert all(log.status == "success" for log in logs)
 
 
 def test_from_image_rejects_other_users_path_and_missing_file(client, db, token_and_user) -> None:
@@ -238,7 +242,7 @@ def test_from_image_timeout_is_504_and_not_retried(client, db, token_and_user, m
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             self.calls += 1
             raise AITimeoutError("识图超时了")
 
@@ -262,7 +266,7 @@ def test_from_image_bad_output_becomes_invalid_image(client, db, token_and_user,
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             from app.ai.client import LLMResponse
 
             self.calls += 1
@@ -296,7 +300,7 @@ def test_from_image_truncated_output_tells_the_user_to_crop(
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             from app.ai.client import LLMResponse
 
             self.calls += 1
@@ -325,12 +329,12 @@ def test_vision_prompt_puts_the_data_guard_next_to_the_image(client, db) -> None
     """05 §9.4：注入防线要贴在数据旁边——多模态请求里 system 离图片太远。"""
     from app.ai import prompts
 
-    messages = prompts.vision_messages("data:image/jpeg;base64,AAA", "线性代数")
+    messages = prompts.vision_text_messages("data:image/jpeg;base64,AAA")
     assert [m["role"] for m in messages] == ["system", "user"]
     user_content = messages[1]["content"]
     assert isinstance(user_content, list) and len(user_content) == 2
     text_part = user_content[0]["text"]
-    assert "线性代数" in text_part and "数据" in text_part and "指令" in text_part
+    assert "数据" in text_part and "指令" in text_part
     assert user_content[1]["type"] == "image_url"
 
 

@@ -25,6 +25,10 @@ OPERATION_QUIZ = "quiz"
 # 之前统一用 90s，等于把后台任务也按同步请求掐——这里按操作分档。
 OPERATION_VISION = "vision"
 
+# BE-024 两跳的提示词标记：Mock 靠它区分第 1/2 跳（真实客户端不看这两个常量）。
+VISION_STEP_TEXT = "步骤：逐题转录"
+VISION_STEP_STRUCTURE = "步骤：结构化拆题"
+
 
 def _timeout_for(operation: str) -> int:
     if operation == OPERATION_VISION:
@@ -61,8 +65,19 @@ class LLMResponse:
 
 
 class LLMClient(Protocol):
-    def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
-        """发一次对话；网络/超时/供应商错误抛 AIError 子类。"""
+    def complete(
+        self,
+        operation: str,
+        messages: list[dict],
+        *,
+        max_tokens: int | None = None,
+        thinking: str | None = None,
+    ) -> LLMResponse:
+        """发一次对话；网络/超时/供应商错误抛 AIError 子类。
+
+        `max_tokens` / `thinking` 按调用覆盖：识图两跳的思考档位与输出上限不同
+        （转录 adaptive + 16000、结构化 disabled + 8000），放在 operation 档位上不够用。
+        """
         ...
 
 
@@ -73,11 +88,18 @@ class MockLLMClient:
     拿到同一份 mock 题，"按格替换""与同组查重"这些逻辑在 mock 模式下永远跑不到。
     """
 
-    def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
+    def complete(
+        self,
+        operation: str,
+        messages: list[dict],
+        *,
+        max_tokens: int | None = None,
+        thinking: str | None = None,
+    ) -> LLMResponse:
         if operation == OPERATION_QUIZ:
             text = _mock_quiz_text(messages)
         elif operation == OPERATION_VISION:
-            text = _MOCK_OUTPUTS[OPERATION_VISION]
+            text = _mock_vision_text(messages)
         else:
             text = _MOCK_OUTPUTS[operation]
         return LLMResponse(
@@ -88,6 +110,14 @@ class MockLLMClient:
             latency_ms=0,
             finish_reason="stop",
         )
+
+
+def _mock_vision_text(messages: list[dict]) -> str:
+    """识图两跳各给一份固定输出；靠提示词里的步骤标记区分。"""
+    system = next((m["content"] for m in messages if m.get("role") == "system"), "")
+    if VISION_STEP_TEXT in system:
+        return json.dumps(_MOCK_VISION_TEXT, ensure_ascii=False)
+    return json.dumps(_MOCK_VISION_STRUCTURE, ensure_ascii=False)
 
 
 def _mock_quiz_text(messages: list[dict]) -> str:
@@ -113,14 +143,23 @@ class DeepSeekClient:
         )
         self._model = settings.llm_model
 
-    def complete(self, operation: str, messages: list[dict]) -> LLMResponse:
+    def complete(
+        self,
+        operation: str,
+        messages: list[dict],
+        *,
+        max_tokens: int | None = None,
+        thinking: str | None = None,
+    ) -> LLMResponse:
         start = time.monotonic()
-        sampling = SAMPLING.get(operation, {})
+        sampling = dict(SAMPLING.get(operation, {}))
+        if max_tokens is not None:
+            sampling["max_tokens"] = max_tokens
         extra: dict = {}
         if operation == OPERATION_VISION:
-            # 抄题不需要思考；开着的时候思考 token 会顶满 max_tokens，
-            # 表现成"输出被截断"而不是"模型不会"（05 §6.8 实测表）
-            extra["thinking"] = {"type": "enabled" if settings.vision_thinking else "disabled"}
+            # BE-024：两跳各自指定档位（转录 adaptive、结构化 disabled）；
+            # 没指定时默认关思考（抄题不需要推理，思考 token 会顶满上限变成截断）
+            extra["thinking"] = {"type": thinking or "disabled"}
         try:
             resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
                 model=self._model,
@@ -194,10 +233,33 @@ _MOCK_QUIZ_SEGMENTS: dict[str, dict] = {
     },
 }
 
-# 识图的固定输出：把提取校验的四条分支各来一条——
+# 第 2 跳（结构化）的固定输出：把提取校验的四条分支各来一条——
 # 结构自洽的填空（保留 blank）、结构不自洽的填空（降级成文本）、依赖图形的题、
 # 初判坏值（非法档位 → None）。这些分支只有 mock 能钉死，实拍图每次不一样。
-_MOCK_VISION: dict = {
+_MOCK_VISION_TEXT: dict = {
+    "chapter": "复习题六",
+    "questions": [
+        {"index": 1, "content_md": "求函数 $f(x)=x^3-3x^2+2$ 的极值。"},
+        {
+            "index": 2,
+            "content_md": "设 $A=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}$，"
+            "则 $A$ 的特征值为 \\underline{\\qquad} 和 \\underline{\\qquad}。",
+        },
+        {
+            "index": 3,
+            "content_md": "极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}= $ ___，"
+            "$\\lim_{x\\to\\infty}\\dfrac{1}{x}= $ ___。",
+        },
+        {
+            "index": 4,
+            "content_md": "如图，在三角形 $ABC$ 中，$CD$ 是 $AB$ 边上的高，"
+            "$AC=4$，$BC=3$，求 $CD$。",
+        },
+    ],
+    "warnings": [],
+}
+
+_MOCK_VISION_STRUCTURE: dict = {
     "questions": [
         {
             "index": 1,
@@ -249,5 +311,5 @@ _MOCK_VISION: dict = {
 
 _MOCK_OUTPUTS: dict[str, str] = {
     OPERATION_ANALYSIS: json.dumps(_MOCK_ANALYSIS, ensure_ascii=False),
-    OPERATION_VISION: json.dumps(_MOCK_VISION, ensure_ascii=False),
+    OPERATION_VISION: json.dumps(_MOCK_VISION_STRUCTURE, ensure_ascii=False),
 }

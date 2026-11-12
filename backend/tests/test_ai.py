@@ -55,7 +55,7 @@ class FakeClient:
         self.texts = texts
         self.calls: list[str] = []
 
-    def complete(self, operation: str, messages: list[dict]):
+    def complete(self, operation: str, messages: list[dict], **kwargs):
         from app.ai.client import LLMResponse
 
         self.calls.append(operation)
@@ -133,7 +133,7 @@ def test_pipeline_fails_fast_on_truncated_output() -> None:
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             self.calls += 1
             return LLMResponse(text='{"questions": [{"index": 1', model="fake",
                                prompt_tokens=10, completion_tokens=8000, latency_ms=1000,
@@ -375,11 +375,11 @@ def client_stub():
     return stub
 
 
-def test_vision_request_carries_thinking_switch(client_stub) -> None:
-    """识图请求要带上 thinking 开关，且只带在识图上（分析/生题的质量数据是开思考时测的）。
+def test_vision_request_carries_thinking_per_hop(client_stub) -> None:
+    """BE-024：两跳各带各的思考档位（转录 adaptive、结构化 disabled）；其它操作不带。
 
-    值本身来自实测：整页抄题开思考 28.9s / 5861 输出 token（其中 reasoning 14617 字符），
-    关思考 3.4s / 714，条目数与质量不降——见 05 §6.8。这条只验接线，不验模型行为。
+    值来自实测：整页转录开思考在 2/4 张图上多认出被页边裁掉的末题；结构化开与不开
+    结果逐字一致，只多花 4–5 倍时间（05 §6.8）。这条只验接线，不验模型行为。
     """
     from app.ai.client import OPERATION_VISION, DeepSeekClient
 
@@ -387,20 +387,34 @@ def test_vision_request_carries_thinking_switch(client_stub) -> None:
     instance._model = "deepseek-flash"
     instance._client = client_stub
 
-    original = settings.vision_thinking
-    try:
-        settings.vision_thinking = False
-        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}
+    instance.complete(
+        OPERATION_VISION, [{"role": "user", "content": "x"}],
+        thinking="adaptive", max_tokens=16000,
+    )
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "adaptive"}}
+    assert client_stub.sink["kwargs"]["max_tokens"] == 16000, "转录跳按调用覆盖输出上限"
 
-        instance.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] is None, "分析请求不该被顺手改行为"
+    instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}], thinking="disabled")
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert client_stub.sink["kwargs"]["max_tokens"] == 8000, "结构化跳沿用默认上限"
 
-        settings.vision_thinking = True
-        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "enabled"}}
-    finally:
-        settings.vision_thinking = original
+    instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}, \
+        "没指定档位时默认关思考"
+
+    instance.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
+    assert client_stub.sink["kwargs"]["extra_body"] is None, "分析请求不该被顺手改行为"
+
+
+def test_vision_timeout_default_is_180(monkeypatch) -> None:
+    """BE-024：两跳实测 17–60s，同步等待上限必须 ≥180s（05 §6.8）。"""
+    from app.ai.client import _timeout_for
+    from app.core.config import Settings
+
+    # 断言 config 的字段默认值（本机 .env 可能还留着旧值 90，不拿运行时值当默认值）
+    assert Settings.model_fields["recognize_client_timeout_s"].default == 180
+    monkeypatch.setattr(settings, "recognize_client_timeout_s", 180)
+    assert _timeout_for("vision") == 180
 
 
 def test_timeout_is_per_operation(monkeypatch) -> None:
@@ -561,16 +575,65 @@ def test_extraction_guess_fields_are_optional_and_tolerant() -> None:
     assert second.difficulty == "hard"
 
 
-def test_vision_prompt_states_the_guess_rules() -> None:
-    """chapter 只照抄图上真实出现的标题；给了学科就沿用，不再改判。"""
-    no_subject = prompts.vision_messages("data:image/jpeg;base64,AAA")[0]["content"]
-    assert "不要自己编章节名" in no_subject
-    assert "subject 按题目内容判断所属学科" in no_subject
+def test_vision_prompts_state_the_two_hop_rules() -> None:
+    """第 1 跳只转录且 chapter 只认页眉；第 2 跳才做结构，且不返回 chapter。"""
+    text_system = prompts.vision_text_messages("data:image/jpeg;base64,AAA")[0]["content"]
+    assert "不要自己编章节名" in text_system
+    assert "不要解题" in text_system
 
-    given = prompts.vision_messages("data:image/jpeg;base64,AAA", "概率论与数理统计")
-    assert "学科已经由用户给出，subject 一律沿用它" in given[0]["content"]
-    assert given[0]["content"] != no_subject, "给了学科时提示词要变，否则模型还会自己猜"
-    assert "概率论与数理统计" in given[1]["content"][0]["text"]
+    transcript = {
+        "chapter": "复习题六",
+        "questions": [{"index": 1, "content_md": "题干"}],
+        "warnings": [],
+    }
+    structure = prompts.vision_structure_messages(transcript)
+    assert "___" in structure[0]["content"]
+    assert "不要返回 chapter" in structure[0]["content"]
+
+    given = prompts.vision_structure_messages(transcript, "概率论与数理统计")
+    assert "学科背景：概率论与数理统计" in given[1]["content"]
+    assert "复习题六" in given[1]["content"], "转录原文要原样进第 2 跳"
+
+
+def test_mock_returns_different_output_for_the_two_hops() -> None:
+    from app.ai.client import MockLLMClient
+
+    client = MockLLMClient()
+    step1 = client.complete(
+        "vision", prompts.vision_text_messages("data:image/jpeg;base64,AAA")
+    )
+    import json
+
+    first = json.loads(step1.text)
+    assert first["chapter"] == "复习题六"
+    assert set(first["questions"][0]) == {"index", "content_md"}
+
+    step2 = client.complete(
+        "vision",
+        prompts.vision_structure_messages(
+            {"chapter": "复习题六", "questions": [], "warnings": []}
+        ),
+    )
+    second = json.loads(step2.text)
+    assert "questions" in second and "chapter" not in second
+
+
+def test_blank_markers_are_normalized_before_validation() -> None:
+    """underline{qquad} 写法必须归一成 ___，否则 count_blanks=0、填空题被误降级。"""
+    raw = {
+        "questions": [
+            {
+                "index": 1,
+                "content_md": "特征值为 \\underline{\\qquad} 和 \\underline{\\qquad}。",
+                "question_type": "blank",
+                "blanks": [{"index": 1, "answer_md": "3"}, {"index": 2, "answer_md": "1"}],
+            }
+        ]
+    }
+    normalized = validator.normalize_blank_markers(raw)
+    assert normalized["questions"][0]["content_md"].count("___") == 2
+    value = validator.validate_extraction(normalized)
+    assert value["questions"][0].question_type == "blank"
 
 
 def test_extraction_rejects_a_response_without_questions_list() -> None:

@@ -30,6 +30,7 @@ def write_call_log(
     error_code: str | None = None,
     raw_text: str | None = None,
     queue_wait_ms: int | None = None,
+    prompt_version_override: str | None = None,
 ) -> None:
     """日志写不进去也不能把业务带崩，所以这里吞掉一切异常，只留一条 error 日志。"""
     try:
@@ -40,7 +41,7 @@ def write_call_log(
                     question_id=question_id,
                     operation=operation,
                     model=usage.model if usage else settings.llm_model,
-                    prompt_version=prompt_version(operation),
+                    prompt_version=prompt_version_override or prompt_version(operation),
                     input_tokens=usage.prompt_tokens if usage else None,
                     output_tokens=usage.completion_tokens if usage else None,
                     latency_ms=usage.latency_ms if usage else 0,
