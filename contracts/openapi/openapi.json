@@ -732,6 +732,38 @@
         "title": "PracticeRecordPage",
         "type": "object"
       },
+      "PreferencesOut": {
+        "description": "`GET/PUT /settings/preferences` 的返回。\n\n`updated_at` 是这一行的最后写入时间，前端\"保存成功\"提示直接读它，\n不用比对自己发请求的时刻（跨设备时浏览器时钟不可信，同草稿那条理由）。",
+        "properties": {
+          "enforce_same_question_type": {
+            "title": "Enforce Same Question Type",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enforce_same_question_type",
+          "updated_at"
+        ],
+        "title": "PreferencesOut",
+        "type": "object"
+      },
+      "PreferencesUpdate": {
+        "description": "`PUT /settings/preferences` 的请求体。\n\n缺字段按默认值 `true` 处理——默认开启是产品决策（issue #44），\n所以\"没提交\"和\"提交了 true\"必须是同一个结果，不能一个是开一个是未知。\n\n用 StrictBool 而不是 bool：pydantic 默认会把 `\"yes\"`/`\"1\"`/`\"no\"` 悄悄转成布尔，\n这是一个会改变生成失败率的开关，宁可让前端拿到 422 也别猜错它的意图。",
+        "properties": {
+          "enforce_same_question_type": {
+            "default": true,
+            "title": "Enforce Same Question Type",
+            "type": "boolean"
+          }
+        },
+        "title": "PreferencesUpdate",
+        "type": "object"
+      },
       "QuestionCreate": {
         "description": "POST /questions 的请求体；字段名与 05 §6.4 的表格一致（扁平结构）。\n\n题型规则（选项字母顺序、空位数=答案数）不在重复写，\n通过 validate_type_payload 复用上面三个题型类的校验器。",
         "properties": {
@@ -2743,6 +2775,78 @@
           }
         },
         "summary": "Ready"
+      }
+    },
+    "/api/v1/settings/preferences": {
+      "get": {
+        "description": "只读当前用户自己的偏好；未登录由 get_current_user 统一 401。\n\n`user` 已经是本请求 Session 里的托管对象（get_current_user 与路由共用同一个\nget_session 实例），再 `session.get(User, user.id)` 只是重复查一次同一行。",
+        "operationId": "get_preferences_api_v1_settings_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Preferences",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "整份覆盖（本期只有一项）。\n\n用 PUT 不用 PATCH 是有意的：偏好是\"当前用户的一份设置\"，不是可增量合并的资源，\n以后加第二项时前端必须把两项一起提交，避免出现\"只改一项、另一项被默认值悄悄重置\"。",
+        "operationId": "put_preferences_api_v1_settings_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Preferences",
+        "tags": [
+          "settings"
+        ]
       }
     },
     "/api/v1/stats/overview": {
