@@ -11,11 +11,14 @@
 4. **命中缓存不写 `ai_call_logs`**（BE-024）：命中不是一次模型调用，写进去会让
    成本/延迟统计虚增；命中次数记在 `vision_extract_cache.hit_count`。对用户来说这两件事
    是同一句"这张图没认出来"，而后者的措辞会把排查方向带偏到 prompt 上。
+   缓存命中要能看出来（出参 `cached` / `extracted_at`），也要能退出（请求 `force_refresh`）。
 """
 from __future__ import annotations
 
 import logging
 import threading
+from datetime import UTC, datetime
+from typing import NamedTuple
 
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -26,6 +29,7 @@ from app.ai import prompts, validator
 from app.ai.client import OPERATION_VISION, build_llm_client
 from app.ai.errors import AIError, AIInvalidImageError, AIInvalidOutputError, AITruncatedError
 from app.ai.pipeline import run as pipeline_run
+from app.core.config import settings
 from app.db.base import utcnow
 from app.models import VisionExtractCache
 from app.schemas.image import ImageExtractionOut
@@ -49,33 +53,46 @@ def _llm_client():
         return _client
 
 
-def _cache_key(
-    user_id: int, image_path: str, subject: str | None
-) -> tuple[int, str, str, str, str] | None:
-    """(user_id, image_sha, subject_key, hop1 版本, hop2 版本)；路径不合法就不缓存。"""
+class _CacheKey(NamedTuple):
+    user_id: int
+    image_sha: str
+    subject_key: str
+    model: str
+    hop1_version: str
+    hop2_version: str
+
+
+def _cache_model() -> str:
+    """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。"""
+    return "mock" if settings.llm_mock else settings.llm_model
+
+
+def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:
+    """用户 + 图内容 + 学科 + 模型 + 两跳版本；路径不合法就不缓存。"""
     match = image_service.IMAGE_PATH_RE.match(image_path or "")
     if match is None or int(match.group(1)) != user_id:
         return None
     image_sha = match.group(2).split(".", 1)[0]
-    return (
-        user_id,
-        image_sha,
-        (subject or "").strip(),
-        prompts.PROMPT_VERSION_VISION_TEXT,
-        prompts.PROMPT_VERSION_VISION_STRUCTURE,
+    return _CacheKey(
+        user_id=user_id,
+        image_sha=image_sha,
+        subject_key=(subject or "").strip(),
+        model=_cache_model(),
+        hop1_version=prompts.PROMPT_VERSION_VISION_TEXT,
+        hop2_version=prompts.PROMPT_VERSION_VISION_STRUCTURE,
     )
 
 
-def _cache_load(session_factory: sessionmaker, key) -> dict | None:
-    user_id, image_sha, subject_key, hop1, hop2 = key
+def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
     with session_factory() as session:
         row = session.scalar(
             select(VisionExtractCache).where(
-                VisionExtractCache.user_id == user_id,
-                VisionExtractCache.image_sha == image_sha,
-                VisionExtractCache.subject_key == subject_key,
-                VisionExtractCache.hop1_version == hop1,
-                VisionExtractCache.hop2_version == hop2,
+                VisionExtractCache.user_id == key.user_id,
+                VisionExtractCache.image_sha == key.image_sha,
+                VisionExtractCache.subject_key == key.subject_key,
+                VisionExtractCache.model == key.model,
+                VisionExtractCache.hop1_version == key.hop1_version,
+                VisionExtractCache.hop2_version == key.hop2_version,
             )
         )
         if row is None:
@@ -90,26 +107,66 @@ def _cache_load(session_factory: sessionmaker, key) -> dict | None:
         row.hit_count += 1
         row.last_hit_at = utcnow()
         session.commit()
+        # extracted_at 用首次生成时间（存在 payload 里），这里只补"这次是命中"
+        payload["cached"] = True
         return payload
 
 
-def _cache_store(session_factory: sessionmaker, key, result: dict) -> None:
+def _payload_for_storage(result: dict) -> dict:
+    """JSON 列只认可序列化的值；extracted_at 这种 datetime 要转 ISO 字符串。"""
+    return ImageExtractionOut.model_validate(result).model_dump(mode="json")
+
+
+def _created_at_naive_utc(result: dict) -> datetime:
+    value = result.get("extracted_at")
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
+    return utcnow()
+
+
+def _cache_store(
+    session_factory: sessionmaker, key: _CacheKey, result: dict, *, overwrite: bool = False
+) -> None:
     questions = result.get("questions") or []
     if not questions:
         # 空结果不缓存：更可能是传错图，钉死一次误操作没意义
         return
-    user_id, image_sha, subject_key, hop1, hop2 = key
+    payload = _payload_for_storage(result)
+    created_at = _created_at_naive_utc(result)
     with session_factory() as session:
+        if overwrite:
+            row = session.scalar(
+                select(VisionExtractCache).where(
+                    VisionExtractCache.user_id == key.user_id,
+                    VisionExtractCache.image_sha == key.image_sha,
+                    VisionExtractCache.subject_key == key.subject_key,
+                    VisionExtractCache.model == key.model,
+                    VisionExtractCache.hop1_version == key.hop1_version,
+                    VisionExtractCache.hop2_version == key.hop2_version,
+                )
+            )
+            if row is not None:
+                # force_refresh：新结果覆盖旧行，命中统计归零（这一行还没被命中过）
+                row.payload = payload
+                row.question_count = len(questions)
+                row.has_incomplete = any(item.get("incomplete") for item in questions)
+                row.created_at = created_at
+                row.hit_count = 0
+                row.last_hit_at = None
+                session.commit()
+                return
         session.add(
             VisionExtractCache(
-                user_id=user_id,
-                image_sha=image_sha,
-                subject_key=subject_key,
-                hop1_version=hop1,
-                hop2_version=hop2,
-                payload=result,
+                user_id=key.user_id,
+                image_sha=key.image_sha,
+                subject_key=key.subject_key,
+                model=key.model,
+                hop1_version=key.hop1_version,
+                hop2_version=key.hop2_version,
+                payload=payload,
                 question_count=len(questions),
                 has_incomplete=any(item.get("incomplete") for item in questions),
+                created_at=created_at,
             )
         )
         try:
@@ -124,28 +181,36 @@ def extract_from_image(
     user_id: int,
     image_path: str,
     subject: str | None = None,
+    force_refresh: bool = False,
 ) -> dict:
-    """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str]}`。
+    """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str],
+    "cached": bool, "extracted_at": datetime}`。
 
     两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
     （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
+    `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）。
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
     key = _cache_key(user_id, image_path, subject)
-    if key is not None:
+    if key is not None and not force_refresh:
         try:
             cached = _cache_load(session_factory, key)
-        except Exception:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
-            logger.exception("识图缓存读取失败（user=%s），按未命中处理", user_id)
+        except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
+            # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
+            logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
             cached = None
         if cached is not None:
             logger.info(
-                "识图缓存命中（user=%s sha=%s subject=%r）", user_id, key[1], key[2]
+                "识图缓存命中（user=%s sha=%s subject=%r）",
+                user_id,
+                key.image_sha,
+                key.subject_key,
             )
             cached["image_path"] = image_path
             return cached
 
+    extracted_at = datetime.now(UTC)
     data_url = image_service.data_url_for_llm(user_id, image_path)
     client = _llm_client()
 
@@ -167,6 +232,7 @@ def extract_from_image(
             "image_path": image_path,
             "questions": [],
             "warnings": transcript["warnings"],
+            "extracted_at": extracted_at,
         }
 
     structure = _hop(
@@ -201,12 +267,13 @@ def extract_from_image(
         # 跨模块的 pydantic 实例不会自动互认，直接把服务返回值变成可序列化的 dict 更干净
         "questions": [item.model_dump() for item in items],
         "warnings": list(transcript["warnings"]) + list(structure["warnings"]),
+        "extracted_at": extracted_at,
     }
     if key is not None:
         try:
-            _cache_store(session_factory, key, result)
-        except Exception:  # noqa: BLE001 缓存写失败不能把已经识别成功的请求变成 500
-            logger.exception("识图缓存写入失败（user=%s）", user_id)
+            _cache_store(session_factory, key, result, overwrite=force_refresh)
+        except Exception as exc:  # noqa: BLE001 缓存写失败不能把已经识别成功的请求变成 500
+            logger.warning("识图缓存写入失败（user=%s）：%s", user_id, exc)
     return result
 
 

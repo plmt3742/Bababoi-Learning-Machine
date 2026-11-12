@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from app.ai import prompts
 from app.ai.client import LLMResponse, MockLLMClient
+from app.core.config import settings
 from app.models import AiCallLog, VisionExtractCache
 from app.services import extraction_service
 from tests.conftest import auth_headers, register_user
@@ -31,10 +32,18 @@ def _upload(client, token: str) -> str:
     return resp.json()["image_path"]
 
 
-def _extract(client, token: str, image_path: str, subject: str | None = None):
+def _extract(
+    client,
+    token: str,
+    image_path: str,
+    subject: str | None = None,
+    force_refresh: bool = False,
+):
     body = {"image_path": image_path}
     if subject is not None:
         body["subject"] = subject
+    if force_refresh:
+        body["force_refresh"] = True
     return client.post(
         "/api/v1/questions/from-image", json=body, headers=auth_headers(token)
     )
@@ -88,16 +97,24 @@ def test_second_call_hits_cache_without_model_or_logs(client, db, user, monkeypa
     first = _extract(client, token, image_path)
     assert first.status_code == 200
     assert fake.calls == 2, "一次识图 = 两跳"
+    assert first.json()["cached"] is False
+    assert first.json()["extracted_at"] is not None
 
     second = _extract(client, token, image_path)
     assert second.status_code == 200
     assert fake.calls == 2, "第二次应命中缓存，不再调用模型"
-    assert second.json() == first.json(), "命中返回与首次完全一致"
+    hit = second.json()
+    # 命中只翻 cached，不改结果本体：首次识别时间也要原样回来
+    assert hit["cached"] is True
+    assert hit["extracted_at"] == first.json()["extracted_at"]
+    for field in ("image_path", "questions", "warnings"):
+        assert hit[field] == first.json()[field], f"命中返回的 {field} 应与首次一致"
 
     with db() as s:
         row = s.scalar(select(VisionExtractCache).where(VisionExtractCache.user_id == user_id))
         assert row is not None and row.hit_count == 1 and row.last_hit_at is not None
         assert row.question_count == len(first.json()["questions"])
+        assert row.model == "mock", "mock 结果单列一档，不能和真模型互认"
         logs = s.scalar(
             select(func.count(AiCallLog.id)).where(AiCallLog.operation == "vision")
         )
@@ -168,14 +185,63 @@ def test_concurrent_store_keeps_single_row(client, db, user, monkeypatch) -> Non
     token, user_id = user
     monkeypatch.setattr(extraction_service, "_llm_client", lambda: CountingClient())
     image_path = _upload(client, token)
-    key = (user_id, image_path.rsplit("/", 1)[-1].split(".", 1)[0], "", "v1", "v2")
-    result = {"image_path": image_path, "questions": [{"index": 1}], "warnings": []}
+    key = extraction_service._cache_key(user_id, image_path, None)
+    assert key is not None
+    result = {
+        "image_path": image_path,
+        "questions": [{"index": 1, "content_md": "题干", "question_type": "solve"}],
+        "warnings": [],
+    }
 
     factory = db
     extraction_service._cache_store(factory, key, result)
     extraction_service._cache_store(factory, key, result)  # 唯一键冲突应被吞掉
     with db() as s:
         assert s.scalar(select(func.count(VisionExtractCache.id))) == 1
+
+
+def test_force_refresh_skips_cache_and_overwrites(client, db, user, monkeypatch) -> None:
+    token, _ = user
+    fake = CountingClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    image_path = _upload(client, token)
+
+    assert _extract(client, token, image_path).status_code == 200
+    assert _extract(client, token, image_path).status_code == 200
+    assert fake.calls == 2, "第二次正常命中"
+
+    refreshed = _extract(client, token, image_path, force_refresh=True)
+    assert refreshed.status_code == 200
+    assert fake.calls == 4, "force_refresh 必须跳过缓存读、重跑两跳"
+    assert refreshed.json()["cached"] is False
+    with db() as s:
+        rows = list(s.scalars(select(VisionExtractCache)))
+        assert len(rows) == 1, "覆盖写而不是再插一行"
+        assert rows[0].hit_count == 0 and rows[0].last_hit_at is None
+
+    again = _extract(client, token, image_path)
+    assert again.status_code == 200
+    assert fake.calls == 4 and again.json()["cached"] is True, "覆盖后的新结果照常命中"
+
+
+def test_model_change_is_a_new_key(client, db, user, monkeypatch) -> None:
+    token, _ = user
+    fake = CountingClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(settings, "llm_mock", False)
+    monkeypatch.setattr(settings, "llm_model", "deepseek-flash")
+    image_path = _upload(client, token)
+
+    assert _extract(client, token, image_path).status_code == 200
+    assert _extract(client, token, image_path).status_code == 200
+    assert fake.calls == 2, "同一模型范围里照常命中"
+
+    monkeypatch.setattr(settings, "llm_model", "deepseek-v4-pro")
+    assert _extract(client, token, image_path).status_code == 200
+    assert fake.calls == 4, "换模型必须换键，不能命中旧模型的旧结果"
+    with db() as s:
+        models = {row.model for row in s.scalars(select(VisionExtractCache))}
+        assert models == {"deepseek-flash", "deepseek-v4-pro"}
 
 
 def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> None:
@@ -189,6 +255,7 @@ def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> N
                 user_id=user_id,
                 image_sha="0" * 16,
                 subject_key="",
+                model="mock",
                 hop1_version="vision_text_v1",
                 hop2_version="vision_structure_v1",
                 payload={"image_path": "x", "questions": [], "warnings": []},
