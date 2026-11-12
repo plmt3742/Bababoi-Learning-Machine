@@ -23,7 +23,7 @@ from app.ai.errors import AIError
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
 from app.db.base import utcnow
-from app.models import GeneratedQuestion, GenerationTask, Question
+from app.models import GeneratedQuestion, GenerationTask, Question, User
 from app.services import ai_log
 from app.services.question_service import sync_tags, to_storage
 from app.services.task_service import segment_difficulty
@@ -106,6 +106,7 @@ def _write_call_log(
     usage=None,
     error_code: str | None = None,
     raw_text: str | None = None,
+    type_policy: str | None = None,
 ) -> None:
     """任务侧的薄封装：归属和排队时长从 task 上取，写库规则交给 ai_log（05 §9.3）。"""
     ai_log.write_call_log(
@@ -118,6 +119,7 @@ def _write_call_log(
         error_code=error_code,
         raw_text=raw_text,
         queue_wait_ms=int((utcnow() - task.created_at).total_seconds() * 1000),
+        type_policy=type_policy,
     )
 
 
@@ -136,10 +138,20 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         # 不然老库里一条 queued 的旧任务会在这里 KeyError 变 INTERNAL_ERROR
         slot = task.target_index or 1
         difficulty = task.difficulty or segment_difficulty(slot)
+        # BE-026（issue #44）：题型一致性开关在**执行时**读，不在入队时快照。
+        # 用户在任务排队期间改了设置，跑出来的就该按新设置——入队快照会出现
+        # "我明明关了开关还是被拒"这种没法解释的状态差。
+        # 读不到用户（理论上只剩历史脏数据）按默认开启处理，与列的 DEFAULT 一致。
+        owner = session.get(User, user_id)
+        enforce = bool(owner.enforce_same_question_type) if owner else True
+        type_policy = None if is_analysis else ("strict" if enforce else "soft")
         if is_analysis:
             messages = prompts.analysis_messages(payload)
         else:
-            messages = prompts.quiz_messages(payload, target_index=slot, difficulty=difficulty)
+            messages = prompts.quiz_messages(
+                payload, target_index=slot, difficulty=difficulty,
+                type_policy=type_policy or "soft",
+            )
             siblings = tuple(
                 row.content_md
                 for row in session.scalars(
@@ -170,6 +182,8 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
                     difficulty=difficulty,
                     original_content_md=payload["content_md"],
                     sibling_content_mds=siblings,
+                    original_question_type=payload["question_type"],
+                    type_policy=type_policy or "soft",
                 )
             ),
             retry_limit=0,
@@ -179,23 +193,26 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         if is_analysis:
             _apply_analysis(session_factory, task_id, result)
         else:
-            _apply_segment(session_factory, task_id, result, user_id, slot, difficulty)
+            _apply_segment(session_factory, task_id, result, user_id, slot, difficulty,
+                           type_policy)
     except AIError as exc:
         # 坏输出的原文（pipeline 挂在 exc.raw_text 上）一定要落库：
         # 只记「AI_INVALID_OUTPUT」的话，没法定位是 prompt 的问题还是模型的问题
         _write_call_log(session_factory, task, operation, status="error",
-                        error_code=exc.error_code, raw_text=exc.raw_text)
+                        error_code=exc.error_code, raw_text=exc.raw_text,
+                        type_policy=type_policy)
         _fail_or_requeue(session_factory, task_id, exc.error_code, exc.message)
         return
     except Exception as exc:  # noqa: BLE001  # 未预期异常也要让任务有终态
         logger.exception("任务 %s 执行异常", task_id)
         _write_call_log(session_factory, task, operation, status="error",
-                        error_code="INTERNAL_ERROR", raw_text=str(exc))
+                        error_code="INTERNAL_ERROR", raw_text=str(exc),
+                        type_policy=type_policy)
         _fail_or_requeue(session_factory, task_id, "INTERNAL_ERROR", str(exc))
         return
 
     _write_call_log(session_factory, task, operation, status="success", usage=result.usage,
-                    raw_text=result.usage.text)
+                    raw_text=result.usage.text, type_policy=type_policy)
     with session_factory() as session:
         t = session.get(GenerationTask, task_id)
         t.status = "done"
@@ -223,7 +240,7 @@ def _apply_analysis(session_factory: sessionmaker, task_id: int, result) -> None
 
 def _apply_segment(
     session_factory: sessionmaker, task_id: int, result, user_id: int,
-    slot: int, difficulty: str,
+    slot: int, difficulty: str, type_policy: str | None = None,
 ) -> None:
     """一段成功只写自己那一格（14 号 Q2-A 的按格替换）。
 
@@ -255,7 +272,9 @@ def _apply_segment(
                 blanks=to_storage(spec.blanks),
                 difficulty=difficulty,
                 model=result.usage.model,
-                prompt_version=prompts.prompt_version(OPERATION_QUIZ),
+                prompt_version=prompts.prompt_version(
+                    OPERATION_QUIZ, type_policy=type_policy or "soft"
+                ),
                 validation_status="valid",
             )
         )
