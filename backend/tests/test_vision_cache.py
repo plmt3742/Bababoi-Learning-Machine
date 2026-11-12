@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from app.ai import prompts
 from app.ai.client import LLMResponse, MockLLMClient
+from app.ai.errors import AITimeoutError
 from app.core.config import settings
 from app.models import AiCallLog, VisionExtractCache
 from app.services import extraction_service
@@ -80,6 +81,37 @@ class EmptyPageClient(MockLLMClient):
                 finish_reason="stop",
             )
         return super().complete(operation, messages, **kwargs)
+
+
+class SwitchToEmptyClient(CountingClient):
+    """第一次正常识别，之后第 1 跳改答"图里没题"，用来验强刷出空结果时的旧行处理。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.empty = False
+
+    def complete(self, operation, messages, **kwargs):
+        self.calls += 1
+        system = messages[0]["content"] if messages else ""
+        if self.empty and "步骤：逐题转录" in system:
+            return LLMResponse(
+                text=json.dumps({"chapter": None, "questions": [], "warnings": []}),
+                model="mock",
+                prompt_tokens=0,
+                completion_tokens=0,
+                latency_ms=0,
+                finish_reason="stop",
+            )
+        return MockLLMClient.complete(self, operation, messages, **kwargs)
+
+
+class TimeoutClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def complete(self, operation, messages, **kwargs):
+        self.calls += 1
+        raise AITimeoutError("识图超时了")
 
 
 @pytest.fixture()
@@ -265,6 +297,53 @@ def test_model_change_is_a_new_key(client, db, user, monkeypatch) -> None:
     with db() as s:
         models = {row.model for row in s.scalars(select(VisionExtractCache))}
         assert models == {"deepseek-flash", "deepseek-v4-pro"}
+
+
+def test_failed_force_refresh_still_consumes_cooldown(client, db, user, monkeypatch) -> None:
+    """失败的强刷照样烧了一轮模型：冷却必须在调用前占用，否则最贵的失败路径能无限重试。"""
+    token, _ = user
+    fake = CountingClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    image_path = _upload(client, token)
+    assert _extract(client, token, image_path).status_code == 200
+
+    timeout = TimeoutClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: timeout)
+    assert _extract(client, token, image_path, force_refresh=True).status_code == 504
+    assert timeout.calls == 1
+
+    with db() as s:
+        row = s.scalar(select(VisionExtractCache))
+        assert row is not None and row.last_forced_at is not None, "失败也要落冷却时间"
+
+    blocked = _extract(client, token, image_path, force_refresh=True)
+    assert blocked.status_code == 429, blocked.text
+    assert timeout.calls == 1, "冷却期内不再调模型（失败重试同样受限）"
+
+
+def test_force_refresh_empty_result_drops_stale_row(client, db, user, monkeypatch) -> None:
+    """强刷出空结果时旧行必须删：否则下一次普通请求会命中早已作废的旧识别。"""
+    token, _ = user
+    fake = SwitchToEmptyClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    image_path = _upload(client, token)
+
+    first = _extract(client, token, image_path)
+    assert first.status_code == 200 and first.json()["questions"]
+    assert fake.calls == 2
+
+    fake.empty = True
+    refreshed = _extract(client, token, image_path, force_refresh=True)
+    assert refreshed.status_code == 200
+    assert refreshed.json()["questions"] == []
+    assert fake.calls == 3, "空结果只跑第 1 跳"
+
+    with db() as s:
+        assert s.scalar(select(func.count(VisionExtractCache.id))) == 0, "旧行不能留"
+
+    again = _extract(client, token, image_path)
+    assert again.status_code == 200
+    assert fake.calls == 4, "旧行删掉后普通请求重新跑，而不是命中过期结果"
 
 
 def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> None:

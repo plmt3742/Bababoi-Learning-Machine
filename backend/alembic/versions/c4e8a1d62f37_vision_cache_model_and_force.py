@@ -7,6 +7,7 @@ Create Date: 2026-11-12
 `b7c2f4a91d30` 已经推过，不能就地改它：跑过旧版的人会停在同一个 revision 却没有新列。
 这里用一条前向迁移补齐——加 `model` / `last_forced_at`，并把唯一键扩成含 `model`。
 SQLite 不能直接改约束，走 batch（重建表）；MySQL 上就是 ADD COLUMN + DROP/ADD UNIQUE。
+降级会把"同图同版本、不同 model"的重复行合并成最新一行，否则缩回 5 列唯一键时撞键。
 
 ⚠️ 合并顺序：`#58` 的 `c8e1b6a4d902` 与 `b7c2f4a91d30` 同父。若 #58 先合，只改
 `b7c2f4a91d30` 的 `down_revision` 为 `c8e1b6a4d902`，本文件不用动。
@@ -39,6 +40,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 唯一键缩回 5 列时，同图同版本但 model 不同的两行会撞键：先合并，保留最新一行。
+    # 派生表包一层，MySQL 才允许在 DELETE 里读同一张表。
+    op.execute(
+        sa.text(
+            "DELETE FROM vision_extract_cache WHERE id NOT IN ("
+            " SELECT keep_id FROM ("
+            "  SELECT MAX(id) AS keep_id FROM vision_extract_cache"
+            "  GROUP BY user_id, image_sha, subject_key, hop1_version, hop2_version"
+            " ) AS keep"
+            ")"
+        )
+    )
     with op.batch_alter_table("vision_extract_cache", recreate="always") as batch:
         batch.drop_constraint("uq_vision_cache_key", type_="unique")
         batch.create_unique_constraint("uq_vision_cache_key", _UNIQUE_V1)

@@ -18,11 +18,11 @@ from __future__ import annotations
 import logging
 import math
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
@@ -85,18 +85,21 @@ def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey 
     )
 
 
+def _cache_where(key: _CacheKey):
+    """缓存行的完整键条件；读写删冷四处共用，少一处漏 model 就是一个脏命中。"""
+    return (
+        VisionExtractCache.user_id == key.user_id,
+        VisionExtractCache.image_sha == key.image_sha,
+        VisionExtractCache.subject_key == key.subject_key,
+        VisionExtractCache.model == key.model,
+        VisionExtractCache.hop1_version == key.hop1_version,
+        VisionExtractCache.hop2_version == key.hop2_version,
+    )
+
+
 def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
     with session_factory() as session:
-        row = session.scalar(
-            select(VisionExtractCache).where(
-                VisionExtractCache.user_id == key.user_id,
-                VisionExtractCache.image_sha == key.image_sha,
-                VisionExtractCache.subject_key == key.subject_key,
-                VisionExtractCache.model == key.model,
-                VisionExtractCache.hop1_version == key.hop1_version,
-                VisionExtractCache.hop2_version == key.hop2_version,
-            )
-        )
+        row = session.scalar(select(VisionExtractCache).where(*_cache_where(key)))
         if row is None:
             return None
         try:
@@ -114,23 +117,50 @@ def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
         return payload
 
 
-def _refresh_cooldown_remaining(session_factory: sessionmaker, key: _CacheKey) -> int:
-    """force_refresh 的冷却剩余秒数；没强刷过或已过冷却返回 0。"""
+def _acquire_force_slot(session_factory: sessionmaker, key: _CacheKey) -> int:
+    """占用一次强刷额度：0 = 占到了，>0 = 冷却剩余秒数。
+
+    在调用模型**之前**占用——超时/截断同样是 17–90s 的开销，失败路径不能绕过冷却。
+    `UPDATE ... WHERE last_forced_at` 带条件，两个并发强刷只有一个能占到。
+    """
+    now = utcnow()
+    cutoff = now - timedelta(seconds=settings.vision_force_refresh_cooldown_s)
     with session_factory() as session:
+        row_id = session.scalar(select(VisionExtractCache.id).where(*_cache_where(key)))
+        if row_id is None:
+            # 没有缓存行 = 没有旧结果可反复重烧，等同一次普通识别，不占冷却
+            return 0
+        taken = session.execute(
+            update(VisionExtractCache)
+            .where(
+                VisionExtractCache.id == row_id,
+                or_(
+                    VisionExtractCache.last_forced_at.is_(None),
+                    VisionExtractCache.last_forced_at <= cutoff,
+                ),
+            )
+            .values(last_forced_at=now)
+        )
+        session.commit()
+        if taken.rowcount:
+            return 0
         last = session.scalar(
             select(VisionExtractCache.last_forced_at).where(
-                VisionExtractCache.user_id == key.user_id,
-                VisionExtractCache.image_sha == key.image_sha,
-                VisionExtractCache.subject_key == key.subject_key,
-                VisionExtractCache.model == key.model,
-                VisionExtractCache.hop1_version == key.hop1_version,
-                VisionExtractCache.hop2_version == key.hop2_version,
+                VisionExtractCache.id == row_id
             )
         )
     if last is None:
         return 0
     remaining = settings.vision_force_refresh_cooldown_s - (utcnow() - last).total_seconds()
-    return max(0, math.ceil(remaining))
+    return max(1, math.ceil(remaining))
+
+
+def _cache_delete(session_factory: sessionmaker, key: _CacheKey) -> None:
+    with session_factory() as session:
+        row = session.scalar(select(VisionExtractCache).where(*_cache_where(key)))
+        if row is not None:
+            session.delete(row)
+            session.commit()
 
 
 def _payload_for_storage(result: dict) -> dict:
@@ -150,22 +180,16 @@ def _cache_store(
 ) -> None:
     questions = result.get("questions") or []
     if not questions:
-        # 空结果不缓存：更可能是传错图，钉死一次误操作没意义
+        # 空结果不缓存：更可能是传错图，钉死一次误操作没意义。
+        # 但强刷出空结果时旧行必须删——否则下一次普通请求会命中早已作废的旧识别
+        if overwrite:
+            _cache_delete(session_factory, key)
         return
     payload = _payload_for_storage(result)
     created_at = _created_at_naive_utc(result)
     with session_factory() as session:
         if overwrite:
-            row = session.scalar(
-                select(VisionExtractCache).where(
-                    VisionExtractCache.user_id == key.user_id,
-                    VisionExtractCache.image_sha == key.image_sha,
-                    VisionExtractCache.subject_key == key.subject_key,
-                    VisionExtractCache.model == key.model,
-                    VisionExtractCache.hop1_version == key.hop1_version,
-                    VisionExtractCache.hop2_version == key.hop2_version,
-                )
-            )
+            row = session.scalar(select(VisionExtractCache).where(*_cache_where(key)))
             if row is not None:
                 # force_refresh：新结果覆盖旧行，命中统计归零（这一行还没被命中过）
                 row.payload = payload
@@ -213,7 +237,8 @@ def extract_from_image(
     两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
     （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
     `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）；
-    连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`），否则一次重跑 17–90s 就是成本放大器。
+    连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`，额度在调用模型前占用，失败也计），
+    否则一次重跑 17–90s 就是成本放大器。
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
@@ -221,7 +246,7 @@ def extract_from_image(
     if key is not None:
         if force_refresh:
             try:
-                wait_s = _refresh_cooldown_remaining(session_factory, key)
+                wait_s = _acquire_force_slot(session_factory, key)
             except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
                 logger.warning("识图缓存冷却检查失败（user=%s）：%s", user_id, exc)
                 wait_s = 0
@@ -265,7 +290,13 @@ def extract_from_image(
         validate=validator.validate_transcript,
     )
     if not transcript["questions"]:
-        # 图里没题是正常结果，不再白花第二跳；只留一条转录日志
+        # 图里没题是正常结果，不再白花第二跳；只留一条转录日志。
+        # 强刷出空结果时旧行必须删：否则下一次普通请求会命中早已作废的旧识别
+        if key is not None and force_refresh:
+            try:
+                _cache_delete(session_factory, key)
+            except Exception as exc:  # noqa: BLE001 删缓存失败不能把正常返回变成 500
+                logger.warning("识图缓存清理失败（user=%s）：%s", user_id, exc)
         return {
             "image_path": image_path,
             "questions": [],

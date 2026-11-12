@@ -828,7 +828,8 @@ POST /questions/from-image
 
 **结果缓存（2026-11-12，BE-024）**
 
-- 表 `vision_extract_cache`（迁移 `b7c2f4a91d30`；`model` / `last_forced_at` 两列由前向迁移 `c4e8a1d62f37` 补，不改已发布的那条）；
+- 表 `vision_extract_cache`（迁移 `b7c2f4a91d30`；`model` / `last_forced_at` 两列由前向迁移 `c4e8a1d62f37` 补，不改已发布的那条；
+  降级时先把"同图不同 model"的重复行合并成最新一行，再缩回 5 列唯一键）；
   键 = `user_id + image_sha + subject_key + model + hop1_version + hop2_version`。
   `image_sha` 取自内容寻址文件名；`subject_key` 用空串不用 NULL（MySQL 唯一索引里 NULL 互不相等）；
   `model` 记产出这份结果的模型身份（`LLM_MOCK=true` 记 `mock`）——换模型不换版本号也不会命中旧模型的结果，
@@ -839,6 +840,9 @@ POST /questions/from-image
 - 强刷有冷却：`VISION_FORCE_REFRESH_COOLDOWN_S=60`，从上一次强刷（`last_forced_at`）算起；
   冷却内再强刷返回 429 `VISION_REFRESH_COOLDOWN`，不再调模型。**首次重新识别不受影响**——
   刚识别完的普通结果不占冷却额度，挡的是"点一下没变化再点一下"的成本放大。
+- 冷却额度在**调用模型之前**占用：超时/截断也算一次，失败路径不能靠重试绕过冷却；
+  并发强刷靠带条件的 `UPDATE` 只放行一个。
+- 强刷返回空结果（图里没题）时**删掉旧行**，下一次普通请求重新识别，不会命中作废的旧结果。
 - 命中返回原出参，另带两个字段区分"秒回"和"真快"：
   - `cached=true` + `extracted_at`（首次识别时间，aware UTC）；非命中时 `cached=false`、`extracted_at` 为本次生成时间。
   - 读之前仍先 `resolve_user_file`——缓存不是绕过 404 的旁路；
@@ -1235,6 +1239,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.10 | **BE-013 统计 overview 落地**：只实现 `GET /stats/overview`（`/stats/trends`、`/stats/weak-points` 从 05 删除，21号 §2.1）；口径补齐四条实现期才暴露的约束——生成题按「父题未软删」过滤（`soft_delete` 不级联生成题）、练习流水无软删列所以总数是流水总数而薄弱点跳过父题已删的流水、`recent_trend` 只返回最近 7 天内有练习的日期、`updated_at` 返回带时区 UTC（naive UTC 直接序列化没有 `Z`，前端会当本地时间）；175 passed | 人机 |
 | 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
 | 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
-| 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零），并加 60s 冷却（冷区内 429 `VISION_REFRESH_COOLDOWN`）；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；新列走**前向迁移** `c4e8a1d62f37`（`b7c2f4a91d30` 已推过，不就地改）；缓存读写失败降级为一行 warning。11 条缓存 + 4 条迁移测试，208 passed | 人机 |
+| 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零），并加 60s 冷却（冷区内 429 `VISION_REFRESH_COOLDOWN`；**额度在调用前占用，失败/超时也算**；并发靠条件 UPDATE 只放行一个）；强刷出空结果删旧行；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；新列走**前向迁移** `c4e8a1d62f37`（`b7c2f4a91d30` 已推过，不就地改；降级先合并同图不同 model 的重复行）；缓存读写失败降级为一行 warning。13 条缓存 + 5 条迁移测试，211 passed | 人机 |
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
