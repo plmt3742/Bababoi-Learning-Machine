@@ -389,10 +389,10 @@ def test_vision_request_carries_thinking_per_hop(client_stub) -> None:
 
     instance.complete(
         OPERATION_VISION, [{"role": "user", "content": "x"}],
-        thinking="adaptive", max_tokens=16000,
+        thinking="adaptive", max_tokens=24000,
     )
     assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "adaptive"}}
-    assert client_stub.sink["kwargs"]["max_tokens"] == 16000, "转录跳按调用覆盖输出上限"
+    assert client_stub.sink["kwargs"]["max_tokens"] == 24000, "转录跳按调用覆盖输出上限"
 
     instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}], thinking="disabled")
     assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}

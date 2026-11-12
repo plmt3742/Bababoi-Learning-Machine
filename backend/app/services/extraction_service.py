@@ -58,7 +58,9 @@ def extract_from_image(
         client,
         messages=prompts.vision_text_messages(data_url),
         version=prompts.PROMPT_VERSION_VISION_TEXT,
-        max_tokens=16000,  # 05 §6.8：转录开思考，输出上限给足
+        # 05 §6.8：转录开思考；实测密页（p4）24000 才完整（17251 输出 token），
+        # 16000 会在第 1 跳直接截断
+        max_tokens=24000,
         thinking="adaptive",
         validate=validator.validate_transcript,
     )
