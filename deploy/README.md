@@ -26,7 +26,7 @@
    ```bash
    sudo mkdir -p /srv/bababoi/{repo,web,data,backup}
    sudo chown -R "$USER" /srv/bababoi
-   sudo apt-get install -y nginx   # 若未装
+   sudo dnf install -y nginx sqlite   # Alibaba Cloud Linux 3；sqlite 只给宿主机备份用
    ```
 
 2. 传源码（无 `.git`，服务器不能 git clone 时）：
@@ -73,11 +73,12 @@
    rsync -a frontend/dist/ <user>@<IP>:/srv/bababoi/web/
    ```
 
-7. nginx：
+7. nginx（**先清默认站点**：它的 `default_server` 会抢走 IP 访问，页面显示欢迎页而不是前端）：
 
    ```bash
+   sudo rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
    sudo cp /srv/bababoi/repo/deploy/nginx.conf /etc/nginx/conf.d/bababoi.conf
-   sudo nginx -t && sudo systemctl reload nginx
+   sudo nginx -t && sudo systemctl enable --now nginx && sudo systemctl reload nginx
    ```
 
 8. 灌种子（首次；`APP_ENV=staging` 才允许）：
@@ -116,9 +117,9 @@ cd repo && BABABOI_ENV_FILE=/srv/bababoi/.env docker compose -f deploy/docker-co
 ## 备份（WAL 模式，只拷 .db 会丢最近事务）
 
 ```bash
-docker compose -f deploy/docker-compose.yml exec api \
-  sh -c 'sqlite3 /data/bababoi.db ".backup /data/bababoi-$(date +%F).db"'
-mv /srv/bababoi/data/bababoi-*.db /srv/bababoi/backup/
+# 宿主机上直接跑（sqlite3 CLI 不再进镜像）
+sqlite3 /srv/bababoi/data/bababoi.db ".backup '/srv/bababoi/backup/bababoi-$(date +%Y%m%d-%H%M).db'"
+ls -lh /srv/bababoi/backup/
 ```
 
 上传目录在 `/srv/bababoi/data/uploads`，与库一起备份整个 `data/` 即可。
@@ -140,4 +141,5 @@ mv /srv/bababoi/data/bababoi-*.db /srv/bababoi/backup/
 - **SSE 暂无**：`proxy_buffering off` 是给 BE-010 留的口子，当前没有流式接口。
 - **VITE_USE_MOCK 生产无效**：`main.ts` 有 `import.meta.env.DEV` 守卫；部署脚本仍显式写 `false`，防有人用 `vite preview` 当部署。
 - **mock 期缓存不与真 Key 互通**：缓存键含 model（mock 记 `"mock"`），切真 Key 后第一次识图必慢、第二次才命中。
+- **容器以 root 运行**：`/srv/bababoi/data` 里的文件属主是 root，宿主机备份要 sudo；将来改非 root 用户必须先 `chown -R` 数据目录。
 - 11.14 前必须有可访问地址；11.28 冻结部署。

@@ -7,6 +7,9 @@ backend/.env
 backend/bababoi.db
 backend/bababoi.db-wal
 backend/bababoi.db-shm
+**/*.db
+**/*.db-wal
+**/*.db-shm
 backend/uploads
 backend/.pytest_cache
 frontend/node_modules
