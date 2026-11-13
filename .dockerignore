@@ -1,0 +1,16 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+backend/.venv
+backend/.env
+backend/bababoi.db
+backend/bababoi.db-wal
+backend/bababoi.db-shm
+backend/uploads
+backend/.pytest_cache
+frontend/node_modules
+frontend/dist
+deploy/.env
+docs
+Resource
