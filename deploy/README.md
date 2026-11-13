@@ -12,6 +12,13 @@
 └── .env      # 密钥，chmod 600；不进仓库
 ```
 
+## 阿里云（国内网络）要额外做的三件事
+
+- **Docker 镜像加速**：控制台「容器镜像服务 → 镜像加速器」拿专属地址，写进 `/etc/docker/daemon.json` 的 `registry-mirrors` 后 `systemctl restart docker`。Dockerfile 用的是 `python:3.13-slim`（Docker Hub），没配加速器大概率拉不动。
+- **pip 镜像已在镜像里固定**：`PIP_INDEX_URL` / `UV_DEFAULT_INDEX` 都指向 `mirrors.aliyun.com`；`uv` 不再自己下载 Python（`UV_PYTHON_DOWNLOADS=never`）。
+- **安全组只开 80**（有域名后再加 443）。8000 只绑在宿主机 `127.0.0.1`，容器端口映射本身不对外。用 IP 访问不涉及备案；之后绑域名按阿里云要求来。
+- 1C2G 的构建如果 OOM，加 1–2G swap 再 `compose build`；前端不在服务器构建，node 的消耗可以忽略。
+
 ## 首次部署
 
 1. 宿主机准备（Docker 24+、nginx）：

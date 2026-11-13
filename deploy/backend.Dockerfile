@@ -1,11 +1,18 @@
 # 后端镜像：uv 依赖 + 单进程 uvicorn。构建上下文必须是仓库根目录：
 #   docker build -f deploy/backend.Dockerfile .
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+# 用 Docker Hub 的 python 镜像（国内可配阿里云加速器），不走 ghcr.io。
+FROM python:3.13-slim
 
+# 国内网络：pypi 走阿里云镜像；uv 不再自己下载 Python（镜像里已经是 3.13）
 ENV PYTHONUNBUFFERED=1 \
+    PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+    UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/ \
+    UV_PYTHON_DOWNLOADS=never \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     PATH="/app/.venv/bin:$PATH"
+
+RUN pip install --no-cache-dir "uv>=0.8,<1"
 
 WORKDIR /app
 
