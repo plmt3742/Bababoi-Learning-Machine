@@ -1,4 +1,5 @@
 import type { StatsTrendPoint } from '../api/types'
+import { parseApiTime } from './time'
 
 export function clampAccuracy(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -46,7 +47,7 @@ export function formatTrendDayShort(date: string): string {
 }
 
 export function formatStatsTime(value: string): string {
-  const date = new Date(value)
+  const date = parseApiTime(value)
   if (Number.isNaN(date.getTime())) return '—'
 
   const pad = (part: number): string => String(part).padStart(2, '0')

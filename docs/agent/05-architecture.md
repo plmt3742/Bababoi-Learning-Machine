@@ -952,7 +952,7 @@ POST /questions/from-image
 
 ### 7.3 Prompt 规范
 
-- 版本化：`vision_text_v1` / `vision_structure_v1`（识图两跳）、`analyze_v1`、`generate_v2`；每次改 prompt 升版本，存 DB。`generate_v2` = 一段一题 + 软约束题型（ADR-006，输出形状从数组变对象，必须计版）。
+- 版本化：`vision_text_v1` / `vision_structure_v1`（识图两跳）、`analyze_v1`、`generate_v2`（soft）/`generate_v3`（strict）；每次改 prompt 升版本，存 DB。`generate_v2` = 一段一题 + 软约束题型（ADR-006，输出形状从数组变对象，必须计版）。
 - **`generate_v2` 这个名字已经定权给三段并发了**：它只表示"一段一题 + 软约束题型"。另一条分支（PR #38）实现的是 batch + 题型硬约束，也叫 `generate_v2` —— 同版本号、相反语义，日志里分不清哪版 prompt 出的题，所以那条不得再用这个名字；要改就升 `generate_v3`（前端意见单 §四）。
 - **2026-11-10 更正（strict 前置，已落地）**：#58 已补 `generate_v3`，prompt 明写「题型必须与原题一致」，版本按策略分叉；本地 176 passed、真实 strict 27/27。当前 main 仍是 `generate_v2` 软约束，待 #58 合并后 strict 生效；若合并延后到演示前，才临时关闭 strict。之前「只记 `type_policy`、不升 `prompt_version`」对 strict 作废，对 soft 仍成立。
 - 输出只允许 JSON，不要 Markdown 代码围栏，不要解释文字。
@@ -1241,4 +1241,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
 | 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零），并加 60s 冷却（冷区内 429 `VISION_REFRESH_COOLDOWN`；**额度在调用前占用，失败/超时也算**；并发靠条件 UPDATE 只放行一个）；强刷出空结果删旧行；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；新列走**前向迁移** `c4e8a1d62f37`（`b7c2f4a91d30` 已推过，不就地改；降级先合并同图不同 model 的重复行）；缓存读写失败降级为一行 warning。13 条缓存 + 5 条迁移测试，211 passed | 人机 |
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
+| 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |

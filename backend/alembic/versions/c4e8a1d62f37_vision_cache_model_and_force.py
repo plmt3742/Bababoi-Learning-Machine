@@ -9,8 +9,7 @@ Create Date: 2026-11-12
 SQLite 不能直接改约束，走 batch（重建表）；MySQL 上就是 ADD COLUMN + DROP/ADD UNIQUE。
 降级会把"同图同版本、不同 model"的重复行合并成最新一行，否则缩回 5 列唯一键时撞键。
 
-⚠️ 合并顺序：`#58` 的 `c8e1b6a4d902` 与 `b7c2f4a91d30` 同父。若 #58 先合，只改
-`b7c2f4a91d30` 的 `down_revision` 为 `c8e1b6a4d902`，本文件不用动。
+`b7c2f4a91d30` 已接在 `c8e1b6a4d902` 后面；本文件跟着它走，不用动。
 """
 from __future__ import annotations
 

@@ -34,7 +34,7 @@ ID:
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
 > 当前同步（2026-11-07）：main 已合 #39（BE-021 三段并发 + ADR-006）、#42（BE-014 图片识图）、#49（FE-026 纯前端）、#50（测试控制台）、#51（FE-027 收口）；#38 已关闭并由 #49 替代。FE-027 已完成：题目编辑、题型开关、18 号识图口径、Vitest、PRD 清理。后端 follow-up：#43 BE-025 三题型 PATCH、#44 BE-026 生成偏好、#45 BE-013 统计、#46 BE-018 草稿、#32 BE-020 BYOK、#47 BE-024 两步识图、#48 seed/OpenAPI/staging。
-> 2026-11-13 同步：main 已合 #60/#61/#63/#64/#62/#58（`06e29e7`）；待合 #65（OpenAPI，快照已补 `/settings/preferences`）、#66（文档）、#67（两步识图）、缓存（基于 #67，未开 PR）。
+> 2026-11-13 同步：main 已合 #60/#61/#63/#64/#62/#58/#65/#68/#69/#70 与 #67（`be4dcf8`）；待合 #66（文档）、缓存（分支已就绪，待开 PR）。
 
 ### 1.1 设计（霹雳马桶 + 人机共同主导，我想抓住风的影子评审）
 
@@ -93,8 +93,8 @@ ID:
 | BE-005 | LLM 客户端 + Prompt + 校验 | 人机 | P0 | BE-001 | DeepSeek `deepseek-flash`（OpenAI 兼容，文本+图像）；三种题型 schema（content_md/options/blanks）；超时/重试；Pydantic 校验；JSON 修复 | DONE（PR #6；题型软约束，ADR-006 再改三段） |
 | BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DONE（PR #5；answer/explanation 写回 + 标签合并） |
 | BE-007 | 生成接口 | 人机 | P0 | BE-006 | content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；一次 3 道的旧形状已由 BE-021/ADR-006 取代） |
-| BE-008 | 种子脚本 | 人机 | P1 | BE-004 | `backend/scripts/seed_demo.py`：两个演示账号 `student01`/`student02`（口令由 `DEMO_PASSWORD` 注入，第二个用来验用户隔离与越权 403）；每账号 12 道错题（覆盖高数/线代/概率，含公式、全部纯文本可作答）、3 格生成题（`target_index` 1/2/3 + `easy/medium/hard`）、21–24 条练习铺在最近 10 天；**每行入库前先过 `validate_type_payload`**，重复执行不重复插（父题按题干认，不按位置认） | 已完成（#60 已合；follow-up PR #63：置信区间答案 0.042→0.046、清含图死标记、`DEMO_PASSWORD` 从 `.env` 注入且必填、`APP_ENV=production` 拒绝运行、非开发环境 `--reset` 需 `--yes`、删除与重建同一事务、练习按数量补齐） |
-| BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | 已完成（PR #65 待合：快照已补 #58 的 `/settings/preferences`，`--check` 绿） |
+| BE-008 | 种子脚本 | 人机 | P1 | BE-004 | `backend/scripts/seed_demo.py`：两个演示账号 `student01`/`student02`（口令由 `DEMO_PASSWORD` 注入，第二个用来验用户隔离与越权 403）；每账号 12 道错题（覆盖高数/线代/概率，含公式、全部纯文本可作答）、3 格生成题（`target_index` 1/2/3 + `easy/medium/hard`）、21–24 条练习铺在最近 10 天；**每行入库前先过 `validate_type_payload`**，重复执行不重复插（父题按题干认，不按位置认） | 已完成（#60 + #63 已合；`APP_ENV`/`DEMO_PASSWORD` 从 Settings 读、`--reset` 同事务 + `--yes`、练习按数量补齐。遗留：生成题题型仍统一 `solve`，与 strict 默认不一致，演示前最好按父题题型派生） |
+| BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | DONE（PR #65 已合 `4bebb28`；快照覆盖 auth/questions/images/tasks/practice/drafts/stats/settings；CI `--check` 防漂移已生效；422 为生成器行为，真实错误信封见 05 §6.2） |
 
 ### 1.5 部署/运维（人机主导，林协助）
 
@@ -147,7 +147,7 @@ ID:
 |---|---|---|---|---|---|---|
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
 | BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（前端意见单 §三） | TODO |
-| BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 本期采用（Issue #47）：转录开思考、结构化关思考；一次 HTTP；`chapter` 只能第 1 跳给；空位统一 `___`；`ai_call_logs` 两行；vision max_tokens ≥16000；超时 ≥180s；前端 loading 已接；验收用概率表述（四张图各 2 次，末题至少 1 次返回 + incomplete） | 已完成（PR #67 待前端合；两跳 + 两行日志 + 180s + 第 1 跳警告下沉；结果缓存已实现待开 PR：键含 model，请求 `force_refresh`（60s 冷却，调用前占用、失败也计），出参 `cached`/`extracted_at`；补列走前向迁移 `c4e8a1d62f37`） |
+| BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 本期采用（Issue #47）：转录开思考、结构化关思考；一次 HTTP；`chapter` 只能第 1 跳给；空位统一 `___`；`ai_call_logs` 两行；vision max_tokens ≥16000；超时 ≥180s；前端 loading 已接；验收用概率表述（四张图各 2 次，末题至少 1 次返回 + incomplete） | 已完成（#67 已合 `be4dcf8`；两跳 + 两行日志 + 180s + 第 1 跳警告下沉；结果缓存分支已就绪，待开 PR：键含 model，请求 `force_refresh`（60s 冷却，调用前占用、失败也计），出参 `cached`/`extracted_at`；补列走前向迁移 `c4e8a1d62f37`） |
 | BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |

@@ -1,12 +1,11 @@
 """vision_extract_cache: BE-024 识图结果缓存
 
 Revision ID: b7c2f4a91d30
-Revises: 3f9c1a7e5b24
+Revises: c8e1b6a4d902
 Create Date: 2026-11-12
 
-⚠️ 合并顺序：`#58`（BE-026）带来迁移 `c8e1b6a4d902`，它的 down_revision 也是
-`3f9c1a7e5b24`。本分支先合 #67、后于 #58 合并时，需要把本文件的 `down_revision`
-改成 `c8e1b6a4d902`，否则 alembic 会出现两个 head。
+版本链：`#58`（BE-026）的 `c8e1b6a4d902` 已先合入 main，本迁移接在它后面，
+避免与 main 出现两个 head。
 """
 from __future__ import annotations
 
@@ -17,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "b7c2f4a91d30"
-down_revision: str | None = "3f9c1a7e5b24"
+down_revision: str | None = "c8e1b6a4d902"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -2,9 +2,9 @@
 
 Vue 3 + Vite + TypeScript + Arco Design Vue。
 
-> 状态（2026-11-07）：FE-001 ~ FE-027 已合入 main；FE-027 收口——题目编辑、设置页题型开关、
-> 18 号识图口径、Vitest 单元测试、PRD 清理已完成（#51）。核心闭环（登录/文本录入/列表/详情/分析/
-> 三段生成/任务中心/练习）已接真实后端；图片识图随 BE-014 合入；统计/草稿/BYOK 仍等后端接口。
+> 状态（2026-11-12）：FE-001 ~ FE-035 已完成；FE-033/034/035 的改动在本地分支待推送。
+> 真接口联调已打通练习 / 图片 / 草稿 / 统计 / 任务（契约冒烟通过），BYOK 仍等 BE-020；
+> 生成偏好随后端 #58 合入 main，设置页可直接联调。
 > 应用壳、路由、设计 tokens、API client、Mock API、登录/注册与路由守卫、错题录入/列表/详情、
 > 练习、统计、三种题型编辑器、图片裁剪与多题条目、草稿双写、三段并发生成 UI、首页学习概览、
 > 个人设置（BYOK）均已可用。
@@ -66,7 +66,7 @@ VITE_USE_MOCK=true
 
 ## 登录与 Mock
 
-- 演示账号：`student01` / `password123`。
+- 演示账号：`student01`；口令由后端 `DEMO_PASSWORD` 注入，真值见演示手册（本地未设置时仍为 `password123`）。
 - `/login` 支持登录/注册（注册成功自动登录）；登录后跳转到合法的 `redirect`
   或首页，`redirect` 只允许站内绝对路径。
 - token 存放在 `localStorage` 的 `bababoi:token`；刷新时通过 `GET /auth/me`
@@ -197,17 +197,19 @@ src/
 
 ## 当前后端依赖
 
-- BE-013 统计（Issue #45）：统计页与首页统计卡片仍走 mock。
-- BE-018 草稿（Issue #46）：服务端草稿仍走 mock，本地草稿可兜底。
-- BE-020 BYOK（Issue #32）：设置页 AI Key 仍走 mock。
-- BE-025 三题型 PATCH（Issue #43）：前端编辑页已完成，后端未支持时明确提示。
-- BE-026 题型一致性开关（Issue #44）：前端设置页已完成，默认开启，等待后端执行。
+- BE-013 统计（PR #62 已合）：`GET /stats/overview` 可直接联调；mock 已对齐为 UTC+8、稀疏日期。
+- BE-018 草稿（PR #64 已合）：`GET/PUT/DELETE /drafts/me` 可直接联调；本地草稿仍作兜底。
+- BE-020 BYOK（Issue #32）：设置页 AI Key 仍走 mock；后端 404 时面板降级为“未启用”，不阻塞其他设置。
+- BE-025 三题型 PATCH（PR #55 已合）：编辑页已可用。
+- BE-026 题型一致性开关（PR #58 已合，`06e29e7`）：设置页可直接联调；后端未升级时该面板降级为“后端未启用”。
 - BE-024 两步识图（Issue #47）：前端 loading/180s 超时已接，后端链路待实现。
-- BE-008/BE-009/OPS-005（Issue #48）：seed、OpenAPI、staging 仍待补。
+- BE-009/OPS-005（PR #65 / staging）：OpenAPI 快照与 staging 仍待收口。
+- 时间口径：`questions` / `tasks` / `practice-records` / `auth.me` 返回 UTC naive（无 `Z`），
+  `drafts` / `stats` 带 `Z`；所有展示统一走 `src/utils/time.ts` 的 `parseApiTime`，不要直接 `new Date(str)`。
 
 ## 测试
 
-- `pnpm test` 运行 Vitest 单元测试，覆盖 API 归一化、任务错误码、草稿、图片映射、统计、设置校验。
+- `pnpm test` 运行 Vitest 单元测试，覆盖 API 归一化、任务错误码、草稿、图片映射、统计、设置校验、时间解析（9 files / 35 tests）。
 - `pnpm test:watch` 本地监听；CI 的 frontend job 会执行 `pnpm test`。
 - E2E（Playwright）暂未接入，核心路径仍以手工冒烟为主。
 

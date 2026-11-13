@@ -3,15 +3,18 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.meta import API_PREFIX, PROJECT_NAME, VERSION
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    project_name: str = "Bababoi Learning Machine"
-    version: str = "0.1.0"
-    api_prefix: str = "/api/v1"
+    # 默认值取自 app/core/meta.py，与导出脚本共用同一份（不写字面量两次）
+    project_name: str = PROJECT_NAME
+    version: str = VERSION
+    api_prefix: str = API_PREFIX
 
     # 运行环境：development / local / staging / production。
     # scripts/seed_demo.py 用它做危险操作守卫（production 拒绝运行；--reset 需 --yes）
