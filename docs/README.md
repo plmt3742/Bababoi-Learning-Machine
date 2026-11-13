@@ -48,6 +48,7 @@
 | [agent/20-three-segment-contract-sync-20261110.md](agent/20-three-segment-contract-sync-20261110.md) | 三段并发契约同步 + PR #58/#60 回馈：target_index/difficulty、1–3 段、strict 已补 generate_v3、种子已补 generation_task | 三段并发 / 联调 / 演示种子 |
 | [agent/21-backend-handoff-20261110.md](agent/21-backend-handoff-20261110.md) | 后端优先开工对接单：10 步顺序（#60/#58/统计/草稿/OpenAPI/staging/种子/P1）、前端所需接口契约、验收清单 | 后端排期 / 前端切真实接口 / staging 与演示准备 |
 | [agent/22-backend-review-20261111.md](agent/22-backend-review-20261111.md) | 后端 5 个 open PR 的 review 对接单：1 个阻断（种子 env）、各 PR 应修项与行号、合并顺序、待拍板口径、回执模板 | 后端合并前 / 联调复核 |
+| [agent/23-backend-handoff-20261113.md](agent/23-backend-handoff-20261113.md) | 合并后的后端对接单：前端已实测清单、必须保持的契约（时间/错误码/各接口）、BYOK 接口形状、识图两步、种子题型、部署确认、待拍板 | 后端继续开发 / 部署前对齐 / 演示准备 |
 
 ### 产品设计
 
