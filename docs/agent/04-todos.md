@@ -93,8 +93,7 @@ ID:
 | BE-006 | 分析接口 | 人机 | P0 | BE-004/005 | 返回知识点/题型/难度/错误原因/答案/解析；analysis 可编辑写回；落库；错误码 | DONE（PR #5；answer/explanation 写回 + 标签合并） |
 | BE-007 | 生成接口 | 人机 | P0 | BE-006 | content_md/answer_md/explanation_md/题型/options/blanks；校验；失败重试；落库 | DONE（PR #5；一次 3 道的旧形状已由 BE-021/ADR-006 取代） |
 | BE-008 | 种子脚本 | 人机 | P1 | BE-004 | `backend/scripts/seed_demo.py`：两个演示账号 `student01`/`student02`（口令由 `DEMO_PASSWORD` 注入，第二个用来验用户隔离与越权 403）；每账号 12 道错题（覆盖高数/线代/概率，含公式、全部纯文本可作答）、3 格生成题（`target_index` 1/2/3 + `easy/medium/hard`）、21–24 条练习铺在最近 10 天；**每行入库前先过 `validate_type_payload`**，重复执行不重复插（父题按题干认，不按位置认） | 已完成（#60 已合；follow-up PR #63：置信区间答案 0.042→0.046、清含图死标记、`DEMO_PASSWORD` 从 `.env` 注入且必填、`APP_ENV=production` 拒绝运行、非开发环境 `--reset` 需 `--yes`、删除与重建同一事务、练习按数量补齐） |
-| BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | TODO |
-
+| BE-009 | API 测试 + OpenAPI | 人机 | P0 | BE-003/004/006/007 | pytest 覆盖核心路径；LLM mock；OpenAPI 可访问 | 已完成（PR #65 待前端合：其余 PR 合完后重新导出快照；合前 `--check` 必须绿） |
 ### 1.5 部署/运维（人机主导，林协助）
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |

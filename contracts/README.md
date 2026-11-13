@@ -46,4 +46,5 @@ contracts/
   → CI 检查 OpenAPI 能否生成类型
 ```
 
-> 当前是目录骨架；实际导出脚本在 BE-009 / FE-004 里补。
+> `openapi/openapi.json` 由 `backend/scripts/export_openapi.py` 导出（BE-009），
+> CI 会比对快照，改了 schema 必须同 PR 更新。

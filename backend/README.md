@@ -60,4 +60,5 @@ uv run alembic upgrade head
 DEMO_PASSWORD='<演示口令>' uv run python scripts/seed_demo.py   # 灌演示数据（可重复执行；口令必填）
 uv run uvicorn app.main:app --reload --port 8000
 uv run pytest
+uv run python scripts/export_openapi.py   # 改 schema 后更新 contracts/openapi/openapi.json
 ```
