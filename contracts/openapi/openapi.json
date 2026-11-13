@@ -258,6 +258,11 @@
       },
       "FromImageRequest": {
         "properties": {
+          "force_refresh": {
+            "default": false,
+            "title": "Force Refresh",
+            "type": "boolean"
+          },
           "image_path": {
             "maxLength": 255,
             "minLength": 1,
@@ -543,6 +548,23 @@
       },
       "ImageExtractionOut": {
         "properties": {
+          "cached": {
+            "default": false,
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "extracted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracted At"
+          },
           "image_path": {
             "title": "Image Path",
             "type": "string"

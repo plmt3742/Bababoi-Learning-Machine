@@ -23,6 +23,7 @@ EXPECTED_TABLES = {
     "draft",
     "practice_records",
     "ai_call_logs",
+    "vision_extract_cache",
 }
 
 
@@ -46,6 +47,56 @@ def test_upgrade_head_creates_every_table(tmp_path, monkeypatch) -> None:
         )
     }
     assert EXPECTED_TABLES <= tables, f"缺表：{EXPECTED_TABLES - tables}"
+
+
+def test_upgrade_from_published_cache_revision_adds_columns(tmp_path, monkeypatch) -> None:
+    """`b7c2f4a91d30` 已发布过：跑过旧版的人必须能靠前向迁移补列，而不是重建库。"""
+    db = tmp_path / "patched.db"
+    monkeypatch.setenv("ALEMBIC_DATABASE_URL", f"sqlite:///{db.as_posix()}")
+    cfg = _config(db)
+    command.upgrade(cfg, "b7c2f4a91d30")
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(db)
+    columns = {row[1] for row in conn.execute("pragma table_info(vision_extract_cache)")}
+    assert {"model", "last_forced_at"} <= columns
+
+    table_sql = conn.execute(
+        "select sql from sqlite_master where type='table' and name='vision_extract_cache'"
+    ).fetchone()[0]
+    normalized = " ".join(table_sql.split())
+    assert "subject_key, model" in normalized, "唯一键必须扩成含 model"
+
+
+def test_downgrade_merges_rows_that_differ_only_by_model(tmp_path, monkeypatch) -> None:
+    """唯一键要缩回 5 列：同图两种 model 的两行会撞键，降级前必须先合并掉重复行。"""
+    db = tmp_path / "downgrade.db"
+    monkeypatch.setenv("ALEMBIC_DATABASE_URL", f"sqlite:///{db.as_posix()}")
+    cfg = _config(db)
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(db)
+    for model in ("deepseek-flash", "deepseek-v4-pro"):
+        conn.execute(
+            "insert into vision_extract_cache"
+            " (user_id, image_sha, subject_key, model, hop1_version, hop2_version,"
+            "  payload, question_count, has_incomplete, hit_count, created_at)"
+            " values (1, ?, '', ?, 'vision_text_v1', 'vision_structure_v1',"
+            "  '{}', 0, 0, 0, '2026-11-12 00:00:00')",
+            ("0" * 16, model),
+        )
+    conn.commit()
+    conn.close()
+
+    command.downgrade(cfg, "b7c2f4a91d30")
+
+    conn = sqlite3.connect(db)
+    assert conn.execute("select count(*) from vision_extract_cache").fetchone()[0] == 1
+    columns = {row[1] for row in conn.execute("pragma table_info(vision_extract_cache)")}
+    assert "model" not in columns
+    conn.close()
+
+    command.upgrade(cfg, "head")  # 降级后还能再升回来
 
 
 def test_downgrade_to_base_empties_the_schema(tmp_path, monkeypatch) -> None:

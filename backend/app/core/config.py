@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
     # BE-024 两跳：转录开思考 + 结构化，实测墙钟 17–60s；前端等待上限必须同步 ≥180
     recognize_client_timeout_s: int = 180  # 前端等待上限
+    # force_refresh 的冷却：每次强刷都是一次 17–90s 的两跳调用，不设冷却等于成本放大器。
+    # 只按"上一次强刷"计时——首次重新识别不受影响，挡的是连点/脚本刷
+    vision_force_refresh_cooldown_s: int = 60
     task_hard_timeout_s: int = 120  # 单任务服务端硬超时
     # ADR-006：一次生题排 3 段，2 个并发位会让第 3 段干等一轮；实测 3 段同瞬间并发无 429，
     # 所以默认给 6（两段满速）。生产仍要看 RPM/TPM 监控再调。
