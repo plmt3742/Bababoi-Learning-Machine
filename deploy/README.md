@@ -1,5 +1,12 @@
 # deploy · staging 部署（宿主机 nginx + api 容器）
 
+## 当前状态（2026-11-14）
+
+- 已上线：`http://47.107.30.226`（宿主机 nginx + api 容器，`/srv/bababoi/{repo,web,data}`）
+- 真 Key 已切并验证：真图 5 条 / 12.9s，第二次 0.07s 命中缓存
+- 演示口令只在演示手册，不在本仓库；改口令后必须 `seed_demo.py --reset --yes`
+- 待办：每日备份 cron、域名 + TLS（现在纯 IP/HTTP）、#66 文档
+
 > 拓扑：浏览器 → 宿主机 nginx（80，静态 dist + `/api` 反代）→ api 容器（127.0.0.1:8000）→ `/srv/bababoi/data`（SQLite + uploads）。
 > 暂不签证书、不迁全 compose；11.28 冻结前再看。
 
