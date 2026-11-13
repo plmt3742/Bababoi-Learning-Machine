@@ -1,4 +1,5 @@
 import type { Difficulty, MasteryStatus, QuestionType, ValidationStatus } from '../api/types'
+import { parseApiTimeOrNull } from './time'
 
 const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   choice: '选择题',
@@ -61,8 +62,7 @@ export function validationStatusLabel(status: ValidationStatus): string {
 }
 
 function toDate(value: string): Date | null {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
+  return parseApiTimeOrNull(value)
 }
 
 export function formatDate(value: string): string {
