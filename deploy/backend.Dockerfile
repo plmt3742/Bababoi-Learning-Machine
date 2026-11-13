@@ -18,7 +18,11 @@ WORKDIR /app
 
 # 先装依赖再拷代码：改业务代码不会打掉依赖层
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN uv sync --frozen --no-dev
+# uv.lock 里 source 固定写成 pypi.org，uv sync 会无视 UV_DEFAULT_INDEX 去慢慢拉；
+# 这里只用 uv 从 lock 导出确定性清单，真正下载交给 pip 走阿里云镜像。
+RUN uv export --frozen --no-dev --no-hashes --format requirements-txt -o /tmp/requirements.txt \
+    && sed -i '/^--/d' /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY backend/ ./
 COPY deploy/entrypoint.sh /entrypoint.sh
