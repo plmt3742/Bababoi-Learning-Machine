@@ -238,6 +238,79 @@ class ExtractedQuestion(BaseModel):
         return None
 
 
+# 第 1 跳的转录输出：{chapter, questions:[{index, content_md}], warnings}。
+# 只判"形状对不对、题干空不空"，不分题型、不判结构——那是第 2 跳的事。
+def validate_transcript(raw: dict) -> dict:
+    if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
+        raise ValueError('转录输出必须形如 {"chapter": ..., "questions": [...]}')
+
+    raw_chapter = raw.get("chapter")
+    chapter = raw_chapter.strip() if isinstance(raw_chapter, str) else None
+    warnings = [str(w) for w in (raw.get("warnings") or []) if str(w).strip()]
+
+    items: list[dict] = []
+    for position, entry in enumerate(raw["questions"], start=1):
+        if not isinstance(entry, dict):
+            warnings.append(f"第 {position} 条转录无法解析，已跳过")
+            continue
+        content = entry.get("content_md")
+        if not isinstance(content, str) or not content.strip():
+            warnings.append(f"第 {position} 条转录为空，已跳过")
+            continue
+        items.append(
+            {"index": position, "content_md": normalize_math_delimiters(content)}
+        )
+    if not items and not warnings:
+        warnings.append("没有从图片里辨认出题目")
+    return {"chapter": chapter or None, "questions": items, "warnings": warnings}
+
+
+_WARNING_ITEM_POINTER = re.compile(r"第\s*(\d+)\s*[题条]")
+
+
+def attach_transcript_warnings(
+    warnings: list[str], questions: list, *, transcript_count: int
+) -> None:
+    """把第 1 跳里点得到题号的警告下沉到条目（05 §6.8 三条硬约束的配套）。
+
+    第 1 跳的顶层 warning（如「第5题的密度函数表达式被截断」）原本只留在响应
+    顶层横幅上；前端确认步骤看的是**条目**的 `incomplete`（17 号 §四-4），
+    光有横幅等于没拦住用户提交。这里按题号挂到对应条目并置 `incomplete`。
+
+    `transcript_count != len(questions)` 时**不猜**：第 2 跳丢/并过条目后下标会漂，
+    挂错题比不挂更糟（15 号踩过同款坑），此时保留顶层警告。
+    """
+    if not warnings or not questions or transcript_count != len(questions):
+        return
+    by_index = {item.index: item for item in questions}
+    for warning in warnings:
+        match = _WARNING_ITEM_POINTER.search(warning)
+        if not match:
+            continue
+        item = by_index.get(int(match.group(1)))
+        if item is None or warning in item.warnings:
+            continue
+        item.warnings.append(warning)
+        item.incomplete = True
+
+
+# 实测模型转录真图时把空位写成 \underline{\qquad} / \underline{\hspace{...}}，
+# count_blanks 数出来是 0，填空题会因"空位数≠答案数"被降级。第 2 跳的提示词已要求
+# 统一成 ___，这里再兜一层（提示词是概率保证，格式归一必须是确定性的）。
+_BLANK_MARK = re.compile(
+    r"\\underline\{\s*(?:\\qquad|\\hspace\{[^}]*\}|_{2,})\s*\}"
+)
+
+
+def normalize_blank_markers(raw: object) -> object:
+    if not isinstance(raw, dict) or not isinstance(raw.get("questions"), list):
+        return raw
+    for entry in raw["questions"]:
+        if isinstance(entry, dict) and isinstance(entry.get("content_md"), str):
+            entry["content_md"] = _BLANK_MARK.sub("___", entry["content_md"])
+    return raw
+
+
 def validate_extraction(raw: dict) -> dict:
     """识图输出的校验：**文字转录从严，题目结构从宽**（ADR-004「识别成文本」的落地口径）。
 

@@ -54,8 +54,8 @@ class _ForcedTypeClient(MockLLMClient):
     只能自己造——否则这个测试会在 mock 与开关同时"正确"时永远走不到失败分支。
     """
 
-    def complete(self, operation, messages):
-        resp = super().complete(operation, messages)
+    def complete(self, operation, messages, **kwargs):
+        resp = super().complete(operation, messages, **kwargs)
         if operation != OPERATION_QUIZ:
             return resp
         user = messages[-1]["content"]

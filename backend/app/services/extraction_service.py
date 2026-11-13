@@ -46,47 +46,118 @@ def extract_from_image(
 ) -> dict:
     """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str]}`。
 
-    图片不属于当前用户或文件已不在 → `image_service` 直接 404，不告诉调用方"存在但没权限"。
+    两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
+    （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
     """
     data_url = image_service.data_url_for_llm(user_id, image_path)
-    messages = prompts.vision_messages(data_url, subject)
-    try:
-        result = pipeline_run(
-            _llm_client(), OPERATION_VISION, messages,
-            custom_validate=validator.validate_extraction,
-            retry_limit=1,
-        )
-    except AITruncatedError as exc:
-        # 实测一张真实教材照片 4 道题就吃掉 6776 输出 token（上限 8000），
-        # 一页更密的题确实会顶到。这时候用户能做的只有把图裁小一点，
-        # 所以文案要给动作，不给 "AI_INVALID_OUTPUT"。
-        message = "这张图题目太多，识别结果被截断了；请裁剪成几次再上传"
-        ai_log.write_call_log(session_factory, user_id, OPERATION_VISION, status="error",
-                              error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text)
-        raise AIInvalidImageError(message, raw_text=exc.raw_text) from None
-    except AIInvalidOutputError as exc:
-        ai_log.write_call_log(session_factory, user_id, OPERATION_VISION, status="error",
-                              error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text)
-        raise AIInvalidImageError(exc.message, raw_text=exc.raw_text) from None
-    except AIError as exc:
-        # 超时/供应商错误也要留一条：没有这行，识图失败在成本与延迟统计里就是隐身的
-        ai_log.write_call_log(session_factory, user_id, OPERATION_VISION, status="error",
-                              error_code=exc.error_code, raw_text=exc.raw_text)
-        raise
+    client = _llm_client()
 
-    value = result.value
-    if subject and subject.strip():
-        # 17 号对齐清单 §三 规则 1：用户已经选了学科，就别让模型猜的值覆盖它。
-        # 提示词里也写了"沿用 subject"，但那是概率保证；这里写死成确定性行为。
-        chosen = subject.strip()
-        for item in value["questions"]:
+    transcript = _hop(
+        session_factory,
+        user_id,
+        client,
+        messages=prompts.vision_text_messages(data_url),
+        version=prompts.PROMPT_VERSION_VISION_TEXT,
+        # 05 §6.8：转录开思考；实测密页（p4）24000 才完整（17251 输出 token），
+        # 16000 会在第 1 跳直接截断
+        max_tokens=24000,
+        thinking="adaptive",
+        validate=validator.validate_transcript,
+    )
+    if not transcript["questions"]:
+        # 图里没题是正常结果，不再白花第二跳；只留一条转录日志
+        return {
+            "image_path": image_path,
+            "questions": [],
+            "warnings": transcript["warnings"],
+        }
+
+    structure = _hop(
+        session_factory,
+        user_id,
+        client,
+        messages=prompts.vision_structure_messages(transcript, subject),
+        version=prompts.PROMPT_VERSION_VISION_STRUCTURE,
+        max_tokens=8000,
+        thinking="disabled",
+        validate=lambda raw: validator.validate_extraction(
+            validator.normalize_blank_markers(raw)
+        ),
+    )
+
+    chapter = transcript["chapter"]
+    chosen = subject.strip() if subject and subject.strip() else None
+    items = structure["questions"]
+    for item in items:
+        # 硬约束 1：chapter 只认第 1 跳（页眉不是题目，第 2 跳看不到）
+        item.chapter = chapter
+        if chosen:
+            # 17 号 §三 规则 1：用户已经选了学科，就别让模型猜的值覆盖它
             item.subject = chosen
-    ai_log.write_call_log(session_factory, user_id, OPERATION_VISION, status="success",
-                          usage=result.usage, raw_text=result.usage.text)
+    # 第 1 跳的「第 N 题被裁掉」类警告要落到条目上，前端确认步骤才拦得住
+    validator.attach_transcript_warnings(
+        transcript["warnings"], items, transcript_count=len(transcript["questions"])
+    )
     return {
         "image_path": image_path,
         # 出 model_dump 而不是 validator 的模型对象：响应模型是 schemas.image 那一套，
         # 跨模块的 pydantic 实例不会自动互认，直接把服务返回值变成可序列化的 dict 更干净
-        "questions": [item.model_dump() for item in value["questions"]],
-        "warnings": value["warnings"],
+        "questions": [item.model_dump() for item in items],
+        "warnings": list(transcript["warnings"]) + list(structure["warnings"]),
     }
+
+
+def _hop(
+    session_factory: sessionmaker,
+    user_id: int,
+    client,
+    *,
+    messages: list[dict],
+    version: str,
+    max_tokens: int,
+    thinking: str,
+    validate,
+):
+    """跑一跳：调用、校验、失败写一行日志（prompt_version 按跳分开）。"""
+    try:
+        result = pipeline_run(
+            client,
+            OPERATION_VISION,
+            messages,
+            custom_validate=validate,
+            retry_limit=1,
+            max_tokens=max_tokens,
+            thinking=thinking,
+        )
+    except AITruncatedError as exc:
+        # 实测一张真实教材照片 4 道题就吃掉 6776 输出 token；一页更密的题确实会顶到。
+        # 这时候用户能做的只有把图裁小一点，所以文案要给动作。
+        message = "这张图题目太多，识别结果被截断了；请裁剪成几次再上传"
+        ai_log.write_call_log(
+            session_factory, user_id, OPERATION_VISION, status="error",
+            error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
+            prompt_version_override=version,
+        )
+        raise AIInvalidImageError(message, raw_text=exc.raw_text) from None
+    except AIInvalidOutputError as exc:
+        ai_log.write_call_log(
+            session_factory, user_id, OPERATION_VISION, status="error",
+            error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
+            prompt_version_override=version,
+        )
+        raise AIInvalidImageError(exc.message, raw_text=exc.raw_text) from None
+    except AIError as exc:
+        # 超时/供应商错误也要留一条：没有这行，识图失败在成本与延迟统计里就是隐身的
+        ai_log.write_call_log(
+            session_factory, user_id, OPERATION_VISION, status="error",
+            error_code=exc.error_code, raw_text=exc.raw_text,
+            prompt_version_override=version,
+        )
+        raise
+
+    ai_log.write_call_log(
+        session_factory, user_id, OPERATION_VISION, status="success",
+        usage=result.usage, raw_text=result.usage.text,
+        prompt_version_override=version,
+    )
+    return result.value
