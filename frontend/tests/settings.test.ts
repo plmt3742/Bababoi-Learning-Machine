@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatSettingsTime,
   hasAiSettingsErrors,
   toAiSettingsUpdate,
   validateAiSettingsInput,
@@ -33,5 +34,11 @@ describe('settings helpers', () => {
       model: 'deepseek-flash',
       api_key: 'sk-12345678',
     })
+  })
+
+  it('returns an empty string for missing settings timestamps', () => {
+    expect(formatSettingsTime(null)).toBe('')
+    expect(formatSettingsTime('')).toBe('')
+    expect(formatSettingsTime('not-a-date')).toBe('')
   })
 })

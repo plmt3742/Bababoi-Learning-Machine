@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+from functools import partial
 
 import pytest
 from pydantic import ValidationError
@@ -32,8 +33,8 @@ QUESTION = {
 
 
 def _segment(content_md: str | None = None, **over) -> dict:
-    """一段的单题输出：拿 mock 的 medium 档做底子，改哪个字段就改哪个。"""
-    payload = copy.deepcopy(_MOCK_QUIZ_SEGMENTS["medium"])
+    """一段的单题输出：拿 mock 的 solve/medium 卡做底子，改哪个字段就改哪个。"""
+    payload = copy.deepcopy(_MOCK_QUIZ_SEGMENTS[("solve", "medium")])
     if content_md is not None:
         payload["content_md"] = content_md
     payload.update(over)
@@ -81,14 +82,34 @@ def test_mock_analysis_output_passes_validation() -> None:
     assert result.attempts == 1
 
 
-def test_mock_quiz_emits_one_valid_question_per_difficulty() -> None:
-    """Mock 也按段出题：提示词里给哪个档，就回哪个档的单题。"""
-    for slot, difficulty in enumerate(("easy", "medium", "hard"), start=1):
-        result = run(MockLLMClient(), OPERATION_QUIZ, _segment_messages(slot, difficulty),
-                     custom_validate=validator.validate_segment)
-        assert result.value.difficulty == difficulty
-        assert result.value.question_type in ("choice", "blank", "solve")
-        assert result.attempts == 1
+def test_mock_quiz_matches_original_type_and_difficulty() -> None:
+    """Mock 按提示词里的「题型 × 难度」选卡：三种原题 × 三档都要 3/3 过 strict 校验。
+
+    mock 是替身，不是"会偶尔换题型的模型"。它若自己就违反用户开关，演示和队列测试
+    就只能显式关开关绕过——那等于让替身把业务行为定死。三段还必须互不相同，
+    否则会撞「与同组其它段完全相同」的判死。
+    """
+    for original_type in ("choice", "blank", "solve"):
+        question = {**QUESTION, "question_type": original_type}
+        contents: list[str] = []
+        for slot, difficulty in enumerate(("easy", "medium", "hard"), start=1):
+            result = run(
+                MockLLMClient(), OPERATION_QUIZ,
+                prompts.quiz_messages(question, target_index=slot, difficulty=difficulty,
+                                      type_policy="strict"),
+                custom_validate=partial(
+                    validator.validate_segment,
+                    difficulty=difficulty,
+                    original_content_md=question["content_md"],
+                    original_question_type=original_type,
+                    type_policy="strict",
+                ),
+            )
+            assert result.value.question_type == original_type
+            assert result.value.difficulty == difficulty
+            assert result.attempts == 1
+            contents.append(result.value.content_md)
+        assert len(set(contents)) == 3, "三段必须是不同的题，否则第二段就会被同组查重判死"
 
 
 def test_mock_quiz_segment_content_mentions_input_topic() -> None:
@@ -118,6 +139,28 @@ def test_quiz_prompt_carries_slot_knowledge_and_difficulty() -> None:
     assert "我的易错" in prompts.quiz_messages(from_tags, target_index=1, difficulty="easy")[1]["content"]
     from_nothing = {**QUESTION, "knowledge_points": [], "tags": []}
     assert "自己从题干判断" in prompts.quiz_messages(from_nothing, target_index=1, difficulty="easy")[1]["content"]
+
+
+def test_strict_prompt_states_type_rule_and_bumps_version() -> None:
+    """BE-026：strict 判死之前必须先把规则写进 prompt，且文本变了就要升版本。
+
+    前端 review 原话「不要合 soft prompt + strict 默认」：拿一个没告知题型规则的
+    prompt 去严格判死，失败率里分不清是模型偏好还是没被告知。
+    """
+    strict_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy", type_policy="strict")[0]["content"]
+    assert "题型必须与原题一致" in strict_system
+    assert "允许调整题型" not in strict_system
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="strict") == "generate_v3"
+
+    soft_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy")[0]["content"]
+    assert "允许调整题型" in soft_system
+    assert "题型必须与原题一致" not in soft_system
+    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v2"
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="soft") == "generate_v2"
+    # 其它操作的版本不受 type_policy 影响
+    assert prompts.prompt_version(OPERATION_ANALYSIS, type_policy="strict") == "analyze_v1"
 
 
 def test_pipeline_fails_fast_on_truncated_output() -> None:
@@ -161,7 +204,7 @@ def test_pipeline_succeeds_on_second_attempt() -> None:
     client = FakeClient(["先说两句废话", good])
     result = run(client, OPERATION_QUIZ, [], custom_validate=validator.validate_segment)
     assert result.attempts == 2
-    assert result.value.content_md == _MOCK_QUIZ_SEGMENTS["medium"]["content_md"]
+    assert result.value.content_md == _MOCK_QUIZ_SEGMENTS[("solve", "medium")]["content_md"]
 
 
 def test_pipeline_requires_one_validator() -> None:
@@ -175,7 +218,7 @@ def test_pipeline_requires_one_validator() -> None:
 def test_parser_extracts_json_from_fenced_and_noisy_output() -> None:
     from app.ai.parser import extract_json
 
-    raw = _MOCK_QUIZ_SEGMENTS["hard"]
+    raw = _MOCK_QUIZ_SEGMENTS[("choice", "hard")]
     fenced = f"```json\n{json.dumps(raw, ensure_ascii=False)}\n```"
     noisy = f"好的，以下是生成结果：\n{json.dumps(raw, ensure_ascii=False)}\n希望有帮助"
     assert extract_json(fenced) == raw

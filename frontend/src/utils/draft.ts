@@ -7,6 +7,7 @@
  * worth restoring?" rules so the view and the composable stay dumb.
  */
 import type { Draft, QuestionType } from '../api/types'
+import { parseApiTime } from './time'
 
 export const MAX_DRAFT_TAGS = 10
 export const MAX_DRAFT_OPTIONS = 24
@@ -189,7 +190,7 @@ export function clearLocalDraft(userId: number): void {
 }
 
 function parseTimestamp(value: string): number | null {
-  const time = Date.parse(value)
+  const time = parseApiTime(value).getTime()
   return Number.isNaN(time) ? null : time
 }
 
@@ -227,7 +228,7 @@ export function chooseDraftCandidate(
 
 /** `HH:mm` used by the save status line; invalid timestamps render empty. */
 export function formatDraftClockTime(value: string | Date): string {
-  const date = value instanceof Date ? value : new Date(value)
+  const date = value instanceof Date ? value : parseApiTime(value)
   if (Number.isNaN(date.getTime())) return ''
 
   const hours = String(date.getHours()).padStart(2, '0')

@@ -173,7 +173,8 @@ async function handleSubmit(): Promise<void> {
 
       <div class="login-view__hint" role="note">
         <span class="login-view__hint-label">演示账号</span>
-        <code class="login-view__hint-code">student01 / password123</code>
+        <code class="login-view__hint-code">student01</code>
+        <span class="login-view__hint-label">口令见演示手册</span>
       </div>
 
       <p class="login-view__footnote">演示环境 · 注册后自动登录</p>

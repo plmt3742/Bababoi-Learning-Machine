@@ -20,6 +20,7 @@ import { useTaskPolling } from '../composables/useTaskPolling'
 import { hasActiveTasks, latestTask } from '../utils/task'
 import { isSegmentTask, summarizeSegments } from '../utils/segments'
 import { formatDateTime, masteryStatusLabel, questionTypeLabel } from '../utils/question'
+import { parseApiTime } from '../utils/time'
 
 const route = useRoute()
 const router = useRouter()
@@ -134,7 +135,7 @@ const analysisTaskLabel = computed(() => {
   const task = analysisTask.value
   if (!task) return ''
 
-  const date = new Date(task.started_at ?? task.created_at)
+  const date = parseApiTime(task.started_at ?? task.created_at)
   if (Number.isNaN(date.getTime())) return `任务 #${task.id}`
 
   const time = new Intl.DateTimeFormat('zh-CN', {
