@@ -279,6 +279,22 @@ def test_extraction_service_client_uses_user_key(client, db, enc_key, monkeypatc
     assert system_client.key_source == "system"
 
 
+def test_invalid_encryption_key_fails_startup(monkeypatch) -> None:
+    """B4：非法 Fernet key 应该在启动时被拦，而不是等第一个 PUT 才 500/503。"""
+    monkeypatch.setattr(settings, "jwt_secret", "x" * 32)
+    monkeypatch.setattr(settings, "llm_mock", True)
+    monkeypatch.setattr(settings, "settings_encryption_key", "not-a-fernet-key")
+    with pytest.raises(RuntimeError, match="SETTINGS_ENCRYPTION_KEY"):
+        settings.validate_for_startup()
+
+
+def test_valid_fernet_key_passes_startup(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "jwt_secret", "x" * 32)
+    monkeypatch.setattr(settings, "llm_mock", True)
+    monkeypatch.setattr(settings, "settings_encryption_key", Fernet.generate_key().decode())
+    settings.validate_for_startup()
+
+
 def test_ai_log_records_key_source(client, db, enc_key) -> None:
     user_id = register_user(client)["user"]["id"]
     ai_log.write_call_log(
