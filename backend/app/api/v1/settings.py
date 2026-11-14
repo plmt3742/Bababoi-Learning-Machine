@@ -1,14 +1,20 @@
-"""个人设置路由（05 §6.9）。本期只有 BE-026 的生成偏好；BYOK 的 `/settings/ai` 在 BE-020。"""
+"""个人设置路由（05 §6.9）：生成偏好（BE-026）+ 用户自带 AI Key（BE-020 / ADR-007）。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
 from app.db.base import utcnow
 from app.db.session import get_session
 from app.models import User
-from app.schemas.settings import PreferencesOut, PreferencesUpdate
+from app.schemas.settings import (
+    AiSettingsOut,
+    AiSettingsUpdate,
+    PreferencesOut,
+    PreferencesUpdate,
+)
+from app.services import ai_settings_service
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -49,3 +55,32 @@ def put_preferences(
     session.commit()
     session.refresh(user)
     return _as_out(user)
+
+
+@router.get("/ai", response_model=AiSettingsOut)
+def get_ai_settings(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AiSettingsOut:
+    """未配置时返回 `configured=false`，不是 404——前端按这个字段决定显示"未启用/已配置"。"""
+    return ai_settings_service.get_settings(session, user.id)
+
+
+@router.put("/ai", response_model=AiSettingsOut)
+def put_ai_settings(
+    data: AiSettingsUpdate,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AiSettingsOut:
+    """整份覆盖；返回只含掩码，原始 Key 不回传。"""
+    return ai_settings_service.save_settings(session, user.id, data)
+
+
+@router.delete("/ai", status_code=204)
+def delete_ai_settings(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> Response:
+    """删除后回退系统 Key；没有配置时也返回 204（幂等）。"""
+    ai_settings_service.delete_settings(session, user.id)
+    return Response(status_code=204)

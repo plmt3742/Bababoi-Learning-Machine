@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.ai import prompts, validator
 from app.ai.client import OPERATION_ANALYSIS, OPERATION_QUIZ, build_llm_client
 from app.ai.errors import AIError
+from app.ai.llm_config import resolve_llm_config
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
 from app.db.base import utcnow
@@ -30,17 +31,15 @@ from app.services.task_service import segment_difficulty
 
 logger = logging.getLogger(__name__)
 
-_client = None
-_client_lock = threading.Lock()
+def _llm_client(session_factory=None, user_id=None):
+    """worker 用的客户端；测试 monkeypatch 这个函数换替身。
 
-
-def _llm_client():
-    """worker 用的客户端；测试 monkeypatch 这个函数换替身。"""
-    global _client
-    with _client_lock:
-        if _client is None:
-            _client = build_llm_client()
-        return _client
+    有用户上下文时解析 BYOK（用户 Key → 系统 Key），连接池按 Key 哈希在 client 里复用。
+    mock 模式不需要 Key，直接短路。
+    """
+    if settings.llm_mock or session_factory is None or user_id is None:
+        return build_llm_client()
+    return build_llm_client(resolve_llm_config(session_factory, user_id))
 
 
 def reset_stale_running(session_factory: sessionmaker) -> int:
@@ -107,6 +106,7 @@ def _write_call_log(
     error_code: str | None = None,
     raw_text: str | None = None,
     type_policy: str | None = None,
+    key_source: str | None = None,
 ) -> None:
     """任务侧的薄封装：归属和排队时长从 task 上取，写库规则交给 ai_log（05 §9.3）。"""
     ai_log.write_call_log(
@@ -120,6 +120,7 @@ def _write_call_log(
         raw_text=raw_text,
         queue_wait_ms=int((utcnow() - task.created_at).total_seconds() * 1000),
         type_policy=type_policy,
+        key_source=key_source,
     )
 
 
@@ -145,6 +146,8 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         owner = session.get(User, user_id)
         enforce = bool(owner.enforce_same_question_type) if owner else True
         type_policy = None if is_analysis else ("strict" if enforce else "soft")
+        # Key 也在执行时解析：用户在排队期间换了 Key，跑的就该是新的那把
+        client = _llm_client(session_factory, user_id)
         if is_analysis:
             messages = prompts.analysis_messages(payload)
         else:
@@ -170,7 +173,7 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         # retry_limit=0：任务级重试由 _fail_or_requeue 统一做（12号 §3.2 只重试 1 次），
         # pipeline 内部不再叠加重试，否则一个坏输出任务最多打 4 次 LLM
         result = pipeline_run(
-            _llm_client(), operation, messages,
+            client, operation, messages,
             parse=validator.AnalysisResult if is_analysis else None,
             # 原题题干与同组其它段都要传进校验：前者拦「把原题抄一遍」，
             # 后者拦「两段出了逐字相同的题」（05 §7.2 第 3 条）
@@ -200,19 +203,20 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         # 只记「AI_INVALID_OUTPUT」的话，没法定位是 prompt 的问题还是模型的问题
         _write_call_log(session_factory, task, operation, status="error",
                         error_code=exc.error_code, raw_text=exc.raw_text,
-                        type_policy=type_policy)
+                        type_policy=type_policy, key_source=getattr(client, "key_source", None))
         _fail_or_requeue(session_factory, task_id, exc.error_code, exc.message)
         return
     except Exception as exc:  # noqa: BLE001  # 未预期异常也要让任务有终态
         logger.exception("任务 %s 执行异常", task_id)
         _write_call_log(session_factory, task, operation, status="error",
                         error_code="INTERNAL_ERROR", raw_text=str(exc),
-                        type_policy=type_policy)
+                        type_policy=type_policy, key_source=getattr(client, "key_source", None))
         _fail_or_requeue(session_factory, task_id, "INTERNAL_ERROR", str(exc))
         return
 
     _write_call_log(session_factory, task, operation, status="success", usage=result.usage,
-                    raw_text=result.usage.text, type_policy=type_policy)
+                    raw_text=result.usage.text, type_policy=type_policy,
+                    key_source=getattr(client, "key_source", None))
     with session_factory() as session:
         t = session.get(GenerationTask, task_id)
         t.status = "done"

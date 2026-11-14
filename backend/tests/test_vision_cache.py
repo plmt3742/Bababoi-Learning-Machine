@@ -123,7 +123,7 @@ def user(client):
 def test_second_call_hits_cache_without_model_or_logs(client, db, user, monkeypatch) -> None:
     token, user_id = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     first = _extract(client, token, image_path)
@@ -156,7 +156,7 @@ def test_second_call_hits_cache_without_model_or_logs(client, db, user, monkeypa
 def test_subject_is_part_of_key(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
@@ -171,7 +171,7 @@ def test_subject_is_part_of_key(client, db, user, monkeypatch) -> None:
 def test_prompt_version_change_misses(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
@@ -183,7 +183,7 @@ def test_prompt_version_change_misses(client, db, user, monkeypatch) -> None:
 def test_empty_result_is_not_cached(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = EmptyPageClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
@@ -196,7 +196,7 @@ def test_empty_result_is_not_cached(client, db, user, monkeypatch) -> None:
 def test_corrupt_payload_is_treated_as_miss_and_replaced(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
     assert _extract(client, token, image_path).status_code == 200
 
@@ -215,7 +215,7 @@ def test_corrupt_payload_is_treated_as_miss_and_replaced(client, db, user, monke
 
 def test_concurrent_store_keeps_single_row(client, db, user, monkeypatch) -> None:
     token, user_id = user
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: CountingClient())
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: CountingClient())
     image_path = _upload(client, token)
     key = extraction_service._cache_key(user_id, image_path, None)
     assert key is not None
@@ -235,7 +235,7 @@ def test_concurrent_store_keeps_single_row(client, db, user, monkeypatch) -> Non
 def test_force_refresh_skips_cache_and_overwrites(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
@@ -261,7 +261,7 @@ def test_force_refresh_has_cooldown(client, db, user, monkeypatch) -> None:
     """每次强刷都是一次 17–90s 的两跳调用；连点/脚本刷必须被冷却挡住。"""
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
@@ -282,7 +282,7 @@ def test_force_refresh_has_cooldown(client, db, user, monkeypatch) -> None:
 def test_model_change_is_a_new_key(client, db, user, monkeypatch) -> None:
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     monkeypatch.setattr(settings, "llm_mock", False)
     monkeypatch.setattr(settings, "llm_model", "deepseek-flash")
     image_path = _upload(client, token)
@@ -303,12 +303,12 @@ def test_failed_force_refresh_still_consumes_cooldown(client, db, user, monkeypa
     """失败的强刷照样烧了一轮模型：冷却必须在调用前占用，否则最贵的失败路径能无限重试。"""
     token, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
     assert _extract(client, token, image_path).status_code == 200
 
     timeout = TimeoutClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: timeout)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: timeout)
     assert _extract(client, token, image_path, force_refresh=True).status_code == 504
     assert timeout.calls == 1
 
@@ -325,7 +325,7 @@ def test_force_refresh_empty_result_drops_stale_row(client, db, user, monkeypatc
     """强刷出空结果时旧行必须删：否则下一次普通请求会命中早已作废的旧识别。"""
     token, _ = user
     fake = SwitchToEmptyClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path = _upload(client, token)
 
     first = _extract(client, token, image_path)
@@ -349,7 +349,7 @@ def test_force_refresh_empty_result_drops_stale_row(client, db, user, monkeypatc
 def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> None:
     token, user_id = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
 
     with db() as s:
         s.add(
@@ -373,7 +373,7 @@ def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> N
 def test_cache_is_per_user(client, db, user, monkeypatch) -> None:
     token_a, _ = user
     fake = CountingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     image_path_a = _upload(client, token_a)
     assert _extract(client, token_a, image_path_a).status_code == 200
 

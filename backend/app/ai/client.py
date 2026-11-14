@@ -6,7 +6,9 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -15,6 +17,7 @@ import httpx
 import openai
 
 from app.ai.errors import AIProviderError, AITimeoutError
+from app.ai.llm_config import LLMConfig, system_config
 from app.core.config import settings
 
 # 操作类型：决定 mock 返回哪种输出、日志里记什么 operation
@@ -91,6 +94,8 @@ class MockLLMClient:
       mock 是替身，不该逼着演示和测试去关业务开关。
     """
 
+    key_source = "mock"
+
     def complete(
         self,
         operation: str,
@@ -139,21 +144,26 @@ def _mock_quiz_text(messages: list[dict]) -> str:
 
 
 class DeepSeekClient:
-    def __init__(self) -> None:
+    def __init__(self, *, api_key: str, base_url: str, model: str) -> None:
         # trust_env=False：不让 httpx 去读系统代理。Windows/macOS 上代理一坏，
         # 请求会变成 APIConnectionError: SSL UNEXPECTED_EOF，看着像模型挂了
         # 其实是网络配置问题（本地实测踩过一次，排查成本很高）。
         self._client = openai.OpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
+            api_key=api_key,
+            base_url=base_url,
             # 兜底值；真正生效的是每次请求按 operation 覆盖的 timeout
             timeout=settings.task_hard_timeout_s,
             max_retries=settings.task_retry_limit,  # SDK 自带传输层重试
             http_client=httpx.Client(
-                trust_env=False, timeout=settings.task_hard_timeout_s
+                trust_env=False,
+                timeout=settings.task_hard_timeout_s,
+                # 白名单域名不会跳转；显式关掉，以后放开自定义 host 时少一个 SSRF 面
+                follow_redirects=False,
             ),
         )
-        self._model = settings.llm_model
+        self._model = model
+        self.key_source = "system"
+        self.user_id: int | None = None
 
     def complete(
         self,
@@ -195,12 +205,36 @@ class DeepSeekClient:
         )
 
 
-def build_llm_client() -> LLMClient:
+_client_cache: dict[tuple[str, str, str], DeepSeekClient] = {}
+_client_cache_lock = threading.Lock()
+
+
+def build_llm_client(config: LLMConfig | None = None) -> LLMClient:
+    """按配置返回客户端；同一把 Key（哈希）+ base_url + model 复用一个连接池。
+
+    缓存键用 Key 哈希而不是 user_id：用户换 Key 后自然落到新键，旧客户端不会再被取到，
+    不需要额外的失效回调。
+    """
     if settings.llm_mock:
         return MockLLMClient()
-    if not settings.llm_api_key:
-        raise AIProviderError("LLM_MOCK=false 但 LLM_API_KEY 未配置")
-    return DeepSeekClient()
+    cfg = config or system_config()
+    if not cfg.api_key:
+        raise AIProviderError("LLM_MOCK=false 但 API Key 未配置")
+    handle = hashlib.sha256(cfg.api_key.encode()).hexdigest()
+    cache_key = (handle, cfg.base_url, cfg.model)
+    with _client_cache_lock:
+        if len(_client_cache) >= 64:
+            # 每个 Key 一个连接池；换 Key 后旧 client 没有回调可删，容量封顶防慢性泄漏
+            _client_cache.clear()
+        client = _client_cache.get(cache_key)
+        if client is None:
+            client = DeepSeekClient(
+                api_key=cfg.api_key, base_url=cfg.base_url, model=cfg.model
+            )
+            client.key_source = cfg.key_source
+            client.user_id = cfg.user_id
+            _client_cache[cache_key] = client
+        return client
 
 
 # ---- Mock 固定输出（合法 JSON，必须能通过 ai/validator 的校验，pipeline 测试依赖这点）----
