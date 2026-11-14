@@ -5,7 +5,7 @@ Revises: c4e8a1d62f37
 Create Date: 2026-11-14
 
 - 新表 `user_ai_settings`：每用户一行，Key 只存 Fernet 密文 + 末四位
-- `ai_call_logs.key_source`：这次调用用的是 user 还是 system 的 Key
+- `ai_call_logs.key_source`：这次调用用的是 user / system 的 Key（mock 模式记 mock）
 """
 from __future__ import annotations
 

@@ -89,6 +89,16 @@ class Settings(BaseSettings):
             )
         if not self.llm_mock and not self.llm_api_key:
             raise RuntimeError("LLM_MOCK=false 但 LLM_API_KEY 未配置")
+        if self.settings_encryption_key:
+            # 非空就先构造一次：非法 key 不该等到第一个 BYOK 请求才炸
+            try:
+                from cryptography.fernet import Fernet
+
+                Fernet(self.settings_encryption_key.encode())
+            except Exception as exc:  # noqa: BLE001
+                raise RuntimeError(
+                    "SETTINGS_ENCRYPTION_KEY 不是合法的 Fernet key"
+                ) from exc
 
 
 settings = Settings()

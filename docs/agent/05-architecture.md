@@ -729,7 +729,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/settings/ai` | 返回 `{configured, provider, base_url, model, api_key_masked, updated_at}`；不返回原始 Key |
-| PUT | `/settings/ai` | body `{provider, base_url?, model, api_key}`；返回 masked；`api_key` ≥8 |
+| PUT | `/settings/ai` | body `{provider, base_url?, model, api_key?}`；返回 masked；`api_key` ≥8，**省略 = 保留已存 Key** |
 | DELETE | `/settings/ai` | 删除用户配置，回退系统 Key；204 |
 | GET | `/settings/preferences` | `{enforce_same_question_type, updated_at}`；默认 `true` |
 | PUT | `/settings/preferences` | body `{enforce_same_question_type}`；返回同上 |
@@ -740,7 +740,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - 新表 `user_ai_settings`：`user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4`、`created_at`、`updated_at`；加密密钥从 `SETTINGS_ENCRYPTION_KEY` 读取。
 - 生成/分析取 Key 顺序：用户配置 → 系统 `.env` → **`AI_PROVIDER_ERROR`**；mock 只由 `LLM_MOCK` 决定，不再静默回退。`ai_call_logs` 记录 `key_source=user|system`，不记录 Key。
 - 用户 Key 失效/额度不足要返回明确错误，不静默回退。
-- **实现口径（BE-020）**：`base_url` 先只允许 `https` + 白名单 host（`api.deepseek.com` / `api.openai.com`，端口 443），自定义地址等 SSRF 防护做完再放开；Key 用 Fernet 加密，`SETTINGS_ENCRYPTION_KEY` 缺失时 PUT 返回 503 `AI_PROVIDER_ERROR`（不静默退回系统 Key）；连接池按 Key 哈希缓存，Key 在**执行时**解析（排队期间换 Key 生效）；`LLM_MOCK=true` 时短路，不要求任何 Key。
+- **实现口径（BE-020）**：`base_url` 先只允许 `https` + 白名单 host（`api.deepseek.com` / `api.openai.com`，端口 443），自定义地址等 SSRF 防护做完再放开；Key 用 Fernet 加密，`SETTINGS_ENCRYPTION_KEY` 缺失时 PUT 返回 503 `AI_PROVIDER_ERROR`（不静默退回系统 Key）；连接池按 Key 哈希缓存，Key 在**执行时**解析（排队期间换 Key 生效）；`LLM_MOCK=true` 时短路，不要求任何 Key。`ai_call_logs.key_source` 三值：`user` / `system` / `mock`。识图缓存键**不含** `key_source`：同一用户先用系统 Key、后配自带 Key，同图仍会命中已有缓存（省钱，但按 `key_source=user` 统计调用数不会涨）。`SETTINGS_ENCRYPTION_KEY` 与数据同寿命，更换前先清空 `user_ai_settings`，否则所有密文解不开。
 
 ## 7. AI 流水线
 

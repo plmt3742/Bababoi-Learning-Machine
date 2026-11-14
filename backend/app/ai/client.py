@@ -155,7 +155,10 @@ class DeepSeekClient:
             timeout=settings.task_hard_timeout_s,
             max_retries=settings.task_retry_limit,  # SDK 自带传输层重试
             http_client=httpx.Client(
-                trust_env=False, timeout=settings.task_hard_timeout_s
+                trust_env=False,
+                timeout=settings.task_hard_timeout_s,
+                # 白名单域名不会跳转；显式关掉，以后放开自定义 host 时少一个 SSRF 面
+                follow_redirects=False,
             ),
         )
         self._model = model
@@ -217,9 +220,12 @@ def build_llm_client(config: LLMConfig | None = None) -> LLMClient:
     cfg = config or system_config()
     if not cfg.api_key:
         raise AIProviderError("LLM_MOCK=false 但 API Key 未配置")
-    handle = hashlib.sha256(cfg.api_key.encode()).hexdigest()[:12]
+    handle = hashlib.sha256(cfg.api_key.encode()).hexdigest()
     cache_key = (handle, cfg.base_url, cfg.model)
     with _client_cache_lock:
+        if len(_client_cache) >= 64:
+            # 每个 Key 一个连接池；换 Key 后旧 client 没有回调可删，容量封顶防慢性泄漏
+            _client_cache.clear()
         client = _client_cache.get(cache_key)
         if client is None:
             client = DeepSeekClient(

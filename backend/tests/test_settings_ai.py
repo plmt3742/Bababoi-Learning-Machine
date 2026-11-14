@@ -110,6 +110,75 @@ def test_openai_compatible_base_url_whitelist(client, db, enc_key) -> None:
     assert missing.status_code == 400
 
 
+def test_invalid_port_is_400_not_500(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+    for base_url in (
+        "https://api.openai.com:99999/v1",
+        "https://api.openai.com:abc/v1",
+    ):
+        resp = _put(
+            client,
+            token,
+            {
+                "provider": "openai_compatible",
+                "base_url": base_url,
+                "model": "gpt-4o-mini",
+                "api_key": "sk-test-123456",
+            },
+        )
+        assert resp.status_code == 400, (base_url, resp.text)
+        assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
+
+
+def test_deepseek_base_url_uses_same_url_rules(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+    for base_url in (
+        "https://api.deepseek.com:8443/v1",
+        "https://user:pass@api.deepseek.com/v1",
+        "https://api.deepseek.com/v1?x=1#y",
+    ):
+        resp = _put(
+            client,
+            token,
+            {
+                "provider": "deepseek",
+                "base_url": base_url,
+                "model": "deepseek-flash",
+                "api_key": "sk-test-123456",
+            },
+        )
+        assert resp.status_code == 400, (base_url, resp.text)
+
+
+def test_update_without_key_keeps_existing_secret(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+    assert _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk-test-123456"},
+    ).status_code == 200
+    with db() as session:
+        before = session.scalar(select(UserAiSettings)).api_key_ciphertext
+
+    resp = _put(
+        client, token, {"provider": "deepseek", "model": "deepseek-reasoner"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["model"] == "deepseek-reasoner"
+    with db() as session:
+        after = session.scalar(select(UserAiSettings))
+        assert after is not None
+        assert after.api_key_ciphertext == before, "省略 api_key 不能清掉已存的 Key"
+        assert after.key_last4 == "3456"
+
+
+def test_first_create_without_key_is_400(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+    resp = _put(client, token, {"provider": "deepseek", "model": "deepseek-flash"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
+
+
 def test_short_key_rejected_and_delete_is_idempotent(client, db, enc_key) -> None:
     token = register_user(client)["access_token"]
     short = _put(client, token, {"provider": "deepseek", "model": "deepseek-flash", "api_key": "short"})
@@ -185,6 +254,29 @@ def test_client_cache_hits_same_key_and_marks_source(monkeypatch) -> None:
     client_b = build_llm_client(cfg_b)
     assert client_b is not client_a
     assert client_a.key_source == "user" and client_a.user_id == 1
+
+
+def test_extraction_service_client_uses_user_key(client, db, enc_key, monkeypatch) -> None:
+    """装配级验证：不只测 resolve 零件，要确认 service 的 _llm_client 真的换了 Key。"""
+    from app.services import extraction_service
+
+    monkeypatch.setattr(settings, "llm_mock", False)
+    monkeypatch.setattr(settings, "llm_api_key", "system-key-1234")
+    data = register_user(client)
+    token, user_id = data["access_token"], data["user"]["id"]
+    assert _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk-user-123456"},
+    ).status_code == 200
+
+    user_client = extraction_service._llm_client(db, user_id)
+    assert user_client.key_source == "user"
+    assert user_client.user_id == user_id
+
+    assert _delete(client, token).status_code == 204
+    system_client = extraction_service._llm_client(db, user_id)
+    assert system_client.key_source == "system"
 
 
 def test_ai_log_records_key_source(client, db, enc_key) -> None:

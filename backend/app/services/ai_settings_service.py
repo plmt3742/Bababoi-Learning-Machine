@@ -20,9 +20,37 @@ from app.schemas.settings import AiSettingsOut, AiSettingsUpdate
 ALLOWED_BASE_URL_HOSTS = frozenset({"api.deepseek.com", "api.openai.com"})
 
 
-def mask_key(api_key: str) -> str:
-    last4 = api_key[-4:]
-    return f"sk-****{last4}" if api_key.startswith("sk-") else f"****{last4}"
+def _check_https_url(value: str, *, hosts: frozenset[str], label: str) -> str:
+    """https + 无凭据/查询串/片段 + 443 + 白名单 host；两个 provider 共用一条路径。"""
+    parsed = urlparse(value)
+    if parsed.scheme != "https":
+        raise ApiError(ErrorCode.VALIDATION_ERROR, f"{label} 必须是 https", 400)
+    if parsed.username or parsed.password:
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, f"{label} 不能带账号密码", 400
+        )
+    if parsed.query or parsed.fragment:
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, f"{label} 不能带查询串或片段", 400
+        )
+    try:
+        port = parsed.port
+    except ValueError:
+        # urlparse().port 在端口越界/非数字时抛 ValueError（不是返回 None），
+        # 不接住就会一路变成 500 INTERNAL_ERROR
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, f"{label} 端口不合法", 400
+        ) from None
+    if port not in (None, 443):
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, f"{label} 只允许 443 端口", 400
+        )
+    if parsed.hostname not in hosts:
+        allowed = " / ".join(sorted(hosts))
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, f"{label} 的域名不在白名单（{allowed}）", 400
+        )
+    return value.rstrip("/")
 
 
 def _normalize_base_url(provider: str, base_url: str | None) -> str | None:
@@ -30,40 +58,17 @@ def _normalize_base_url(provider: str, base_url: str | None) -> str | None:
     if provider == "deepseek":
         if not value:
             return None  # 走系统默认 https://api.deepseek.com
-        parsed = urlparse(value)
-        if parsed.scheme != "https" or parsed.hostname != "api.deepseek.com":
-            raise ApiError(
-                ErrorCode.VALIDATION_ERROR,
-                "deepseek 的 base_url 只能留空或使用 https://api.deepseek.com",
-                400,
-            )
-        return value.rstrip("/")
+        return _check_https_url(
+            value, hosts=frozenset({"api.deepseek.com"}), label="deepseek 的 base_url"
+        )
 
     if not value:
         raise ApiError(
             ErrorCode.VALIDATION_ERROR, "openai_compatible 需要 base_url", 400
         )
-    parsed = urlparse(value)
-    if parsed.scheme != "https":
-        raise ApiError(
-            ErrorCode.VALIDATION_ERROR, "base_url 必须是 https", 400
-        )
-    if parsed.username or parsed.password or parsed.query or parsed.fragment:
-        raise ApiError(
-            ErrorCode.VALIDATION_ERROR, "base_url 不能带账号、查询串或片段", 400
-        )
-    if parsed.port not in (None, 443):
-        raise ApiError(
-            ErrorCode.VALIDATION_ERROR, "base_url 只允许 443 端口", 400
-        )
-    if parsed.hostname not in ALLOWED_BASE_URL_HOSTS:
-        allowed = " / ".join(sorted(ALLOWED_BASE_URL_HOSTS))
-        raise ApiError(
-            ErrorCode.VALIDATION_ERROR,
-            f"base_url 的域名不在白名单（{allowed}）",
-            400,
-        )
-    return value.rstrip("/")
+    return _check_https_url(
+        value, hosts=ALLOWED_BASE_URL_HOSTS, label="base_url"
+    )
 
 
 def _to_out(row: UserAiSettings | None) -> AiSettingsOut:
@@ -89,25 +94,29 @@ def save_settings(
     session: Session, user_id: int, data: AiSettingsUpdate
 ) -> AiSettingsOut:
     base_url = _normalize_base_url(data.provider, data.base_url)
-    api_key = data.api_key.strip()
-    if len(api_key) < 8:
-        raise ApiError(ErrorCode.VALIDATION_ERROR, "api_key 至少 8 位", 400)
-
-    try:
-        ciphertext = encrypt_secret(api_key)
-    except SettingsCryptoError as exc:
-        # 服务端没配加密密钥：这不是用户的输入问题，不能报 400
-        raise ApiError(ErrorCode.AI_PROVIDER_ERROR, str(exc), 503) from None
-
+    api_key = (data.api_key or "").strip()
     row = session.get(UserAiSettings, user_id)
+    if row is None and not api_key:
+        raise ApiError(ErrorCode.VALIDATION_ERROR, "首次配置必须填 api_key", 400)
+
+    ciphertext = None
+    if api_key:
+        try:
+            ciphertext = encrypt_secret(api_key)
+        except SettingsCryptoError as exc:
+            # 服务端没配加密密钥：这不是用户的输入问题，不能报 400
+            raise ApiError(ErrorCode.AI_PROVIDER_ERROR, str(exc), 503) from None
+
     if row is None:
         row = UserAiSettings(user_id=user_id)
         session.add(row)
     row.provider = data.provider
     row.base_url = base_url
     row.model = data.model.strip()
-    row.api_key_ciphertext = ciphertext
-    row.key_last4 = api_key[-4:]
+    if ciphertext is not None:
+        # 省略 api_key = 保留原 Key（只改 model/base_url 时不必重粘）
+        row.api_key_ciphertext = ciphertext
+        row.key_last4 = api_key[-4:]
     session.commit()
     session.refresh(row)
     return _to_out(row)

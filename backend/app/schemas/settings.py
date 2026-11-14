@@ -54,4 +54,5 @@ class AiSettingsUpdate(BaseModel):
     provider: AiProvider
     base_url: str | None = Field(default=None, max_length=255)
     model: str = Field(min_length=1, max_length=64)
-    api_key: str = Field(min_length=8, max_length=512)
+    # 省略 = 保留已保存的 Key（只改 model/base_url 时不必重粘）；首次配置必填
+    api_key: str | None = Field(default=None, min_length=8, max_length=512)

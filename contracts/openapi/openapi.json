@@ -79,10 +79,17 @@
         "description": "`PUT /settings/ai` 的请求体。\n\n`api_key` 最少 8 位与前端设置页一致；`base_url` 只有 openai_compatible 必填，\n且必须 https + 白名单 host（SSRF 面先收窄）。",
         "properties": {
           "api_key": {
-            "maxLength": 512,
-            "minLength": 8,
-            "title": "Api Key",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
           },
           "base_url": {
             "anyOf": [
@@ -113,8 +120,7 @@
         },
         "required": [
           "provider",
-          "model",
-          "api_key"
+          "model"
         ],
         "title": "AiSettingsUpdate",
         "type": "object"
