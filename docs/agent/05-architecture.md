@@ -853,8 +853,8 @@ POST /questions/from-image
 - 当前无 TTL，只增不减；生产长期跑建议加一条 `created_at < 30d` 的清理（可选，不是本期必须）。
 
 代价与前置：识图墙钟从 1.4–3.9s 变成 **17–60s**，所以 `RECOGNIZE_CLIENT_TIMEOUT_S` 已提到 **180**，
-且前端要有分段 loading（「正在认字 → 正在拆题」，21号 §2.6 已接）。**这两件没就位之前不要上线**——
-用户看到的不是慢，是卡死。
+且前端要有分段 loading（「正在认字 → 正在拆题」，21号 §2.6 已接）。
+上线前确认 `RECOGNIZE_CLIENT_TIMEOUT_S` 已是 180——否则用户看到的不是慢，是卡死。
 
 ### 7.1 分析
 
@@ -1226,7 +1226,7 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-06 | v0.4.4 | BE-012：`PRACTICE_DUPLICATE` 错误码与防重复口径（§6.4）；`GET /practice-records` 附加 `generated_question_id` 过滤 | 人机 |
 | 2026-11-06 | v0.4.3 | BE-006/007 review 修复：重新生成整组改为替换（旧组软删）、任务不存在用 `TASK_NOT_FOUND`、生成校验补 05 §7.2 四条、超时按操作分档 | 人机 |
 | 2026-11-06 | v0.5.0 | **ADR-006 三段并发**（破坏性接口变更，11-08 冻结前一次切净）：一次生题排 3 段任务、每段 1 题；`POST /questions/{id}/generate` 返回 `tasks[]`（不再有单个 `task_id`）并收 `difficulties`/`target_index`+`difficulty`；`generated_questions.target_index` + `generation_task.difficulty` 两列（迁移 `3f9c1a7e5b24`）；按格替换（整组入队即软删旧组、单段只换自己那格）；requeue 前判 `TASK_REQUEUE_DEADLINE_S=90`；`TASK_MAX_CONCURRENCY` 2→6；prompt `generate_v2`、quiz `max_tokens` 8000→4000（本行末又回到 6000，以最终值为准）；§7.2/§7.3/§11 同步，§11 顺手改成 `config.py` 的真实键名（原 `AI_TIMEOUT_SECONDS` 等代码里不存在）；**§7.2 第 3 条判据改动（对 14 号 D3 的偏离，待前端确认）**：与原题的「相似度 <0.9」换成「归一化后逐字相同」——真模型 2 轮 ×3 段实测 4/9 与 3/9 被判死，而被判死的都是换了函数式的正常新题、18 段里 0 段真抄题；quiz `max_tokens` 4000→6000（单段实测 3589 token）；复现脚本 `backend/scripts/measure_segment_similarity.py` | 人机 |
-| 2026-11-06 | v0.5.1 | 按 16 号对接记录落地：§7.2 写清「归一化后逐字相同」的归一化范围与**没覆盖**的部分（`\left(`/全半角/多余空格已归一，`\ln`vs`\log_e` 这类语义等价留给 P1 BE-022）；§5.2 迁移补**历史行回填 target_index**（软删行与第 4 条以后留 NULL）；§7.3 把 `generate_v2` 定权给三段版、禁止另一条复用同名；§6.4 明确响应只有 `tasks`、后端从未双发 `task_id`，前端可删 FE-023 的兜底分支 | 人机 |
+| 2026-11-06 | v0.5.1 | 按前端《三段并发-前端意见单》（现 16 号）落地：§7.2 写清「归一化后逐字相同」的归一化范围与**没覆盖**的部分（`\left(`/全半角/多余空格已归一，`\ln`vs`\log_e` 这类语义等价留给 P1 BE-022）；§5.2 迁移补**历史行回填 target_index**（软删行与第 4 条以后留 NULL）；§7.3 把 `generate_v2` 定权给三段版、禁止另一条复用同名；§6.4 明确响应只有 `tasks`、后端从未双发 `task_id`，前端可删 FE-023 的兜底分支 | 人机 |
 | 2026-11-06 | v0.6.0 | **BE-014 图片录入落地**：新增 `POST /uploads/images`(201)、`GET /uploads/{user_id}/{filename}`（鉴权取图，非本用户/坏文件名一律 404 不给 403）、`POST /questions/from-image`；存储口径改为"只存一份转正剥元数据的 ≤2000px JPEG + 内容寻址文件名"，送模型前内存压到长边 1200；§6.8/§7.0 按实现重写（宽松提取校验与 `incomplete`、旋转归前端上传前、无题图不算错误、截断不重试、超时按 90s 收口并说明与 14 号 §5-4 的 120s 差异）；新增依赖 pillow==13.0.0 / python-multipart==0.0.33；§11 补 5 个图片键 | 人机 |
 | 2026-11-06 | v0.6.1 | 识图找到真正的瓶颈：**输出大头是 `reasoning_content`（思考）**，不是抄题啰嗦。新增 `VISION_THINKING=false` 默认关思考（实拍整页 20.0s/4145 token → 3.5s/691 token，条目与质量不降、截断风险消失），§6.8 的实测表补上 thinking A/B 并写清"我先前两次解释都错了"的过程；超时余量与输出上限两条按新数据重写；BE-023 分块识图取消。⚠️ 质量结论目前只有 3 张实拍支撑，所以做成配置而非写死 | 人机 |
 | 2026-11-06 | v0.6.2 | `from-image` 每题补上 **`subject`/`chapter`/`difficulty` 初判**，对齐 FE-026 已写好的预填消费代码（层级与可空性按 `ExtractedImageQuestion` 逐字核对过：条目级、三项皆可空）。`chapter` 只照抄图上真实标题、`difficulty` 展示用不覆盖 analysis 正式值、坏值降级 null；实拍 14 条填充率 subject 14/14、chapter 10/14、difficulty 4/14，代价 +0.5s / +15% token | 人机 |
