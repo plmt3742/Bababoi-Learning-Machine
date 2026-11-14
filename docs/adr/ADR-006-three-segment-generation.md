@@ -4,7 +4,7 @@
 - 日期：2026-11-06
 - 决策人：霹雳马桶、人机
 - 相关任务：BE-007、BE-015、BE-021、FE-009、FE-023
-- 相关文档：`docs/agent/05-architecture.md`（§6.4/§7.2/§7.3/§8）、`docs/agent/14-generation-three-segments-reply.md`、`docs/agent/15-backend-sync-20261106.md`、`docs/product/01-prd-lite.md`（FR-5）、`docs/agent/16-three-segments-frontend-review.md`（前端意见单 + 后端逐条处置）
+- 相关文档：`docs/agent/05-architecture.md`（§6.4/§7.2/§7.3/§8）、`docs/agent/14-generation-three-segments-reply.md`、`docs/agent/15-backend-sync-20261106.md`、`docs/product/01-prd-lite.md`（FR-5）、`docs/agent/16-three-segments-frontend-review.md`（已归档；三段并发结论 + 后端处置记录）
 - 前序讨论：人机《待确认单 · 生成链路改三段并发》（2026-11-05，含实测数据），前端《生成接口变更单》《生成提示词单》
 
 ## 1. 背景
@@ -85,7 +85,7 @@ BE-007 的初版是**一次 LLM 调用出 3 道题**（`{"questions": [...]}`，
   判死换成放行的直接代价（反过来，同一次跑里第 2 格吐了与第 1 格**逐字相同**的题干，被这条判据拦下、
   该段置 `queued` 等重排，说明判据仍有牙；但脚本每段只跑一遍，"重排后确实出得来新题"这半句**还没实测**，
   不写成已验）。要真解决得比公式结构，记 P1 **BE-022 同组公式结构去重**，且只做 warnings 提示不判死
-  （前端意见单 §三：误判的代价是用户看到"三题里有一题不能用"）。
+  （16 号 §三：误判的代价是用户看到"三题里有一题不能用"）。
 - **入队即软删旧组**：整组重生成期间用户看不到旧题，产品已确认接受；但这也意味着**误点一次生成就把旧组推入历史**，靠软删留痕兜底。
 - 三段各自占用并发位，`TASK_MAX_CONCURRENCY=2` 会让第 3 段干等一整轮，所以默认提到 6。
 
@@ -104,7 +104,7 @@ BE-007 的初版是**一次 LLM 调用出 3 道题**（`{"questions": [...]}`，
 - `questions.generated_questions` 加列 `target_index INT NULL`；`generation_task` 加列 `difficulty VARCHAR(16) NULL`。迁移 `3f9c1a7e5b24` 两条都加，downgrade 可逆。
 - 新增索引 `ix_generated_parent_slot (parent_question_id, target_index)`，详情页与按格替换按它取数。
 - 同一笔迁移**给历史活跃行回填 `target_index`=1/2/3**（按 `parent_question_id, created_at, id`，就是旧版一次 3 道的插入顺序；软删行与超出 3 条的留 NULL）。用逐行 UPDATE 而不是相关子查询：MySQL 8 禁止 UPDATE 的表同时出现在子查询里（error 1093）。upgrade、downgrade、以及 downgrade 后老数据仍读得到，都实测跑过。
-- `POST /questions/{id}/generate` 响应形状变更（破坏性，前端 FE-023 #28 已做双向兼容）；**后端只发 `tasks`，从未双发顶层 `task_id`**，FE-023 那条兜底分支可以直接删（前端意见单 §五）。`GET /tasks` 的 `TaskOut` 多 `difficulty`，`GeneratedQuestionOut` 多 `target_index`。
+- `POST /questions/{id}/generate` 响应形状变更（破坏性，前端 FE-023 #28 已做双向兼容）；**后端只发 `tasks`，从未双发顶层 `task_id`**，FE-023 那条兜底分支可以直接删（16 号 §五）。`GET /tasks` 的 `TaskOut` 多 `difficulty`，`GeneratedQuestionOut` 多 `target_index`。
 - 错误码零新增：段失败仍用 `AI_TIMEOUT` / `AI_PROVIDER_ERROR` / `AI_INVALID_OUTPUT` / `INTERNAL_ERROR`。
 
 ## 7. 复审条件
