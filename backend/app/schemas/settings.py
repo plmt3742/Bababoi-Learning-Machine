@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, StrictBool
+from pydantic import BaseModel, Field, StrictBool
+
+AiProvider = Literal["deepseek", "openai_compatible"]
 
 
 class PreferencesOut(BaseModel):
@@ -28,3 +31,27 @@ class PreferencesUpdate(BaseModel):
     """
 
     enforce_same_question_type: StrictBool = True
+
+
+class AiSettingsOut(BaseModel):
+    """`GET/PUT /settings/ai` 的返回；任何情况下都不含原始 Key。"""
+
+    configured: bool
+    provider: AiProvider | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key_masked: str | None = None
+    updated_at: datetime | None = None
+
+
+class AiSettingsUpdate(BaseModel):
+    """`PUT /settings/ai` 的请求体。
+
+    `api_key` 最少 8 位与前端设置页一致；`base_url` 只有 openai_compatible 必填，
+    且必须 https + 白名单 host（SSRF 面先收窄）。
+    """
+
+    provider: AiProvider
+    base_url: str | None = Field(default=None, max_length=255)
+    model: str = Field(min_length=1, max_length=64)
+    api_key: str = Field(min_length=8, max_length=512)

@@ -18,7 +18,7 @@ from tests.conftest import auth_headers, register_user
 @pytest.fixture()
 def fake_llm(monkeypatch):
     holder = {"client": MockLLMClient()}
-    monkeypatch.setattr(task_worker, "_llm_client", lambda: holder["client"])
+    monkeypatch.setattr(task_worker, "_llm_client", lambda *a, **k: holder["client"])
     return holder
 
 

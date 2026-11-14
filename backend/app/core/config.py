@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     # 录入草稿（05 §6.5b / 21号 §2.2）：PUT 的 content 序列化后字节上限（256 KB）
     draft_max_bytes: int = 256 * 1024
 
+    # BYOK（ADR-007）：用户 AI Key 的加密密钥，Fernet key（32 字节 urlsafe base64）。
+    # 留空 = /settings/ai 返回 503，不影响系统 Key 的既有链路。
+    settings_encryption_key: str = ""
+
     def validate_for_startup(self) -> None:
         """启动时把密钥类配置一次性查完，而不是等第一个请求 500（13号 §4 / issue #11）。"""
         if len(self.jwt_secret.encode("utf-8")) < 32:

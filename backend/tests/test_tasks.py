@@ -22,7 +22,7 @@ from tests.conftest import auth_headers, register_user
 def fake_llm(monkeypatch):
     """把 worker 的 LLM 客户端换成可编程替身。"""
     holder = {"client": MockLLMClient()}
-    monkeypatch.setattr(task_worker, "_llm_client", lambda: holder["client"])
+    monkeypatch.setattr(task_worker, "_llm_client", lambda *a, **k: holder["client"])
     return holder
 
 

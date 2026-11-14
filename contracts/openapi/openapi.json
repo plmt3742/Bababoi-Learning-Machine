@@ -1,6 +1,124 @@
 {
   "components": {
     "schemas": {
+      "AiSettingsOut": {
+        "description": "`GET/PUT /settings/ai` 的返回；任何情况下都不含原始 Key。",
+        "properties": {
+          "api_key_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key Masked"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deepseek",
+                  "openai_compatible"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "AiSettingsOut",
+        "type": "object"
+      },
+      "AiSettingsUpdate": {
+        "description": "`PUT /settings/ai` 的请求体。\n\n`api_key` 最少 8 位与前端设置页一致；`base_url` 只有 openai_compatible 必填，\n且必须 https + 白名单 host（SSRF 面先收窄）。",
+        "properties": {
+          "api_key": {
+            "maxLength": 512,
+            "minLength": 8,
+            "title": "Api Key",
+            "type": "string"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "model": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "deepseek",
+              "openai_compatible"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "api_key"
+        ],
+        "title": "AiSettingsUpdate",
+        "type": "object"
+      },
       "BlankAnswer": {
         "description": "单个空位的答案。",
         "properties": {
@@ -2797,6 +2915,96 @@
           }
         },
         "summary": "Ready"
+      }
+    },
+    "/api/v1/settings/ai": {
+      "delete": {
+        "description": "删除后回退系统 Key；没有配置时也返回 204（幂等）。",
+        "operationId": "delete_ai_settings_api_v1_settings_ai_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Ai Settings",
+        "tags": [
+          "settings"
+        ]
+      },
+      "get": {
+        "description": "未配置时返回 `configured=false`，不是 404——前端按这个字段决定显示\"未启用/已配置\"。",
+        "operationId": "get_ai_settings_api_v1_settings_ai_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Ai Settings",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "整份覆盖；返回只含掩码，原始 Key 不回传。",
+        "operationId": "put_ai_settings_api_v1_settings_ai_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Ai Settings",
+        "tags": [
+          "settings"
+        ]
       }
     },
     "/api/v1/settings/preferences": {
