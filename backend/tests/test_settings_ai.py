@@ -172,6 +172,39 @@ def test_update_without_key_keeps_existing_secret(client, db, enc_key) -> None:
         assert after.key_last4 == "3456"
 
 
+def test_switch_provider_requires_new_key(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+    assert _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk-test-123456"},
+    ).status_code == 200
+
+    switched = _put(
+        client,
+        token,
+        {
+            "provider": "openai_compatible",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+        },
+    )
+    assert switched.status_code == 400
+    assert switched.json()["detail"]["code"] == "VALIDATION_ERROR"
+
+    ok = _put(
+        client,
+        token,
+        {
+            "provider": "openai_compatible",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "api_key": "sk-openai-123456",
+        },
+    )
+    assert ok.status_code == 200
+
+
 def test_first_create_without_key_is_400(client, db, enc_key) -> None:
     token = register_user(client)["access_token"]
     resp = _put(client, token, {"provider": "deepseek", "model": "deepseek-flash"})

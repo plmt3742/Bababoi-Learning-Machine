@@ -96,6 +96,11 @@ def save_settings(
     base_url = _normalize_base_url(data.provider, data.base_url)
     api_key = (data.api_key or "").strip()
     row = session.get(UserAiSettings, user_id)
+    if row is not None and row.provider != data.provider and not api_key:
+        # deepseek 的 Key 留着去打 openai 只会在运行时 401，语义上换 provider 就该重填
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR, "切换 provider 需要重新填写 api_key", 400
+        )
     if row is None and not api_key:
         raise ApiError(ErrorCode.VALIDATION_ERROR, "首次配置必须填 api_key", 400)
 
