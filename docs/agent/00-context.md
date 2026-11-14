@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-06
+last_updated: 2026-11-11
 status: active
 read_when: 每次新会话的第一份文档；需要 30 秒了解项目全貌
 ---
@@ -62,14 +62,16 @@ AI 分析（知识点、题型、错误原因）
 
 > 今天是 11.6，距离 M0 截止只有 1 天。设计阶段必须“够用就停”，不要追求完整 PRD；前端视觉已定稿，剩余以 review/合并和缺口补齐为主。
 
-## 当前实际状态（2026-11-07）
+## 当前实际状态（2026-11-12）
 
-- `origin/main @ f501dcf`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、BE-021/#39（三段并发 + ADR-006）、BE-014/#42（图片识图）、FE-013~027（#23~#35、#49、#51）、测试控制台 #50 已合并
-- 后端待处理：BE-013 统计（#45）、BE-018 草稿（#46）、BE-020 BYOK（#32）、BE-025 三题型 PATCH（#43）、BE-026 题型开关（#44）、BE-024 两步识图（#47）、BE-008/009/OPS（#48）；#8 docs 需关闭或重做
-- 前端：FE-001~027 已合；FE-027 收口（题目编辑 / 设置开关 / 18 号识图口径 / Vitest / PRD 清理）已完成（#51）
+- `origin/main @ 2acadef`：认证/错题/分析/生成/任务/练习/图片识图/草稿/统计/生成偏好/**OpenAPI 快照**已合；前端 FE-001~031 页面与测试、FE-032~035 联调收口已合
+- 后端 #63 种子 / #64 草稿 / #62 统计 / #58 生成偏好 / **#65 OpenAPI** 均已合并（`9ecdca0` / `b2219d4` / `4a6004b` / `06e29e7` / `4bebb28`）；CI 的 `--check` 会拦住“改了接口没重导快照”
+- 后端待办：BE-020 BYOK、BE-024 两步识图（PR #67 待合）、BE-011 MySQL 兼容、OPS-001/002/005（compose/staging）
+- 前端：FE-032~035 已完成（PR #68 已合）；时间解析统一到 `utils/time.ts`（questions/tasks/practice/auth 是 UTC naive，drafts/stats 带 Z）；设置页偏好/AI 面板 404 降级；录入页支持 Ctrl/⌘+Enter；FE-017 375/768/1366 截图验收通过
+- 联调实测（2026-11-13，真实后端 + 种子数据）：草稿 204/200/409/204、统计 accuracy 0.667 + 7 天稀疏趋势、练习/任务正常、图片上传 201 + from-image 4 条、偏好默认 true 且改后刷新仍生效
 - 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
 - 范围/交互/验收以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
-- CI：`.github/workflows/ci.yml` 已存在；frontend job 跑 lint/typecheck/build，FE-027 起加 `pnpm test`
+- CI：`.github/workflows/ci.yml` 已存在；frontend job 跑 lint/typecheck/build/test；backend 跑 ruff/pytest + OpenAPI 快照防漂移（#65）
 - 图片录入：用户裁剪 + 图片转文本 + 多题条目（ADR-004）；识图三项初判可空，空结果 200 + `questions[]`
 - 题型一致性：新用户级开关 `enforce_same_question_type`，默认开启，按用户后端持久化（ADR-008 / BE-026）
 
@@ -122,9 +124,8 @@ AI 分析（知识点、题型、错误原因）
 
 ## 下一步
 
-1. **后端优先 BE-014 图片文本提取**：`POST /uploads/images` + `POST /questions/from-image`（open issue #13）；前端 FE-016/021 已完成，只等真接口联调
-2. **后端 BE-018 草稿 / BE-013 统计 / BE-020 BYOK**：前端 FE-018/FE-014/FE-024 已按 mock 完成
-3. **后端 ADR-006 三段并发**：新 PR base=main；`tasks[]`、`target_index`/`difficulty`、按格替换、单段重试；前端 FE-023 已兼容旧 `task_id`
-4. **前端 FE-017**：768px 与完整键盘细节；之后统一做真接口联调
-5. `03-page-specs.md` 按 8 个页面填全；范围/交互/验收以 01/02/03 为准；完成 DS-006 可用性测试
-6. `main` 分支保护：Require PR + 1 approval + CI + no bypass；每天更新 `04-todos.md`；11.7 晚做 M0 验收；交接用 `11-agent-handoff.md`
+1. **部署（11.14 硬截止）**：OPS-001/002/005；后端主责，前端 `dist` 已本地验证可构建，等 staging 地址做真机走查
+2. **后端对接**：按 `23-backend-handoff-20261113.md` 回四条拍板（时间格式、种子题型、BYOK、staging 数据库）；只剩 BYOK 一个接口与识图两步入 staging
+3. **演示准备**：补 `DEMO_PASSWORD` 后灌种子（SH-011）；演示脚本 SH-012、PPT SH-013、录屏/截图 SH-014（375/768/1366 截图已有）
+4. **产品收口**：`03-page-specs.md` 按 8 个页面填全；DS-006 可用性测试、DS-007 产品走查；范围/交互/验收以 01/02/03 为准
+5. `main` 分支保护：Require PR + 1 approval + CI + no bypass；每天更新 `04-todos.md`；交接用 `11-agent-handoff.md`

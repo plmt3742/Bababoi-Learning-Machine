@@ -31,6 +31,9 @@ def run[T: BaseModel](
     parse: type[T] | None = None,
     custom_validate: Callable[[object], object] | None = None,
     retry_limit: int = 1,
+    *,
+    max_tokens: int | None = None,
+    thinking: str | None = None,
 ) -> PipelineResult:
     """parse 传 Pydantic 模型类，或 custom_validate 传函数（raw -> 校验后的值）。
 
@@ -42,7 +45,9 @@ def run[T: BaseModel](
     last_error: Exception | None = None
     last_raw: str | None = None
     for attempt in range(1, retry_limit + 2):
-        usage = client.complete(operation, messages)
+        usage = client.complete(
+            operation, messages, max_tokens=max_tokens, thinking=thinking
+        )
         last_raw = usage.text  # 坏输出也要把原文带出去，否则没法定位 prompt
         if usage.finish_reason == "length":
             # 被 max_tokens 掐断的输出必然不是完整 JSON。这里直接抛、不再重试：
@@ -64,4 +69,4 @@ def run[T: BaseModel](
             last_error = exc
 
     detail = last_error.errors()[0]["msg"] if isinstance(last_error, ValidationError) else str(last_error)
-    raise AIInvalidOutputError(f"重试 {retry_limit} 次后输出仍不合法：{detail}", raw_text=last_raw)
+    raise AIInvalidOutputError(f"生成结果未通过校验：{detail}", raw_text=last_raw)

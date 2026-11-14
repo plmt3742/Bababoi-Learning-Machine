@@ -3,15 +3,24 @@ from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.meta import API_PREFIX, PROJECT_NAME, VERSION
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    project_name: str = "Bababoi Learning Machine"
-    version: str = "0.1.0"
-    api_prefix: str = "/api/v1"
+    # 默认值取自 app/core/meta.py，与导出脚本共用同一份（不写字面量两次）
+    project_name: str = PROJECT_NAME
+    version: str = VERSION
+    api_prefix: str = API_PREFIX
+
+    # 运行环境：development / local / staging / production。
+    # scripts/seed_demo.py 用它做危险操作守卫（production 拒绝运行；--reset 需 --yes）
+    app_env: str = "development"
+    # 演示账号口令：只给 seed_demo.py 用，必须由 .env / 环境变量注入，代码里不给默认值
+    demo_password: str = ""
 
     # CORS：只列允许的来源，不用 *（05 §9.4）
     cors_origins: list[str] = ["http://localhost:5173"]
@@ -34,17 +43,12 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.deepseek.com"
     llm_model: str = "deepseek-flash"
     llm_mock: bool = True  # CI 与本地默认不调真实模型（12号 §6.1）
-    # 识图是否让模型先"想一遍"。实测（两张实拍整页，生产提示词+生产校验器）：
-    #   开思考 28.9s / 5861 输出 token（其中 reasoning 14617 字符），5 条
-    #   关思考  3.4s /  714 输出 token，同样 5 条，题干字数 393 vs 405，过严格校验数相同
-    # 密页横拍那张关思考反而多认出一条（4 vs 3）。抄题这种活不需要推理，
-    # 思考的 token 还会顶满 max_tokens 变成"截断"，所以默认关掉。
-    # 留成配置而不是写死：样本只有两张图，演示前如果发现某类题（手写/复杂排版）掉质量，
-    # 改一个环境变量就能切回来，不用发版。
-    vision_thinking: bool = False
-
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
-    recognize_client_timeout_s: int = 90  # 前端等待上限
+    # BE-024 两跳：转录开思考 + 结构化，实测墙钟 17–60s；前端等待上限必须同步 ≥180
+    recognize_client_timeout_s: int = 180  # 前端等待上限
+    # force_refresh 的冷却：每次强刷都是一次 17–90s 的两跳调用，不设冷却等于成本放大器。
+    # 只按"上一次强刷"计时——首次重新识别不受影响，挡的是连点/脚本刷
+    vision_force_refresh_cooldown_s: int = 60
     task_hard_timeout_s: int = 120  # 单任务服务端硬超时
     # ADR-006：一次生题排 3 段，2 个并发位会让第 3 段干等一轮；实测 3 段同瞬间并发无 429，
     # 所以默认给 6（两段满速）。生产仍要看 RPM/TPM 监控再调。
@@ -68,6 +72,9 @@ class Settings(BaseSettings):
     # 分页（05 §6.1）
     page_size_default: int = 20
     page_size_max: int = 100
+
+    # 录入草稿（05 §6.5b / 21号 §2.2）：PUT 的 content 序列化后字节上限（256 KB）
+    draft_max_bytes: int = 256 * 1024
 
     def validate_for_startup(self) -> None:
         """启动时把密钥类配置一次性查完，而不是等第一个请求 500（13号 §4 / issue #11）。"""

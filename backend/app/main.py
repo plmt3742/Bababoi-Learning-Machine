@@ -8,7 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, health, images, practice, questions, tasks
+from app.api.v1 import auth, drafts, health, images, practice, questions, stats, tasks
+
+# 取 router 别名而不是 import app.api.v1.settings：这个名字下面一行就要给
+# app.core.config.settings 用，两个都叫 settings 会互相覆盖，
+# 症状是 settings.api_prefix 报错——很难一眼看出来是导入撞名
+from app.api.v1.settings import router as settings_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import register_observability, setup_logging
@@ -41,7 +46,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
@@ -55,6 +60,9 @@ app.include_router(questions.router, prefix=settings.api_prefix)
 app.include_router(images.router, prefix=settings.api_prefix)
 app.include_router(tasks.router, prefix=settings.api_prefix)
 app.include_router(practice.router, prefix=settings.api_prefix)
+app.include_router(drafts.router, prefix=settings.api_prefix)
+app.include_router(stats.router, prefix=settings.api_prefix)
+app.include_router(settings_router, prefix=settings.api_prefix)
 
 # 手工测试台（无鉴权，仅本地/开发用）：backend/static/test-console.html
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "static"

@@ -154,10 +154,11 @@ def test_three_segments_fill_three_slots_in_order(client, db, fake_llm) -> None:
     cards = detail["generated_questions"]
     assert [c["target_index"] for c in cards] == [1, 2, 3]
     assert [c["difficulty"] for c in cards] == ["easy", "medium", "hard"]
-    assert [c["question_type"] for c in cards] == ["blank", "solve", "choice"]
+    # mock 现在跟随原题题型（原题 solve → 三格都是 solve），默认开启的 strict 不再判死
+    assert [c["question_type"] for c in cards] == ["solve", "solve", "solve"]
     for card in cards:
         assert card["model"] == "mock"
-        assert card["prompt_version"] == "generate_v2"
+        assert card["prompt_version"] == "generate_v3"
 
 
 def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
@@ -167,7 +168,7 @@ def test_one_segment_failing_keeps_the_other_two(client, db, fake_llm) -> None:
         def __init__(self, inner):
             self.inner = inner
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             if "第 3 道" in messages[-1]["content"]:
                 from app.ai.errors import AIInvalidOutputError
 
@@ -239,7 +240,7 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             self.calls += 1
             raise AIInvalidOutputError("输出烂了")
 
@@ -267,7 +268,7 @@ def test_requeue_stops_after_requeue_deadline(client, db, fake_llm) -> None:
     from app.ai.errors import AIInvalidOutputError
 
     class BrokenClient:
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             raise AIInvalidOutputError("超时了")
 
     fake_llm["client"] = BrokenClient()
@@ -367,7 +368,7 @@ class _ScriptedClient:
     def __init__(self, text: str) -> None:
         self.text = text
 
-    def complete(self, operation, messages):
+    def complete(self, operation, messages, **kwargs):
         from app.ai.client import LLMResponse
 
         return LLMResponse(
@@ -543,7 +544,7 @@ def test_generation_prompt_gets_knowledge_points_from_analysis(client, db, fake_
     seen: list[str] = []
 
     class SpyClient:
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             seen.append(messages[-1]["content"])
             return MockLLMClient().complete(operation, messages)
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+from functools import partial
 
 import pytest
 from pydantic import ValidationError
@@ -32,8 +33,8 @@ QUESTION = {
 
 
 def _segment(content_md: str | None = None, **over) -> dict:
-    """一段的单题输出：拿 mock 的 medium 档做底子，改哪个字段就改哪个。"""
-    payload = copy.deepcopy(_MOCK_QUIZ_SEGMENTS["medium"])
+    """一段的单题输出：拿 mock 的 solve/medium 卡做底子，改哪个字段就改哪个。"""
+    payload = copy.deepcopy(_MOCK_QUIZ_SEGMENTS[("solve", "medium")])
     if content_md is not None:
         payload["content_md"] = content_md
     payload.update(over)
@@ -55,7 +56,7 @@ class FakeClient:
         self.texts = texts
         self.calls: list[str] = []
 
-    def complete(self, operation: str, messages: list[dict]):
+    def complete(self, operation: str, messages: list[dict], **kwargs):
         from app.ai.client import LLMResponse
 
         self.calls.append(operation)
@@ -81,14 +82,34 @@ def test_mock_analysis_output_passes_validation() -> None:
     assert result.attempts == 1
 
 
-def test_mock_quiz_emits_one_valid_question_per_difficulty() -> None:
-    """Mock 也按段出题：提示词里给哪个档，就回哪个档的单题。"""
-    for slot, difficulty in enumerate(("easy", "medium", "hard"), start=1):
-        result = run(MockLLMClient(), OPERATION_QUIZ, _segment_messages(slot, difficulty),
-                     custom_validate=validator.validate_segment)
-        assert result.value.difficulty == difficulty
-        assert result.value.question_type in ("choice", "blank", "solve")
-        assert result.attempts == 1
+def test_mock_quiz_matches_original_type_and_difficulty() -> None:
+    """Mock 按提示词里的「题型 × 难度」选卡：三种原题 × 三档都要 3/3 过 strict 校验。
+
+    mock 是替身，不是"会偶尔换题型的模型"。它若自己就违反用户开关，演示和队列测试
+    就只能显式关开关绕过——那等于让替身把业务行为定死。三段还必须互不相同，
+    否则会撞「与同组其它段完全相同」的判死。
+    """
+    for original_type in ("choice", "blank", "solve"):
+        question = {**QUESTION, "question_type": original_type}
+        contents: list[str] = []
+        for slot, difficulty in enumerate(("easy", "medium", "hard"), start=1):
+            result = run(
+                MockLLMClient(), OPERATION_QUIZ,
+                prompts.quiz_messages(question, target_index=slot, difficulty=difficulty,
+                                      type_policy="strict"),
+                custom_validate=partial(
+                    validator.validate_segment,
+                    difficulty=difficulty,
+                    original_content_md=question["content_md"],
+                    original_question_type=original_type,
+                    type_policy="strict",
+                ),
+            )
+            assert result.value.question_type == original_type
+            assert result.value.difficulty == difficulty
+            assert result.attempts == 1
+            contents.append(result.value.content_md)
+        assert len(set(contents)) == 3, "三段必须是不同的题，否则第二段就会被同组查重判死"
 
 
 def test_mock_quiz_segment_content_mentions_input_topic() -> None:
@@ -120,6 +141,28 @@ def test_quiz_prompt_carries_slot_knowledge_and_difficulty() -> None:
     assert "自己从题干判断" in prompts.quiz_messages(from_nothing, target_index=1, difficulty="easy")[1]["content"]
 
 
+def test_strict_prompt_states_type_rule_and_bumps_version() -> None:
+    """BE-026：strict 判死之前必须先把规则写进 prompt，且文本变了就要升版本。
+
+    前端 review 原话「不要合 soft prompt + strict 默认」：拿一个没告知题型规则的
+    prompt 去严格判死，失败率里分不清是模型偏好还是没被告知。
+    """
+    strict_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy", type_policy="strict")[0]["content"]
+    assert "题型必须与原题一致" in strict_system
+    assert "允许调整题型" not in strict_system
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="strict") == "generate_v3"
+
+    soft_system = prompts.quiz_messages(
+        QUESTION, target_index=1, difficulty="easy")[0]["content"]
+    assert "允许调整题型" in soft_system
+    assert "题型必须与原题一致" not in soft_system
+    assert prompts.prompt_version(OPERATION_QUIZ) == "generate_v2"
+    assert prompts.prompt_version(OPERATION_QUIZ, type_policy="soft") == "generate_v2"
+    # 其它操作的版本不受 type_policy 影响
+    assert prompts.prompt_version(OPERATION_ANALYSIS, type_policy="strict") == "analyze_v1"
+
+
 def test_pipeline_fails_fast_on_truncated_output() -> None:
     """finish_reason=length 的输出必然不是完整 JSON，重跑一次只会顶到同一个上限。
 
@@ -133,7 +176,7 @@ def test_pipeline_fails_fast_on_truncated_output() -> None:
         def __init__(self):
             self.calls = 0
 
-        def complete(self, operation, messages):
+        def complete(self, operation, messages, **kwargs):
             self.calls += 1
             return LLMResponse(text='{"questions": [{"index": 1', model="fake",
                                prompt_tokens=10, completion_tokens=8000, latency_ms=1000,
@@ -161,7 +204,7 @@ def test_pipeline_succeeds_on_second_attempt() -> None:
     client = FakeClient(["先说两句废话", good])
     result = run(client, OPERATION_QUIZ, [], custom_validate=validator.validate_segment)
     assert result.attempts == 2
-    assert result.value.content_md == _MOCK_QUIZ_SEGMENTS["medium"]["content_md"]
+    assert result.value.content_md == _MOCK_QUIZ_SEGMENTS[("solve", "medium")]["content_md"]
 
 
 def test_pipeline_requires_one_validator() -> None:
@@ -175,7 +218,7 @@ def test_pipeline_requires_one_validator() -> None:
 def test_parser_extracts_json_from_fenced_and_noisy_output() -> None:
     from app.ai.parser import extract_json
 
-    raw = _MOCK_QUIZ_SEGMENTS["hard"]
+    raw = _MOCK_QUIZ_SEGMENTS[("choice", "hard")]
     fenced = f"```json\n{json.dumps(raw, ensure_ascii=False)}\n```"
     noisy = f"好的，以下是生成结果：\n{json.dumps(raw, ensure_ascii=False)}\n希望有帮助"
     assert extract_json(fenced) == raw
@@ -375,11 +418,11 @@ def client_stub():
     return stub
 
 
-def test_vision_request_carries_thinking_switch(client_stub) -> None:
-    """识图请求要带上 thinking 开关，且只带在识图上（分析/生题的质量数据是开思考时测的）。
+def test_vision_request_carries_thinking_per_hop(client_stub) -> None:
+    """BE-024：两跳各带各的思考档位（转录 adaptive、结构化 disabled）；其它操作不带。
 
-    值本身来自实测：整页抄题开思考 28.9s / 5861 输出 token（其中 reasoning 14617 字符），
-    关思考 3.4s / 714，条目数与质量不降——见 05 §6.8。这条只验接线，不验模型行为。
+    值来自实测：整页转录开思考在 2/4 张图上多认出被页边裁掉的末题；结构化开与不开
+    结果逐字一致，只多花 4–5 倍时间（05 §6.8）。这条只验接线，不验模型行为。
     """
     from app.ai.client import OPERATION_VISION, DeepSeekClient
 
@@ -387,20 +430,34 @@ def test_vision_request_carries_thinking_switch(client_stub) -> None:
     instance._model = "deepseek-flash"
     instance._client = client_stub
 
-    original = settings.vision_thinking
-    try:
-        settings.vision_thinking = False
-        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}
+    instance.complete(
+        OPERATION_VISION, [{"role": "user", "content": "x"}],
+        thinking="adaptive", max_tokens=24000,
+    )
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "adaptive"}}
+    assert client_stub.sink["kwargs"]["max_tokens"] == 24000, "转录跳按调用覆盖输出上限"
 
-        instance.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] is None, "分析请求不该被顺手改行为"
+    instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}], thinking="disabled")
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert client_stub.sink["kwargs"]["max_tokens"] == 8000, "结构化跳沿用默认上限"
 
-        settings.vision_thinking = True
-        instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
-        assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "enabled"}}
-    finally:
-        settings.vision_thinking = original
+    instance.complete(OPERATION_VISION, [{"role": "user", "content": "x"}])
+    assert client_stub.sink["kwargs"]["extra_body"] == {"thinking": {"type": "disabled"}}, \
+        "没指定档位时默认关思考"
+
+    instance.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
+    assert client_stub.sink["kwargs"]["extra_body"] is None, "分析请求不该被顺手改行为"
+
+
+def test_vision_timeout_default_is_180(monkeypatch) -> None:
+    """BE-024：两跳实测 17–60s，同步等待上限必须 ≥180s（05 §6.8）。"""
+    from app.ai.client import _timeout_for
+    from app.core.config import Settings
+
+    # 断言 config 的字段默认值（本机 .env 可能还留着旧值 90，不拿运行时值当默认值）
+    assert Settings.model_fields["recognize_client_timeout_s"].default == 180
+    monkeypatch.setattr(settings, "recognize_client_timeout_s", 180)
+    assert _timeout_for("vision") == 180
 
 
 def test_timeout_is_per_operation(monkeypatch) -> None:
@@ -561,19 +618,88 @@ def test_extraction_guess_fields_are_optional_and_tolerant() -> None:
     assert second.difficulty == "hard"
 
 
-def test_vision_prompt_states_the_guess_rules() -> None:
-    """chapter 只照抄图上真实出现的标题；给了学科就沿用，不再改判。"""
-    no_subject = prompts.vision_messages("data:image/jpeg;base64,AAA")[0]["content"]
-    assert "不要自己编章节名" in no_subject
-    assert "subject 按题目内容判断所属学科" in no_subject
+def test_vision_prompts_state_the_two_hop_rules() -> None:
+    """第 1 跳只转录且 chapter 只认页眉；第 2 跳才做结构，且不返回 chapter。"""
+    text_system = prompts.vision_text_messages("data:image/jpeg;base64,AAA")[0]["content"]
+    assert "不要自己编章节名" in text_system
+    assert "不要解题" in text_system
 
-    given = prompts.vision_messages("data:image/jpeg;base64,AAA", "概率论与数理统计")
-    assert "学科已经由用户给出，subject 一律沿用它" in given[0]["content"]
-    assert given[0]["content"] != no_subject, "给了学科时提示词要变，否则模型还会自己猜"
-    assert "概率论与数理统计" in given[1]["content"][0]["text"]
+    transcript = {
+        "chapter": "复习题六",
+        "questions": [{"index": 1, "content_md": "题干"}],
+        "warnings": [],
+    }
+    structure = prompts.vision_structure_messages(transcript)
+    assert "___" in structure[0]["content"]
+    assert "不要返回 chapter" in structure[0]["content"]
+
+    given = prompts.vision_structure_messages(transcript, "概率论与数理统计")
+    assert "学科背景：概率论与数理统计" in given[1]["content"]
+    assert "复习题六" in given[1]["content"], "转录原文要原样进第 2 跳"
+
+
+def test_mock_returns_different_output_for_the_two_hops() -> None:
+    from app.ai.client import MockLLMClient
+
+    client = MockLLMClient()
+    step1 = client.complete(
+        "vision", prompts.vision_text_messages("data:image/jpeg;base64,AAA")
+    )
+    import json
+
+    first = json.loads(step1.text)
+    assert first["chapter"] == "复习题六"
+    assert set(first["questions"][0]) == {"index", "content_md"}
+
+    step2 = client.complete(
+        "vision",
+        prompts.vision_structure_messages(
+            {"chapter": "复习题六", "questions": [], "warnings": []}
+        ),
+    )
+    second = json.loads(step2.text)
+    assert "questions" in second and "chapter" not in second
+
+
+def test_blank_markers_are_normalized_before_validation() -> None:
+    """underline{qquad} 写法必须归一成 ___，否则 count_blanks=0、填空题被误降级。"""
+    raw = {
+        "questions": [
+            {
+                "index": 1,
+                "content_md": "特征值为 \\underline{\\qquad} 和 \\underline{\\qquad}。",
+                "question_type": "blank",
+                "blanks": [{"index": 1, "answer_md": "3"}, {"index": 2, "answer_md": "1"}],
+            }
+        ]
+    }
+    normalized = validator.normalize_blank_markers(raw)
+    assert normalized["questions"][0]["content_md"].count("___") == 2
+    value = validator.validate_extraction(normalized)
+    assert value["questions"][0].question_type == "blank"
 
 
 def test_extraction_rejects_a_response_without_questions_list() -> None:
     for bad in ({"questions": "没有列表"}, ["数组"], {"warning": "拼错字段"}):
         with pytest.raises(ValueError, match="questions"):
             validator.validate_extraction(bad)
+
+
+def test_step1_warnings_are_attached_by_question_number() -> None:
+    """第 1 跳的「第 N 题被裁掉」要落到条目上并置 incomplete，前端才拦得住。"""
+    from app.ai.validator import ExtractedQuestion
+
+    questions = [ExtractedQuestion(index=1, content_md="题一"), ExtractedQuestion(index=2, content_md="题二")]
+    validator.attach_transcript_warnings(
+        ["第2题的公式被页边裁掉，未能完整辨认"], questions, transcript_count=2
+    )
+    assert questions[0].incomplete is False
+    assert questions[1].incomplete is True
+    assert any("裁掉" in w for w in questions[1].warnings)
+
+    # 数量对不上就不猜（第 2 跳可能丢/并条目，下标会漂）
+    drifted = [ExtractedQuestion(index=1, content_md="题一")]
+    validator.attach_transcript_warnings(
+        ["第2题的公式被页边裁掉"], drifted, transcript_count=2
+    )
+    assert drifted[0].incomplete is False and drifted[0].warnings == []

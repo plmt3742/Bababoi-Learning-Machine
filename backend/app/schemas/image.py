@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -27,6 +28,8 @@ class FromImageRequest(BaseModel):
     # 学科只是给模型的背景提示，不构成出参：chapter/difficulty 由 analysis 任务负责，
     # 两处都出就会各说各话（前端意见单 §二）
     subject: str | None = Field(default=None, max_length=64)
+    # 跳过缓存重跑并覆盖写回：带 incomplete 的结果进缓存后，不刷新就再也拿不到别的结果
+    force_refresh: bool = False
 
 
 class ExtractedOptionOut(BaseModel):
@@ -61,3 +64,6 @@ class ImageExtractionOut(BaseModel):
     image_path: str
     questions: list[ExtractedQuestionOut]
     warnings: list[str] = Field(default_factory=list)
+    # 前端据此区分"秒回"和"真快"：命中缓存时 cached=true，extracted_at 是首次识别时间
+    cached: bool = False
+    extracted_at: datetime | None = None

@@ -41,6 +41,7 @@ const LATENCY_MS = 320
 const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
 const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
 const TREND_DAY_COUNT = 7
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
 const WEAK_POINT_LIMIT = 5
 const DEFAULT_AI_MODEL = 'deepseek-flash'
 const MIN_API_KEY_LENGTH = 8
@@ -428,9 +429,11 @@ function buildDetail(
   }
 }
 
-function utcDayKey(value: string): string | null {
+function shanghaiDayKey(value: string | number): string | null {
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10)
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Date(date.getTime() + SHANGHAI_OFFSET_MS).toISOString().slice(0, 10)
 }
 
 function buildWeakKnowledgePoints(state: MockState): StatsWeakKnowledgePoint[] {
@@ -484,7 +487,7 @@ function buildRecentTrend(records: PracticeRecord[]): StatsTrendPoint[] {
   const buckets = new Map<string, { practiceCount: number; correctCount: number }>()
 
   for (const record of records) {
-    const dayKey = utcDayKey(record.created_at)
+    const dayKey = shanghaiDayKey(record.created_at)
     if (!dayKey) continue
 
     const bucket = buckets.get(dayKey) ?? { practiceCount: 0, correctCount: 0 }
@@ -493,24 +496,22 @@ function buildRecentTrend(records: PracticeRecord[]): StatsTrendPoint[] {
     buckets.set(dayKey, bucket)
   }
 
-  const today = new Date()
-  const days: StatsTrendPoint[] = []
+  const today = shanghaiDayKey(Date.now())
+  if (!today) return []
+  const start = new Date(
+    Date.parse(`${today}T00:00:00Z`) - (TREND_DAY_COUNT - 1) * 86_400_000,
+  )
+    .toISOString()
+    .slice(0, 10)
 
-  for (let offset = TREND_DAY_COUNT - 1; offset >= 0; offset -= 1) {
-    const day = new Date(
-      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - offset),
-    )
-    const date = day.toISOString().slice(0, 10)
-    const bucket = buckets.get(date)
-
-    days.push({
+  return [...buckets.entries()]
+    .filter(([day]) => day >= start && day <= today)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, bucket]) => ({
       date,
-      practice_count: bucket?.practiceCount ?? 0,
-      correct_count: bucket?.correctCount ?? 0,
-    })
-  }
-
-  return days
+      practice_count: bucket.practiceCount,
+      correct_count: bucket.correctCount,
+    }))
 }
 
 function latestStateTimestamp(state: MockState): string {
@@ -534,12 +535,15 @@ function latestStateTimestamp(state: MockState): string {
 function buildStatsOverview(state: MockState): StatsOverview {
   const totalPracticeRecords = state.practiceRecords.length
   const correctPracticeRecords = state.practiceRecords.filter((record) => record.is_correct).length
+  const activeParentIds = new Set(state.questions.map((question) => question.id))
   const countByMastery = (status: MasteryStatus): number =>
     state.questions.filter((question) => question.mastery_status === status).length
 
   return {
     total_questions: state.questions.length,
-    total_generated_questions: state.generatedQuestions.length,
+    total_generated_questions: state.generatedQuestions.filter((item) =>
+      activeParentIds.has(item.parent_question_id),
+    ).length,
     total_practice_records: totalPracticeRecords,
     accuracy:
       totalPracticeRecords > 0

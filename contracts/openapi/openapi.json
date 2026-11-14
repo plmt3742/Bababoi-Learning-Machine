@@ -1,0 +1,3121 @@
+{
+  "components": {
+    "schemas": {
+      "BlankAnswer": {
+        "description": "单个空位的答案。",
+        "properties": {
+          "answer_md": {
+            "title": "Answer Md",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "answer_md"
+        ],
+        "title": "BlankAnswer",
+        "type": "object"
+      },
+      "Body_upload_image_api_v1_uploads_images_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_image_api_v1_uploads_images_post",
+        "type": "object"
+      },
+      "ChoiceOption": {
+        "description": "单个选项。`label` 由 05 定为必填，因此这里校验它和顺序一致。",
+        "properties": {
+          "content_md": {
+            "title": "Content Md",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "content_md"
+        ],
+        "title": "ChoiceOption",
+        "type": "object"
+      },
+      "DraftOut": {
+        "description": "GET/PUT 的响应体；`updated_at` 由路由层补时区（带 Z 的 UTC）。",
+        "properties": {
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content",
+          "version",
+          "updated_at"
+        ],
+        "title": "DraftOut",
+        "type": "object"
+      },
+      "DraftSaveRequest": {
+        "description": "PUT /drafts/me。\n\n`base_version` 可为 null（前端本地没有服务端版本号时）；\n`client_updated_at` 收下但不参与任何判断——乐观锁只认 version，\n浏览器时钟不可信（draft 模型 docstring 同款理由）。",
+        "properties": {
+          "base_version": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version"
+          },
+          "client_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Updated At"
+          },
+          "content": {
+            "additionalProperties": true,
+            "title": "Content",
+            "type": "object"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "DraftSaveRequest",
+        "type": "object"
+      },
+      "ExtractedBlankOut": {
+        "properties": {
+          "answer_md": {
+            "default": "",
+            "title": "Answer Md",
+            "type": "string"
+          },
+          "index": {
+            "default": 1,
+            "title": "Index",
+            "type": "integer"
+          }
+        },
+        "title": "ExtractedBlankOut",
+        "type": "object"
+      },
+      "ExtractedOptionOut": {
+        "properties": {
+          "content_md": {
+            "default": "",
+            "title": "Content Md",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "title": "ExtractedOptionOut",
+        "type": "object"
+      },
+      "ExtractedQuestionOut": {
+        "properties": {
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ExtractedBlankOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "content_md": {
+            "title": "Content Md",
+            "type": "string"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "has_figure": {
+            "default": false,
+            "title": "Has Figure",
+            "type": "boolean"
+          },
+          "incomplete": {
+            "default": false,
+            "title": "Incomplete",
+            "type": "boolean"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ExtractedOptionOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "question_type": {
+            "enum": [
+              "choice",
+              "blank",
+              "solve"
+            ],
+            "title": "Question Type",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "index",
+          "content_md",
+          "question_type"
+        ],
+        "title": "ExtractedQuestionOut",
+        "type": "object"
+      },
+      "FromImageRequest": {
+        "properties": {
+          "force_refresh": {
+            "default": false,
+            "title": "Force Refresh",
+            "type": "boolean"
+          },
+          "image_path": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Image Path",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "image_path"
+        ],
+        "title": "FromImageRequest",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "description": "生题入队参数（14 号 D1/Q4）。\n\n- 整组：不给 `target_index`，可给 3 个 `difficulties`；不给就按默认递增档\n- 单段：给 `target_index`（1–3），可给单个 `difficulty`；不给按那一格的默认档\n两个难度字段混用是给不出：整组只给 `difficulty` 会变成\"三格同一个档\"，\n而 UI 上的自定义难度（P1）也应该是 3 个值，所以宁可直接拒掉。",
+        "properties": {
+          "difficulties": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "easy",
+                    "medium",
+                    "hard"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulties"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "target_index": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Index"
+          }
+        },
+        "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GenerateTasksOut": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedTaskRef"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "GenerateTasksOut",
+        "type": "object"
+      },
+      "GeneratedQuestionOut": {
+        "description": "一道 AI 相似题（05 §5.2 generated_questions，US-4 的展示字段）。",
+        "properties": {
+          "answer_md": {
+            "title": "Answer Md",
+            "type": "string"
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "content_md": {
+            "title": "Content Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "explanation_md": {
+            "title": "Explanation Md",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "parent_question_id": {
+            "title": "Parent Question Id",
+            "type": "integer"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "question_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Type"
+          },
+          "target_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Index"
+          },
+          "validation_status": {
+            "title": "Validation Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "parent_question_id",
+          "content_md",
+          "answer_md",
+          "explanation_md",
+          "question_type",
+          "options",
+          "blanks",
+          "difficulty",
+          "target_index",
+          "model",
+          "prompt_version",
+          "validation_status",
+          "created_at"
+        ],
+        "title": "GeneratedQuestionOut",
+        "type": "object"
+      },
+      "GeneratedTaskRef": {
+        "description": "POST /questions/{id}/generate 的 `tasks[]` 元素（ADR-006）。",
+        "properties": {
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "target_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Index"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id",
+          "target_index",
+          "difficulty"
+        ],
+        "title": "GeneratedTaskRef",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImageExtractionOut": {
+        "properties": {
+          "cached": {
+            "default": false,
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "extracted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracted At"
+          },
+          "image_path": {
+            "title": "Image Path",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractedQuestionOut"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "image_path",
+          "questions"
+        ],
+        "title": "ImageExtractionOut",
+        "type": "object"
+      },
+      "ImageUploadOut": {
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "image_path": {
+            "title": "Image Path",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "image_path",
+          "url",
+          "width",
+          "height"
+        ],
+        "title": "ImageUploadOut",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "PracticeRecordCreate": {
+        "description": "POST /practice-records；05 §6.4 的扁平结构。",
+        "properties": {
+          "duration_seconds": {
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "generated_question_id": {
+            "title": "Generated Question Id",
+            "type": "integer"
+          },
+          "is_correct": {
+            "title": "Is Correct",
+            "type": "boolean"
+          },
+          "user_answer": {
+            "anyOf": [
+              {
+                "maxLength": 8000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Answer"
+          }
+        },
+        "required": [
+          "generated_question_id",
+          "is_correct",
+          "duration_seconds"
+        ],
+        "title": "PracticeRecordCreate",
+        "type": "object"
+      },
+      "PracticeRecordOut": {
+        "description": "练习流水；不回传 user_id（永远是当前用户自己的）。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "generated_question_id": {
+            "title": "Generated Question Id",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_correct": {
+            "title": "Is Correct",
+            "type": "boolean"
+          },
+          "user_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Answer"
+          }
+        },
+        "required": [
+          "id",
+          "generated_question_id",
+          "user_answer",
+          "is_correct",
+          "duration_seconds",
+          "created_at"
+        ],
+        "title": "PracticeRecordOut",
+        "type": "object"
+      },
+      "PracticeRecordPage": {
+        "description": "分页信封（05 §6.1）。",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeRecordOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "PracticeRecordPage",
+        "type": "object"
+      },
+      "PreferencesOut": {
+        "description": "`GET/PUT /settings/preferences` 的返回。\n\n`updated_at` 是这一行的最后写入时间，前端\"保存成功\"提示直接读它，\n不用比对自己发请求的时刻（跨设备时浏览器时钟不可信，同草稿那条理由）。",
+        "properties": {
+          "enforce_same_question_type": {
+            "title": "Enforce Same Question Type",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enforce_same_question_type",
+          "updated_at"
+        ],
+        "title": "PreferencesOut",
+        "type": "object"
+      },
+      "PreferencesUpdate": {
+        "description": "`PUT /settings/preferences` 的请求体。\n\n缺字段按默认值 `true` 处理——默认开启是产品决策（issue #44），\n所以\"没提交\"和\"提交了 true\"必须是同一个结果，不能一个是开一个是未知。\n\n用 StrictBool 而不是 bool：pydantic 默认会把 `\"yes\"`/`\"1\"`/`\"no\"` 悄悄转成布尔，\n这是一个会改变生成失败率的开关，宁可让前端拿到 422 也别猜错它的意图。",
+        "properties": {
+          "enforce_same_question_type": {
+            "default": true,
+            "title": "Enforce Same Question Type",
+            "type": "boolean"
+          }
+        },
+        "title": "PreferencesUpdate",
+        "type": "object"
+      },
+      "QuestionCreate": {
+        "description": "POST /questions 的请求体；字段名与 05 §6.4 的表格一致（扁平结构）。\n\n题型规则（选项字母顺序、空位数=答案数）不在重复写，\n通过 validate_type_payload 复用上面三个题型类的校验器。",
+        "properties": {
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BlankAnswer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "content_md": {
+            "maxLength": 5000,
+            "title": "Content Md",
+            "type": "string"
+          },
+          "explanation_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Md"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChoiceOption"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "question_type": {
+            "enum": [
+              "choice",
+              "blank",
+              "solve"
+            ],
+            "title": "Question Type",
+            "type": "string"
+          },
+          "source_type": {
+            "default": "text",
+            "enum": [
+              "text",
+              "image"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "content_md",
+          "subject",
+          "question_type"
+        ],
+        "title": "QuestionCreate",
+        "type": "object"
+      },
+      "QuestionCreateOut": {
+        "description": "POST /questions 的返回：题目 + 已入队的 analysis 任务 id（05 §6.4）。",
+        "properties": {
+          "question": {
+            "$ref": "#/components/schemas/QuestionOut"
+          },
+          "task_id": {
+            "title": "Task Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "question",
+          "task_id"
+        ],
+        "title": "QuestionCreateOut",
+        "type": "object"
+      },
+      "QuestionDetail": {
+        "description": "详情 = 题目全量 + 任务列表（+ 可选的生成题列表）。\n\ntasks 有默认值：ORM 的 Question 上没有 tasks 关系，路由里查出来再填。",
+        "properties": {
+          "analysis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          },
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "content_md": {
+            "title": "Content Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "crop_box": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Box"
+          },
+          "explanation_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Md"
+          },
+          "generated_questions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GeneratedQuestionOut"
+            },
+            "title": "Generated Questions",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "mastery_status": {
+            "title": "Mastery Status",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagOut"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "tasks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "chapter",
+          "source_type",
+          "content_md",
+          "answer_md",
+          "explanation_md",
+          "question_type",
+          "options",
+          "blanks",
+          "analysis",
+          "mastery_status",
+          "tags",
+          "image_path",
+          "crop_box",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "QuestionDetail",
+        "type": "object"
+      },
+      "QuestionListItem": {
+        "description": "列表项：不给全文，只给 excerpt（05 §5.3/§6.4）。",
+        "properties": {
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "mastery_status": {
+            "title": "Mastery Status",
+            "type": "string"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagOut"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "chapter",
+          "question_type",
+          "excerpt",
+          "mastery_status",
+          "tags",
+          "image_path",
+          "created_at"
+        ],
+        "title": "QuestionListItem",
+        "type": "object"
+      },
+      "QuestionOut": {
+        "description": "完整题目（05 §6.4 的 Question JSON 示例）。",
+        "properties": {
+          "analysis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          },
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "content_md": {
+            "title": "Content Md",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "crop_box": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Box"
+          },
+          "explanation_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Md"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "image_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Path"
+          },
+          "mastery_status": {
+            "title": "Mastery Status",
+            "type": "string"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/TagOut"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "chapter",
+          "source_type",
+          "content_md",
+          "answer_md",
+          "explanation_md",
+          "question_type",
+          "options",
+          "blanks",
+          "analysis",
+          "mastery_status",
+          "tags",
+          "image_path",
+          "crop_box",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "QuestionOut",
+        "type": "object"
+      },
+      "QuestionPage": {
+        "description": "分页信封（05 §6.1：items/total/page/page_size）。",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "QuestionPage",
+        "type": "object"
+      },
+      "QuestionUpdate": {
+        "description": "PATCH /questions/{id}；05 §6.4 允许改：题干/答案/解析/学科/章节/标签/analysis/掌握状态\n+ **题型结构三字段 `question_type`/`options`/`blanks`**（issue #43 / BE-025）。\n\n题型结构原来明确写\"不在可改清单里——改题型等于换一道题，MVP 不支持\"。\n这条被 FE-027 的完整三题型编辑器推翻了：前端已经能编辑选项/空位并 PATCH 上来，\n后端不收就等于**用户改的结构静默丢失**（前端只能事后比对再提示\"后端尚未支持\"）。\n判据不新写一份：改完仍由 `validate_type_payload` 整题复核，规则只有一处。\n\nmastery_status 也在可改清单里：前端自评后顺手 PATCH（确认单 B-5 定的口径），\n后端不做「答对 N 次自动升 reviewing」的流转，那属于 P1。",
+        "properties": {
+          "analysis": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis"
+          },
+          "answer_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Md"
+          },
+          "blanks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BlankAnswer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blanks"
+          },
+          "chapter": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter"
+          },
+          "content_md": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Md"
+          },
+          "explanation_md": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation Md"
+          },
+          "mastery_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unmastered",
+                  "reviewing",
+                  "mastered"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mastery Status"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChoiceOption"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "question_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "choice",
+                  "blank",
+                  "solve"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Type"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "QuestionUpdate",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 32,
+            "minLength": 3,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "StatsOverview": {
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "mastered_count": {
+            "title": "Mastered Count",
+            "type": "integer"
+          },
+          "recent_trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Recent Trend",
+            "type": "array"
+          },
+          "reviewing_count": {
+            "title": "Reviewing Count",
+            "type": "integer"
+          },
+          "total_generated_questions": {
+            "title": "Total Generated Questions",
+            "type": "integer"
+          },
+          "total_practice_records": {
+            "title": "Total Practice Records",
+            "type": "integer"
+          },
+          "total_questions": {
+            "title": "Total Questions",
+            "type": "integer"
+          },
+          "unmastered_count": {
+            "title": "Unmastered Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "weak_knowledge_points": {
+            "items": {
+              "$ref": "#/components/schemas/WeakKnowledgePoint"
+            },
+            "title": "Weak Knowledge Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total_questions",
+          "total_generated_questions",
+          "total_practice_records",
+          "accuracy",
+          "mastered_count",
+          "reviewing_count",
+          "unmastered_count",
+          "weak_knowledge_points",
+          "recent_trend",
+          "updated_at"
+        ],
+        "title": "StatsOverview",
+        "type": "object"
+      },
+      "TagOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "TagOut",
+        "type": "object"
+      },
+      "TaskIdOut": {
+        "description": "POST /questions/{id}/analyze：只回一个入队任务 id。",
+        "properties": {
+          "task_id": {
+            "title": "Task Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "task_id"
+        ],
+        "title": "TaskIdOut",
+        "type": "object"
+      },
+      "TaskListOut": {
+        "description": "GET /tasks 的信封（此前返回裸 dict，OpenAPI 只能写成 additionalProperties）。",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TaskListOut",
+        "type": "object"
+      },
+      "TaskOut": {
+        "description": "任务中心/详情页要展示的字段（05 §3.1 generation_task）。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "question_id": {
+            "title": "Question Id",
+            "type": "integer"
+          },
+          "retry_index": {
+            "title": "Retry Index",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Index"
+          }
+        },
+        "required": [
+          "id",
+          "question_id",
+          "stage",
+          "status",
+          "target_index",
+          "difficulty",
+          "retry_index",
+          "error_code",
+          "error_message",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "TaskOut",
+        "type": "object"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "required": [
+          "access_token",
+          "user"
+        ],
+        "title": "TokenResponse",
+        "type": "object"
+      },
+      "TrendPoint": {
+        "description": "某一天（Asia/Shanghai）的练习数；`date` 固定 `YYYY-MM-DD`。",
+        "properties": {
+          "correct_count": {
+            "title": "Correct Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "practice_count": {
+            "title": "Practice Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "practice_count",
+          "correct_count"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
+      },
+      "UserResponse": {
+        "description": "/auth/me 与登录响应里嵌的用户信息。密码散列绝不进这里。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "created_at"
+        ],
+        "title": "UserResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WeakKnowledgePoint": {
+        "description": "父题标签聚合出的一条薄弱点；`accuracy` 与总览同口径（0–1）。",
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          },
+          "wrong_count": {
+            "title": "Wrong Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "wrong_count",
+          "total_count",
+          "accuracy"
+        ],
+        "title": "WeakKnowledgePoint",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "Bababoi Learning Machine",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/drafts/me": {
+      "delete": {
+        "operationId": "delete_draft_api_v1_drafts_me_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "get": {
+        "operationId": "get_draft_api_v1_drafts_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "当前账号没有草稿"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "put": {
+        "operationId": "save_draft_api_v1_drafts_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save Draft",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/v1/practice-records": {
+      "get": {
+        "operationId": "list_practice_records_api_v1_practice_records_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "generated_question_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generated Question Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeRecordPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Practice Records",
+        "tags": [
+          "practice"
+        ]
+      },
+      "post": {
+        "operationId": "create_practice_record_api_v1_practice_records_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PracticeRecordCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeRecordOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Practice Record",
+        "tags": [
+          "practice"
+        ]
+      }
+    },
+    "/api/v1/questions": {
+      "get": {
+        "operationId": "list_questions_api_v1_questions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mastery_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "unmastered",
+                    "reviewing",
+                    "mastered"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mastery Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Questions",
+        "tags": [
+          "questions"
+        ]
+      },
+      "post": {
+        "operationId": "create_question_api_v1_questions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionCreateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Question",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/api/v1/questions/from-image": {
+      "post": {
+        "description": "图片 → 1..N 条可编辑题目条目。不建错题、不分析、不返回 bbox（ADR-004）。",
+        "operationId": "extract_from_image_api_v1_questions_from_image_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FromImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageExtractionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Extract From Image",
+        "tags": [
+          "images"
+        ]
+      }
+    },
+    "/api/v1/questions/{question_id}": {
+      "delete": {
+        "operationId": "delete_question_api_v1_questions__question_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Question",
+        "tags": [
+          "questions"
+        ]
+      },
+      "get": {
+        "operationId": "get_question_api_v1_questions__question_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Question",
+        "tags": [
+          "questions"
+        ]
+      },
+      "patch": {
+        "operationId": "update_question_api_v1_questions__question_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Question",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
+    "/api/v1/questions/{question_id}/analyze": {
+      "post": {
+        "description": "重新分析：入队 analysis 任务；已有进行中的同 stage 任务时复用。",
+        "operationId": "analyze_question_api_v1_questions__question_id__analyze_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskIdOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Analyze Question",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/questions/{question_id}/generate": {
+      "post": {
+        "description": "生题入队（ADR-006）：整组排 3 段、单段重排 1 段，返回本次涉及的段。\n\n请求体可整个省略（详情页那个\"生成 3 道同类题\"按钮就是这么点的），\n省略 = 整组 + 默认递增难度。",
+        "operationId": "generate_question_api_v1_questions__question_id__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateTasksOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Generate Question",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "description": "就绪检查：DB 连通 + LLM 配置齐备（mock 模式不需要 Key）。不调模型。",
+        "operationId": "ready_api_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/api/v1/settings/preferences": {
+      "get": {
+        "description": "只读当前用户自己的偏好；未登录由 get_current_user 统一 401。\n\n`user` 已经是本请求 Session 里的托管对象（get_current_user 与路由共用同一个\nget_session 实例），再 `session.get(User, user.id)` 只是重复查一次同一行。",
+        "operationId": "get_preferences_api_v1_settings_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Preferences",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "description": "整份覆盖（本期只有一项）。\n\n用 PUT 不用 PATCH 是有意的：偏好是\"当前用户的一份设置\"，不是可增量合并的资源，\n以后加第二项时前端必须把两项一起提交，避免出现\"只改一项、另一项被默认值悄悄重置\"。",
+        "operationId": "put_preferences_api_v1_settings_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Preferences",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/stats/overview": {
+      "get": {
+        "operationId": "stats_overview_api_v1_stats_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stats Overview",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "description": "任务中心/轮询兜底（05 §6.5b）。",
+        "operationId": "list_tasks_api_v1_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "question_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Question Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tasks",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/tasks/{task_id}/retry": {
+      "post": {
+        "operationId": "retry_task_api_v1_tasks__task_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Retry Task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/api/v1/uploads/images": {
+      "post": {
+        "description": "存一份\"转正 + 剥元数据 + ≤2000px\"的 JPEG；原图不留（05 §6.8）。",
+        "operationId": "upload_image_api_v1_uploads_images_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_image_api_v1_uploads_images_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Image",
+        "tags": [
+          "images"
+        ]
+      }
+    },
+    "/api/v1/uploads/{user_id}/{filename}": {
+      "get": {
+        "description": "鉴权取图。\n\n落点只按**当前用户**的目录算，路径里的 user_id 对不上就直接 404：\n不给 403，403 等于承认\"这文件存在但不属于你\"，那是泄露存在性（前端意见单 §一）。",
+        "operationId": "get_uploaded_image_api_v1_uploads__user_id___filename__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Uploaded Image",
+        "tags": [
+          "images"
+        ]
+      }
+    }
+  }
+}
