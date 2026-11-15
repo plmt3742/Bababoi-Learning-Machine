@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import select
 
 from app.ai.client import MockLLMClient
-from app.ai.errors import AIProviderError
 from app.core.config import settings
 from app.db.base import utcnow
 from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
@@ -265,17 +264,25 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
 
 
 def test_byok_resolution_failure_marks_task_failed(client, db, monkeypatch) -> None:
-    """review P1：Key 解析失败（密文解不开 / 两边都没 Key）也必须落终态。
+    """review P1：密文解不开时任务必须落终态，不能永远停在 running。
 
-    这行原来在 try 之外，AIProviderError 直接穿出 execute_task，任务永远停在
-    running：没有 error_code、没有 ai_call_logs、也不能手动 retry。
+    这行原来在 try 之外，AIProviderError 直接穿出 execute_task：没有 error_code、
+    没有 ai_call_logs、也不能手动 retry。这里走真链路（换掉加密密钥让已存密文失效），
+    不 monkeypatch `_llm_client`。
     """
+    from cryptography.fernet import Fernet
 
-    def _raise(*args, **kwargs):
-        raise AIProviderError("已保存的 AI Key 无法解密")
-
-    monkeypatch.setattr(task_worker, "_llm_client", _raise)
+    monkeypatch.setattr(settings, "llm_mock", False)
+    monkeypatch.setattr(settings, "settings_encryption_key", Fernet.generate_key().decode())
     token = register_user(client)["access_token"]
+    saved = client.put(
+        "/api/v1/settings/ai",
+        json={"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk-user-123456"},
+        headers=auth_headers(token),
+    )
+    assert saved.status_code == 200, saved.text
+    monkeypatch.setattr(settings, "settings_encryption_key", Fernet.generate_key().decode())
+
     _create_question(client, token)
     with db() as s:
         task_id = s.scalar(select(GenerationTask.id))
