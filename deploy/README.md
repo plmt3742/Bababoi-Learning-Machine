@@ -98,6 +98,16 @@
 9. 切真模型（验收前）：`.env` 里 `LLM_MOCK=false` + 填 `LLM_API_KEY`，然后
    `docker compose up -d` 重起，再确认 `/ready` 的 `checks.llm == "configured"`。
 
+10. 启用 BYOK（可选，P1）：`.env` 填 44 字符的 `SETTINGS_ENCRYPTION_KEY`（生成命令见
+    `deploy/.env.example`），`up -d` 重起后验证：
+
+    ```bash
+    curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer <token>" \
+      http://127.0.0.1/api/v1/settings/ai   # 期望 200，body 里 configured=false
+    ```
+
+    这个 key 与数据同寿命，**更换前先清空 `user_ai_settings`**，否则已存密文全部解不开。
+
 ## 日常更新
 
 ```bash
