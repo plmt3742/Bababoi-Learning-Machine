@@ -28,7 +28,7 @@ from sqlalchemy.orm import sessionmaker
 from app.ai import prompts, validator
 from app.ai.client import OPERATION_VISION, build_llm_client
 from app.ai.errors import AIError, AIInvalidImageError, AIInvalidOutputError, AITruncatedError
-from app.ai.llm_config import resolve_llm_config
+from app.ai.llm_config import model_hint, resolve_llm_config
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
@@ -59,12 +59,18 @@ class _CacheKey(NamedTuple):
     hop2_version: str
 
 
-def _cache_model() -> str:
-    """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。"""
-    return "mock" if settings.llm_mock else settings.llm_model
+def _cache_model(session_factory, user_id: int) -> str:
+    """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。
+
+    BYOK：用户配了自己的 model 就记用户的——只读 `model` 列、不解密，命中仍然不需要 Key；
+    否则换模型不失效，缓存行的 model 也会记错。
+    """
+    if settings.llm_mock:
+        return "mock"
+    return model_hint(session_factory, user_id)
 
 
-def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:
+def _cache_key(session_factory, user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:
     """用户 + 图内容 + 学科 + 模型 + 两跳版本；路径不合法就不缓存。"""
     match = image_service.IMAGE_PATH_RE.match(image_path or "")
     if match is None or int(match.group(1)) != user_id:
@@ -74,7 +80,7 @@ def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey 
         user_id=user_id,
         image_sha=image_sha,
         subject_key=(subject or "").strip(),
-        model=_cache_model(),
+        model=_cache_model(session_factory, user_id),
         hop1_version=prompts.PROMPT_VERSION_VISION_TEXT,
         hop2_version=prompts.PROMPT_VERSION_VISION_STRUCTURE,
     )
@@ -237,7 +243,7 @@ def extract_from_image(
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
-    key = _cache_key(user_id, image_path, subject)
+    key = _cache_key(session_factory, user_id, image_path, subject)
     if key is not None:
         if force_refresh:
             try:
@@ -372,6 +378,7 @@ def _hop(
             error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
             prompt_version_override=version,
             key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise AIInvalidImageError(message, raw_text=exc.raw_text) from None
     except AIInvalidOutputError as exc:
@@ -380,6 +387,7 @@ def _hop(
             error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
             prompt_version_override=version,
             key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise AIInvalidImageError(exc.message, raw_text=exc.raw_text) from None
     except AIError as exc:
@@ -389,6 +397,7 @@ def _hop(
             error_code=exc.error_code, raw_text=exc.raw_text,
             prompt_version_override=version,
             key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise
 

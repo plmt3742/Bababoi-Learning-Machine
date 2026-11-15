@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import sessionmaker
 
@@ -18,7 +18,9 @@ from app.models import UserAiSettings
 
 @dataclass(frozen=True)
 class LLMConfig:
-    api_key: str
+    # repr=False：ADR-007 的硬约束是任何日志/错误体不得包含原始 Key，
+    # 而 dataclass 默认 repr 会把明文带进 logger.debug(cfg) 或异常信息里
+    api_key: str = field(repr=False)
     base_url: str
     model: str
     key_source: str  # user | system
@@ -32,6 +34,18 @@ def system_config() -> LLMConfig:
         model=settings.llm_model,
         key_source="system",
     )
+
+
+def model_hint(session_factory: sessionmaker | None, user_id: int | None) -> str:
+    """用户配置的 model（只读、不解密），没有就用系统 model。
+
+    给识图缓存键用：BYOK 换了模型必须不命中，但命中缓存不该因此要求 Key。
+    """
+    if session_factory is None or user_id is None:
+        return settings.llm_model
+    with session_factory() as session:
+        row = session.get(UserAiSettings, user_id)
+    return (row.model if row is not None and row.model else settings.llm_model)
 
 
 def resolve_llm_config(session_factory: sessionmaker, user_id: int) -> LLMConfig:

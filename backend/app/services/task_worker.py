@@ -107,6 +107,7 @@ def _write_call_log(
     raw_text: str | None = None,
     type_policy: str | None = None,
     key_source: str | None = None,
+    model_override: str | None = None,
 ) -> None:
     """任务侧的薄封装：归属和排队时长从 task 上取，写库规则交给 ai_log（05 §9.3）。"""
     ai_log.write_call_log(
@@ -121,6 +122,7 @@ def _write_call_log(
         queue_wait_ms=int((utcnow() - task.created_at).total_seconds() * 1000),
         type_policy=type_policy,
         key_source=key_source,
+        model_override=model_override,
     )
 
 
@@ -146,8 +148,6 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         owner = session.get(User, user_id)
         enforce = bool(owner.enforce_same_question_type) if owner else True
         type_policy = None if is_analysis else ("strict" if enforce else "soft")
-        # Key 也在执行时解析：用户在排队期间换了 Key，跑的就该是新的那把
-        client = _llm_client(session_factory, user_id)
         if is_analysis:
             messages = prompts.analysis_messages(payload)
         else:
@@ -169,7 +169,12 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
                 if row.target_index != slot
             )
 
+    # Key 也在执行时解析：用户在排队期间换了 Key，跑的就该是新的那把。
+    # 放进下面的 try：解析失败（密文解不开 / 两边都没 Key）也要让任务落终态，
+    # 放在 try 外会穿出 execute_task，任务永远停在 running 且不能手动 retry
+    client = None
     try:
+        client = _llm_client(session_factory, user_id)
         # retry_limit=0：任务级重试由 _fail_or_requeue 统一做（12号 §3.2 只重试 1 次），
         # pipeline 内部不再叠加重试，否则一个坏输出任务最多打 4 次 LLM
         result = pipeline_run(
@@ -203,14 +208,16 @@ def execute_task(session_factory: sessionmaker, task_id: int) -> None:
         # 只记「AI_INVALID_OUTPUT」的话，没法定位是 prompt 的问题还是模型的问题
         _write_call_log(session_factory, task, operation, status="error",
                         error_code=exc.error_code, raw_text=exc.raw_text,
-                        type_policy=type_policy, key_source=getattr(client, "key_source", None))
+                        type_policy=type_policy, key_source=getattr(client, "key_source", None),
+                        model_override=getattr(client, "model", None))
         _fail_or_requeue(session_factory, task_id, exc.error_code, exc.message)
         return
     except Exception as exc:  # noqa: BLE001  # 未预期异常也要让任务有终态
         logger.exception("任务 %s 执行异常", task_id)
         _write_call_log(session_factory, task, operation, status="error",
                         error_code="INTERNAL_ERROR", raw_text=str(exc),
-                        type_policy=type_policy, key_source=getattr(client, "key_source", None))
+                        type_policy=type_policy, key_source=getattr(client, "key_source", None),
+                        model_override=getattr(client, "model", None))
         _fail_or_requeue(session_factory, task_id, "INTERNAL_ERROR", str(exc))
         return
 

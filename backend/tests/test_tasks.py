@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from app.ai.client import MockLLMClient
+from app.ai.errors import AIProviderError
 from app.core.config import settings
 from app.db.base import utcnow
 from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
@@ -261,6 +262,63 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
         assert task.retry_index == 1
         assert fake_llm["client"].calls == 2
         assert task.error_message
+
+
+def test_byok_resolution_failure_marks_task_failed(client, db, monkeypatch) -> None:
+    """review P1：Key 解析失败（密文解不开 / 两边都没 Key）也必须落终态。
+
+    这行原来在 try 之外，AIProviderError 直接穿出 execute_task，任务永远停在
+    running：没有 error_code、没有 ai_call_logs、也不能手动 retry。
+    """
+
+    def _raise(*args, **kwargs):
+        raise AIProviderError("已保存的 AI Key 无法解密")
+
+    monkeypatch.setattr(task_worker, "_llm_client", _raise)
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+        task = s.get(GenerationTask, task_id)
+        task.retry_index = settings.task_retry_limit  # 第二次仍失败 → 直接终态
+        s.commit()
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        task = s.get(GenerationTask, task_id)
+        assert task.status == "failed"
+        assert task.error_code == "AI_PROVIDER_ERROR"
+        assert task.finished_at is not None
+        log = s.scalar(select(AiCallLog).where(AiCallLog.error_code == "AI_PROVIDER_ERROR"))
+        assert log is not None and log.status == "error"
+        assert log.key_source is None
+
+
+def test_byok_error_log_records_client_model(client, db, monkeypatch) -> None:
+    """review P3：失败行没有 usage，model 要记实际用的那把，否则 BYOK 排查指错模型。"""
+    from app.ai.errors import AITimeoutError
+
+    class TimeoutClient:
+        model = "gpt-4o-mini"
+        key_source = "user"
+
+        def complete(self, operation, messages, **kwargs):
+            raise AITimeoutError("超时了")
+
+    monkeypatch.setattr(task_worker, "_llm_client", lambda *a, **k: TimeoutClient())
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        log = s.scalar(select(AiCallLog).where(AiCallLog.status == "error"))
+        assert log is not None and log.error_code == "AI_TIMEOUT"
+        assert log.model == "gpt-4o-mini"
+        assert log.key_source == "user"
 
 
 def test_requeue_stops_after_requeue_deadline(client, db, fake_llm) -> None:

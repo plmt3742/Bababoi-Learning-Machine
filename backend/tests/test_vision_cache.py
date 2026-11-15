@@ -12,7 +12,7 @@ from app.ai import prompts
 from app.ai.client import LLMResponse, MockLLMClient
 from app.ai.errors import AITimeoutError
 from app.core.config import settings
-from app.models import AiCallLog, VisionExtractCache
+from app.models import AiCallLog, UserAiSettings, VisionExtractCache
 from app.services import extraction_service
 from tests.conftest import auth_headers, register_user
 
@@ -213,11 +213,37 @@ def test_corrupt_payload_is_treated_as_miss_and_replaced(client, db, user, monke
         assert len(rows) == 1 and isinstance(rows[0].payload.get("questions"), list)
 
 
+def test_cache_model_follows_user_model_without_key(client, db, user, monkeypatch) -> None:
+    """review P2：BYOK 用户换了 model 必须不命中；只读 model 列，不解密。"""
+    token, user_id = user
+    image_path = _upload(client, token)
+    monkeypatch.setattr(settings, "llm_mock", False)
+
+    assert extraction_service._cache_model(db, user_id) == settings.llm_model
+
+    with db() as s:
+        s.add(
+            UserAiSettings(
+                user_id=user_id,
+                provider="openai_compatible",
+                base_url="https://api.openai.com/v1",
+                model="gpt-4o-mini",
+                api_key_ciphertext="not-a-real-ciphertext",
+                key_last4="1234",
+            )
+        )
+        s.commit()
+
+    key = extraction_service._cache_key(db, user_id, image_path, None)
+    assert key is not None and key.model == "gpt-4o-mini"
+    assert key.model != settings.llm_model
+
+
 def test_concurrent_store_keeps_single_row(client, db, user, monkeypatch) -> None:
     token, user_id = user
     monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: CountingClient())
     image_path = _upload(client, token)
-    key = extraction_service._cache_key(user_id, image_path, None)
+    key = extraction_service._cache_key(db, user_id, image_path, None)
     assert key is not None
     result = {
         "image_path": image_path,

@@ -161,7 +161,7 @@ class DeepSeekClient:
                 follow_redirects=False,
             ),
         )
-        self._model = model
+        self.model = model
         self.key_source = "system"
         self.user_id: int | None = None
 
@@ -184,7 +184,7 @@ class DeepSeekClient:
             extra["thinking"] = {"type": thinking or "disabled"}
         try:
             resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
-                model=self._model,
+                model=self.model,
                 messages=messages,
                 response_format={"type": "json_object"},  # 实测 deepseek-flash 支持（与图片同用也可）
                 **sampling,

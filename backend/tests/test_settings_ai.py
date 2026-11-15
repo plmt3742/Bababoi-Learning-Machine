@@ -48,6 +48,50 @@ def test_default_is_unconfigured(client, db) -> None:
     body = resp.json()
     assert body["configured"] is False
     assert body["api_key_masked"] is None and body["updated_at"] is None
+    # 未配置也给表单默认值：provider/model 回 null 会让前端下拉是空的（mock 也是 deepseek）
+    assert body["provider"] == "deepseek"
+    assert body["model"] == settings.llm_model
+
+
+def test_whitespace_is_trimmed_before_length_checks(client, db, enc_key) -> None:
+    token = register_user(client)["access_token"]
+
+    blank_model = _put(client, token, {"provider": "deepseek", "model": "   "})
+    assert blank_model.status_code == 400, blank_model.text
+
+    padded_short = _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "deepseek-flash", "api_key": "  sk-1234  "},
+    )
+    assert padded_short.status_code == 400, padded_short.text
+
+    ok = _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "  deepseek-flash  ", "api_key": "  sk-test-123456  "},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["model"] == "deepseek-flash"
+    with db() as session:
+        row = session.scalar(select(UserAiSettings))
+        assert row is not None and row.key_last4 == "3456"
+
+    kept = _put(
+        client,
+        token,
+        {"provider": "deepseek", "model": "deepseek-reasoner", "api_key": "   "},
+    )
+    assert kept.status_code == 200, kept.text
+    with db() as session:
+        assert session.scalar(select(UserAiSettings)).key_last4 == "3456"
+
+
+def test_llm_config_repr_hides_key() -> None:
+    cfg = LLMConfig(api_key="sk-secret-value", base_url="https://api.deepseek.com", model="m",
+                    key_source="user")
+    assert "sk-secret-value" not in repr(cfg)
+    assert cfg.api_key == "sk-secret-value"
 
 
 def test_put_masks_and_encrypts(client, db, enc_key) -> None:

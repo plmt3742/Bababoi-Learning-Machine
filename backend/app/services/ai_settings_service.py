@@ -7,14 +7,18 @@
 """
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.crypto import SettingsCryptoError, encrypt_secret
 from app.core.errors import ApiError, ErrorCode
 from app.models import UserAiSettings
 from app.schemas.settings import AiSettingsOut, AiSettingsUpdate
+
+logger = logging.getLogger(__name__)
 
 # ADR-007 §2.1：至少这两个；自定义 host 要先做内网/回环/metadata 防护再放开
 ALLOWED_BASE_URL_HOSTS = frozenset({"api.deepseek.com", "api.openai.com"})
@@ -73,7 +77,12 @@ def _normalize_base_url(provider: str, base_url: str | None) -> str | None:
 
 def _to_out(row: UserAiSettings | None) -> AiSettingsOut:
     if row is None:
-        return AiSettingsOut(configured=False)
+        # 未配置也给表单默认值：provider/model 回 null 会让前端下拉是空的（与 mock 不一致）
+        return AiSettingsOut(
+            configured=False,
+            provider="deepseek",
+            model=settings.llm_model,
+        )
     return AiSettingsOut(
         configured=True,
         provider=row.provider,
@@ -109,8 +118,12 @@ def save_settings(
         try:
             ciphertext = encrypt_secret(api_key)
         except SettingsCryptoError as exc:
-            # 服务端没配加密密钥：这不是用户的输入问题，不能报 400
-            raise ApiError(ErrorCode.AI_PROVIDER_ERROR, str(exc), 503) from None
+            # 服务端没配加密密钥：这不是用户的输入问题，不能报 400。
+            # 内部配置名只进日志，不进 `detail.message`——那句话会原样显示给学生
+            logger.warning("BYOK 加密不可用：%s", exc)
+            raise ApiError(
+                ErrorCode.AI_PROVIDER_ERROR, "个人 API Key 暂不可用，请稍后再试", 503
+            ) from None
 
     if row is None:
         row = UserAiSettings(user_id=user_id)

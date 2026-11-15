@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "AiSettingsOut": {
-        "description": "`GET/PUT /settings/ai` 的返回；任何情况下都不含原始 Key。",
+        "description": "`GET/PUT /settings/ai` 的返回；任何情况下都不含原始 Key。\n\n未配置时 `provider`/`model` 也给默认值（deepseek + 系统模型），不是 null：\n前端设置页直接用这两个字段填表单，null 会让提供方下拉变成空的（与 mock、类型一致）。",
         "properties": {
           "api_key_masked": {
             "anyOf": [
@@ -31,30 +31,16 @@
             "type": "boolean"
           },
           "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
+            "title": "Model",
+            "type": "string"
           },
           "provider": {
-            "anyOf": [
-              {
-                "enum": [
-                  "deepseek",
-                  "openai_compatible"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "deepseek",
+              "openai_compatible"
             ],
-            "title": "Provider"
+            "title": "Provider",
+            "type": "string"
           },
           "updated_at": {
             "anyOf": [
@@ -70,7 +56,9 @@
           }
         },
         "required": [
-          "configured"
+          "configured",
+          "provider",
+          "model"
         ],
         "title": "AiSettingsOut",
         "type": "object"
