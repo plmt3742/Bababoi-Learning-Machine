@@ -63,11 +63,16 @@ def _cache_model(session_factory, user_id: int) -> str:
     """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。
 
     BYOK：用户配了自己的 model 就记用户的——只读 `model` 列、不解密，命中仍然不需要 Key；
-    否则换模型不失效，缓存行的 model 也会记错。
+    否则换模型不失效，缓存行的 model 也会记错。读不到（比如本地没跑迁移）按系统 model
+    继续走：缓存路径不能因为多了一次查询把识图打成 500。
     """
     if settings.llm_mock:
         return "mock"
-    return model_hint(session_factory, user_id)
+    try:
+        return model_hint(session_factory, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("读取用户 model 失败，缓存键按系统 model（user=%s）：%s", user_id, exc)
+        return settings.llm_model
 
 
 def _cache_key(session_factory, user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:

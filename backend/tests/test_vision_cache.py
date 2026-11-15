@@ -239,6 +239,18 @@ def test_cache_model_follows_user_model_without_key(client, db, user, monkeypatc
     assert key.model != settings.llm_model
 
 
+def test_cache_model_falls_back_when_user_row_unreadable(db, user, monkeypatch) -> None:
+    """多了一次查询不能变成新的硬依赖：读不到就按系统 model，识图照跑。"""
+    _, user_id = user
+    monkeypatch.setattr(settings, "llm_mock", False)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("no such table: user_ai_settings")
+
+    monkeypatch.setattr(extraction_service, "model_hint", _boom)
+    assert extraction_service._cache_model(db, user_id) == settings.llm_model
+
+
 def test_concurrent_store_keeps_single_row(client, db, user, monkeypatch) -> None:
     token, user_id = user
     monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: CountingClient())
