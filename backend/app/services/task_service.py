@@ -166,3 +166,24 @@ def retry(session: Session, user_id: int, task_id: int) -> GenerationTask:
     session.commit()
     session.refresh(task)
     return task
+
+
+def cancel(session: Session, user_id: int, task_id: int) -> GenerationTask:
+    """取消排队中的任务（BE-027）。
+
+    只认 `queued`：`running` 是在途同步请求，打断不了（取消了模型也照样扣费），
+    所以直接拒绝。条件 UPDATE 和 worker 的 `_claim_next` 抢同一行时只能有一个成功，
+    另一个拿到 rowcount=0，按「已经开始执行」报 400，不会出现「取消了但任务还在跑」。
+    """
+    task = get_owned_task(session, user_id, task_id)
+    result = session.execute(
+        update(GenerationTask)
+        .where(GenerationTask.id == task.id, GenerationTask.status == "queued")
+        .values(status="canceled", finished_at=utcnow())
+    )
+    session.commit()
+    if result.rowcount == 0:
+        session.refresh(task)
+        raise ApiError(ErrorCode.VALIDATION_ERROR, "只有排队中的任务可以取消", 400)
+    session.refresh(task)
+    return task

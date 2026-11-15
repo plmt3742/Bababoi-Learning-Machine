@@ -55,6 +55,81 @@ def _generated_rows(db, qid: int, alive_only: bool = True) -> list[GeneratedQues
         return list(s.scalars(stmt.order_by(GeneratedQuestion.target_index)))
 
 
+def _cancel(client, token: str, task_id: int):
+    return client.post(f"/api/v1/tasks/{task_id}/cancel", headers=auth_headers(token))
+
+
+def test_cancel_queued_task_keeps_it_from_running(client, db) -> None:
+    """BE-027：排队中的任务可以取消，worker 不再领取。"""
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    resp = _cancel(client, token, task_id)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "canceled" and body["finished_at"] is not None
+
+    with db() as s:
+        assert task_worker._claim_next(s) is None, "canceled 不能被 worker 领取"
+
+
+def test_cancel_running_task_is_rejected(client, db) -> None:
+    """在途同步请求打断不了：running 取消直接 400，避免「取消了但还在扣费」。"""
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        claimed = task_worker._claim_next(s)
+        assert claimed is not None
+        task_id = claimed.id
+
+    resp = _cancel(client, token, task_id)
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
+    with db() as s:
+        assert s.get(GenerationTask, task_id).status == "running"
+
+
+def test_cancel_done_task_is_rejected(client, db, fake_llm) -> None:
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+    task_worker.execute_task(db, task_id)
+
+    resp = _cancel(client, token, task_id)
+    assert resp.status_code == 400, resp.text
+
+
+def test_cancel_other_users_task_is_forbidden(client, db) -> None:
+    owner = register_user(client)["access_token"]
+    other = register_user(client, username="小红_02")["access_token"]
+    _create_question(client, owner)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    resp = _cancel(client, other, task_id)
+    assert resp.status_code == 403, resp.text
+    with db() as s:
+        assert s.get(GenerationTask, task_id).status == "queued"
+
+
+def test_cancel_queued_segment_allows_new_enqueue(client, db) -> None:
+    """取消不占去重位：同一段取消后可以重新入队，拿到新 task_id。"""
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    tasks = _generate(client, token, qid)
+    first = next(t for t in tasks if t["target_index"] == 1)
+
+    assert _cancel(client, token, first["task_id"]).status_code == 200
+    again = _generate(client, token, qid, target_index=1)
+    assert again[0]["task_id"] != first["task_id"]
+    with db() as s:
+        assert s.get(GenerationTask, again[0]["task_id"]).status == "queued"
+        assert s.get(GenerationTask, first["task_id"]).status == "canceled"
+
+
 def test_create_question_already_enqueues_analysis_task(client, db) -> None:
     """BE-004 的契约：保存错题后 analysis 任务已经在队列里。"""
     token = register_user(client)["access_token"]

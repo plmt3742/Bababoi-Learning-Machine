@@ -82,3 +82,13 @@ def retry_task(
     session: Session = Depends(get_session),
 ) -> TaskOut:
     return TaskOut.model_validate(task_service.retry(session, user.id, task_id))
+
+
+@router.post("/tasks/{task_id}/cancel", response_model=TaskOut)
+def cancel_task(
+    task_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> TaskOut:
+    """取消排队中的任务；已开跑（running）的不打断，返回 400（BE-027）。"""
+    return TaskOut.model_validate(task_service.cancel(session, user.id, task_id))

@@ -74,7 +74,7 @@ class GenerationTask(Base):
     stage: Mapped[str] = mapped_column(String(16), nullable=False)  # analysis | quiz
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="queued"
-    )  # queued | running | done | failed
+    )  # queued | running | done | failed | canceled（canceled 只来自用户取消排队，BE-027）
     target_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # ADR-006：quiz 段请求的难度档；analysis 任务没有难度，留 NULL。
     # 存它是因为「重新生成这一段」要能沿用原档位，而不是悄悄换成默认档。
