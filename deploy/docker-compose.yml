@@ -1,0 +1,27 @@
+# staging：宿主机 nginx + api 容器（公网只由 nginx 暴露，8000 只绑 127.0.0.1）
+#   BABABOI_ENV_FILE=/srv/bababoi/.env docker compose -f deploy/docker-compose.yml up -d --build
+#
+# 为什么 DATABASE_URL / UPLOAD_DIR 写在这里而不是 .env：
+# 四个斜杠才是绝对路径；.env 从模板复制很容易留成相对路径，重启就丢数据。
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: bababoi-api:staging
+    container_name: bababoi-api
+    restart: unless-stopped
+    env_file:
+      - ${BABABOI_ENV_FILE:-/srv/bababoi/.env}
+    environment:
+      DATABASE_URL: sqlite:////data/bababoi.db
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - /srv/bababoi/data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
