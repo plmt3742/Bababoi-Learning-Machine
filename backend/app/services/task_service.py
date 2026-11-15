@@ -189,7 +189,14 @@ def cancel(session: Session, user_id: int, task_id: int) -> GenerationTask:
     result = session.execute(
         update(GenerationTask)
         .where(GenerationTask.id == task.id, GenerationTask.status == "queued")
-        .values(status="canceled", finished_at=utcnow())
+        # error_* 一起清：自动重排后的任务还带着上一轮失败原因，
+        # 取消后前端/接口不该再显示一条和「已取消」矛盾的错误（retry 同样会清）
+        .values(
+            status="canceled",
+            finished_at=utcnow(),
+            error_code=None,
+            error_message=None,
+        )
     )
     session.commit()
     if result.rowcount == 0:
