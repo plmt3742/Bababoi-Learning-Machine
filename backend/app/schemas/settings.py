@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, StrictBool
+from pydantic import BaseModel, Field, StrictBool, field_validator
+
+AiProvider = Literal["deepseek", "openai_compatible"]
 
 
 class PreferencesOut(BaseModel):
@@ -28,3 +31,43 @@ class PreferencesUpdate(BaseModel):
     """
 
     enforce_same_question_type: StrictBool = True
+
+
+class AiSettingsOut(BaseModel):
+    """`GET/PUT /settings/ai` 的返回；任何情况下都不含原始 Key。
+
+    未配置时 `provider`/`model` 也给默认值（deepseek + 系统模型），不是 null：
+    前端设置页直接用这两个字段填表单，null 会让提供方下拉变成空的（与 mock、类型一致）。
+    """
+
+    configured: bool
+    provider: AiProvider
+    base_url: str | None = None
+    model: str
+    api_key_masked: str | None = None
+    updated_at: datetime | None = None
+
+
+class AiSettingsUpdate(BaseModel):
+    """`PUT /settings/ai` 的请求体。
+
+    `api_key` 最少 8 位与前端设置页一致；`base_url` 只有 openai_compatible 必填，
+    且必须 https + 白名单 host（SSRF 面先收窄）。
+    """
+
+    provider: AiProvider
+    base_url: str | None = Field(default=None, max_length=255)
+    model: str = Field(min_length=1, max_length=64)
+    # 省略 = 保留已保存的 Key（只改 model/base_url 时不必重粘）；首次配置必填
+    api_key: str | None = Field(default=None, min_length=8, max_length=512)
+
+    @field_validator("model", "api_key", mode="before")
+    @classmethod
+    def _strip(cls, value):
+        # 长度校验必须发生在 strip 之前之后都看同一份字符串：
+        # "   " 不该过 model 的 min_length=1，"  sk-1234 " 也不该过 api_key 的 8 位
+        if not isinstance(value, str):
+            return value
+        value = value.strip()
+        # 全空白等于没提交：走「保留原 Key」而不是报 422
+        return value or None

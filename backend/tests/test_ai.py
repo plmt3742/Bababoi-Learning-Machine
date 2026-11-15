@@ -427,7 +427,7 @@ def test_vision_request_carries_thinking_per_hop(client_stub) -> None:
     from app.ai.client import OPERATION_VISION, DeepSeekClient
 
     instance = DeepSeekClient.__new__(DeepSeekClient)  # 不建真的 httpx 连接池
-    instance._model = "deepseek-flash"
+    instance.model = "deepseek-flash"
     instance._client = client_stub
 
     instance.complete(

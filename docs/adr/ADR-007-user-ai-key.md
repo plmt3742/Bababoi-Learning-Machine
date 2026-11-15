@@ -36,6 +36,7 @@ DELETE /api/v1/settings/ai
 ```
 
 - `api_key_masked` 形如 `sk-****abcd`；任何响应/日志/错误体不得包含原始 Key。
+- 后续放宽（BE-020 实现时落地）：`PUT` 的 `api_key` 可省略（= 保留已存 Key，只改 `model`/`base_url` 时不必重粘）；**切换 provider 必须重填**，首次配置仍必填。
 - `provider`: `deepseek` | `openai_compatible`。
 - `provider=deepseek` 时 `base_url` 可为空，使用默认；`openai_compatible` 必须 `https`。
 - 建议只允许白名单 host（至少 `api.deepseek.com` / `api.openai.com`）；放开自定义 host 必须先做 SSRF 防护（禁止内网/回环/metadata）。
