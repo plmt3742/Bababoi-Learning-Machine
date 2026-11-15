@@ -87,6 +87,7 @@ def test_cancel_running_task_is_rejected(client, db) -> None:
     resp = _cancel(client, token, task_id)
     assert resp.status_code == 400, resp.text
     assert resp.json()["detail"]["code"] == "VALIDATION_ERROR"
+    assert "已开始执行" in resp.json()["detail"]["message"]
     with db() as s:
         assert s.get(GenerationTask, task_id).status == "running"
 
@@ -100,6 +101,22 @@ def test_cancel_done_task_is_rejected(client, db, fake_llm) -> None:
 
     resp = _cancel(client, token, task_id)
     assert resp.status_code == 400, resp.text
+    assert "已完成" in resp.json()["detail"]["message"]
+
+
+def test_cancel_twice_reports_already_canceled(client, db) -> None:
+    """第二次取消命中 rowcount=0，回读真实状态后给「已取消」而不是笼统的不可取消。"""
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    assert _cancel(client, token, task_id).status_code == 200
+    again = _cancel(client, token, task_id)
+    assert again.status_code == 400, again.text
+    assert "已取消" in again.json()["detail"]["message"]
+    with db() as s:
+        assert s.get(GenerationTask, task_id).status == "canceled"
 
 
 def test_cancel_other_users_task_is_forbidden(client, db) -> None:
