@@ -14,6 +14,8 @@ dependencies = [
     "bcrypt>=4",
     "pyjwt>=2",
     "openai>=2",
+    "httpx>=0.28",  # app/ai/client.py 运行时 import（DeepSeekClient 的 trust_env=False 客户端）
+    "cryptography>=43",  # BYOK：用户 AI Key 加密存储（ADR-007）
     "pillow>=13.0.0",
     "python-multipart>=0.0.33",
 ]
@@ -22,7 +24,6 @@ dependencies = [
 dev = [
     "pytest>=9.2",
     "ruff>=0.17",
-    "httpx>=0.28",  # fastapi TestClient 依赖它
 ]
 
 [tool.ruff]

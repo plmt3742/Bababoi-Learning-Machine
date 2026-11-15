@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 import math
-import threading
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -29,6 +28,7 @@ from sqlalchemy.orm import sessionmaker
 from app.ai import prompts, validator
 from app.ai.client import OPERATION_VISION, build_llm_client
 from app.ai.errors import AIError, AIInvalidImageError, AIInvalidOutputError, AITruncatedError
+from app.ai.llm_config import model_hint, resolve_llm_config
 from app.ai.pipeline import run as pipeline_run
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
@@ -39,20 +39,15 @@ from app.services import ai_log, image_service
 
 logger = logging.getLogger(__name__)
 
-_client = None
-_client_lock = threading.Lock()
-
-
-def _llm_client():
+def _llm_client(session_factory=None, user_id=None):
     """识图用的客户端；测试 monkeypatch 这个函数换替身（和 task_worker 同一套路）。
 
-    这里挂的是连接池，每个请求新建一个就等于每张图重新 TLS 握手，所以按进程缓存一份。
+    有用户上下文时先解析 BYOK（用户 Key → 系统 Key），连接池按 Key 哈希在 client 里复用。
+    但 mock 模式不需要任何 Key，直接短路（否则本地/CI 会因为"没配 Key"起不来）。
     """
-    global _client
-    with _client_lock:
-        if _client is None:
-            _client = build_llm_client()
-        return _client
+    if settings.llm_mock or session_factory is None or user_id is None:
+        return build_llm_client()
+    return build_llm_client(resolve_llm_config(session_factory, user_id))
 
 
 class _CacheKey(NamedTuple):
@@ -64,12 +59,23 @@ class _CacheKey(NamedTuple):
     hop2_version: str
 
 
-def _cache_model() -> str:
-    """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。"""
-    return "mock" if settings.llm_mock else settings.llm_model
+def _cache_model(session_factory, user_id: int) -> str:
+    """产出这份结果的模型身份。mock 单列一档，否则本地假结果会命中到真模型/演示库。
+
+    BYOK：用户配了自己的 model 就记用户的——只读 `model` 列、不解密，命中仍然不需要 Key；
+    否则换模型不失效，缓存行的 model 也会记错。读不到（比如本地没跑迁移）按系统 model
+    继续走：缓存路径不能因为多了一次查询把识图打成 500。
+    """
+    if settings.llm_mock:
+        return "mock"
+    try:
+        return model_hint(session_factory, user_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("读取用户 model 失败，缓存键按系统 model（user=%s）：%s", user_id, exc)
+        return settings.llm_model
 
 
-def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:
+def _cache_key(session_factory, user_id: int, image_path: str, subject: str | None) -> _CacheKey | None:
     """用户 + 图内容 + 学科 + 模型 + 两跳版本；路径不合法就不缓存。"""
     match = image_service.IMAGE_PATH_RE.match(image_path or "")
     if match is None or int(match.group(1)) != user_id:
@@ -79,7 +85,7 @@ def _cache_key(user_id: int, image_path: str, subject: str | None) -> _CacheKey 
         user_id=user_id,
         image_sha=image_sha,
         subject_key=(subject or "").strip(),
-        model=_cache_model(),
+        model=_cache_model(session_factory, user_id),
         hop1_version=prompts.PROMPT_VERSION_VISION_TEXT,
         hop2_version=prompts.PROMPT_VERSION_VISION_STRUCTURE,
     )
@@ -242,7 +248,7 @@ def extract_from_image(
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
-    key = _cache_key(user_id, image_path, subject)
+    key = _cache_key(session_factory, user_id, image_path, subject)
     if key is not None:
         if force_refresh:
             try:
@@ -275,7 +281,7 @@ def extract_from_image(
 
     extracted_at = datetime.now(UTC)
     data_url = image_service.data_url_for_llm(user_id, image_path)
-    client = _llm_client()
+    client = _llm_client(session_factory, user_id)
 
     transcript = _hop(
         session_factory,
@@ -376,6 +382,8 @@ def _hop(
             session_factory, user_id, OPERATION_VISION, status="error",
             error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
             prompt_version_override=version,
+            key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise AIInvalidImageError(message, raw_text=exc.raw_text) from None
     except AIInvalidOutputError as exc:
@@ -383,6 +391,8 @@ def _hop(
             session_factory, user_id, OPERATION_VISION, status="error",
             error_code="AI_INVALID_IMAGE", raw_text=exc.raw_text,
             prompt_version_override=version,
+            key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise AIInvalidImageError(exc.message, raw_text=exc.raw_text) from None
     except AIError as exc:
@@ -391,6 +401,8 @@ def _hop(
             session_factory, user_id, OPERATION_VISION, status="error",
             error_code=exc.error_code, raw_text=exc.raw_text,
             prompt_version_override=version,
+            key_source=getattr(client, "key_source", None),
+            model_override=getattr(client, "model", None),
         )
         raise
 
@@ -398,5 +410,6 @@ def _hop(
         session_factory, user_id, OPERATION_VISION, status="success",
         usage=result.usage, raw_text=result.usage.text,
         prompt_version_override=version,
+        key_source=getattr(client, "key_source", None),
     )
     return result.value

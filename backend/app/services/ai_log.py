@@ -32,8 +32,14 @@ def write_call_log(
     queue_wait_ms: int | None = None,
     prompt_version_override: str | None = None,
     type_policy: str | None = None,
+    key_source: str | None = None,
+    model_override: str | None = None,
 ) -> None:
-    """日志写不进去也不能把业务带崩，所以这里吞掉一切异常，只留一条 error 日志。"""
+    """日志写不进去也不能把业务带崩，所以这里吞掉一切异常，只留一条 error 日志。
+
+    `model_override`：BYOK 的失败/超时拿不到 `usage`，按系统 model 记会让
+    「用户说他配了 Key 还报错」指错模型；调用方知道客户端用的是哪把就传进来。
+    """
     try:
         with session_factory() as session:
             session.add(
@@ -41,10 +47,11 @@ def write_call_log(
                     user_id=user_id,
                     question_id=question_id,
                     operation=operation,
-                    model=usage.model if usage else settings.llm_model,
+                    model=usage.model if usage else (model_override or settings.llm_model),
                     prompt_version=prompt_version_override
                     or prompt_version(operation, type_policy=type_policy),
                     type_policy=type_policy,
+                    key_source=key_source,
                     input_tokens=usage.prompt_tokens if usage else None,
                     output_tokens=usage.completion_tokens if usage else None,
                     latency_ms=usage.latency_ms if usage else 0,

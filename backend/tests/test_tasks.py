@@ -22,7 +22,7 @@ from tests.conftest import auth_headers, register_user
 def fake_llm(monkeypatch):
     """把 worker 的 LLM 客户端换成可编程替身。"""
     holder = {"client": MockLLMClient()}
-    monkeypatch.setattr(task_worker, "_llm_client", lambda: holder["client"])
+    monkeypatch.setattr(task_worker, "_llm_client", lambda *a, **k: holder["client"])
     return holder
 
 
@@ -261,6 +261,71 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
         assert task.retry_index == 1
         assert fake_llm["client"].calls == 2
         assert task.error_message
+
+
+def test_byok_resolution_failure_marks_task_failed(client, db, monkeypatch) -> None:
+    """review P1：密文解不开时任务必须落终态，不能永远停在 running。
+
+    这行原来在 try 之外，AIProviderError 直接穿出 execute_task：没有 error_code、
+    没有 ai_call_logs、也不能手动 retry。这里走真链路（换掉加密密钥让已存密文失效），
+    不 monkeypatch `_llm_client`。
+    """
+    from cryptography.fernet import Fernet
+
+    monkeypatch.setattr(settings, "llm_mock", False)
+    monkeypatch.setattr(settings, "settings_encryption_key", Fernet.generate_key().decode())
+    token = register_user(client)["access_token"]
+    saved = client.put(
+        "/api/v1/settings/ai",
+        json={"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk-user-123456"},
+        headers=auth_headers(token),
+    )
+    assert saved.status_code == 200, saved.text
+    monkeypatch.setattr(settings, "settings_encryption_key", Fernet.generate_key().decode())
+
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+        task = s.get(GenerationTask, task_id)
+        task.retry_index = settings.task_retry_limit  # 第二次仍失败 → 直接终态
+        s.commit()
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        task = s.get(GenerationTask, task_id)
+        assert task.status == "failed"
+        assert task.error_code == "AI_PROVIDER_ERROR"
+        assert task.finished_at is not None
+        log = s.scalar(select(AiCallLog).where(AiCallLog.error_code == "AI_PROVIDER_ERROR"))
+        assert log is not None and log.status == "error"
+        assert log.key_source is None
+
+
+def test_byok_error_log_records_client_model(client, db, monkeypatch) -> None:
+    """review P3：失败行没有 usage，model 要记实际用的那把，否则 BYOK 排查指错模型。"""
+    from app.ai.errors import AITimeoutError
+
+    class TimeoutClient:
+        model = "gpt-4o-mini"
+        key_source = "user"
+
+        def complete(self, operation, messages, **kwargs):
+            raise AITimeoutError("超时了")
+
+    monkeypatch.setattr(task_worker, "_llm_client", lambda *a, **k: TimeoutClient())
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        log = s.scalar(select(AiCallLog).where(AiCallLog.status == "error"))
+        assert log is not None and log.error_code == "AI_TIMEOUT"
+        assert log.model == "gpt-4o-mini"
+        assert log.key_source == "user"
 
 
 def test_requeue_stops_after_requeue_deadline(client, db, fake_llm) -> None:

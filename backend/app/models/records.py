@@ -58,6 +58,9 @@ class AiCallLog(Base, TimestampMixin):
     # 记在日志里而不是只记在代码路径里，是因为"默认开启值不值"这个问题只能靠
     # 按策略分组统计失败率来回答——没有这一列就量不出来。非 quiz 操作为 null。
     type_policy: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # ADR-007：这次调用用的是用户自己的 Key（user）还是系统 .env 的 Key（system）。
+    # 只记来源不记 Key 本身；排查"用户说他配了 Key 还报错"时先看这一列。
+    key_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

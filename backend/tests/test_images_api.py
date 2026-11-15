@@ -247,7 +247,7 @@ def test_from_image_timeout_is_504_and_not_retried(client, db, token_and_user, m
             raise AITimeoutError("识图超时了")
 
     fake = TimeoutClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     resp = _extract(client, token, image_path)
     assert resp.status_code == 504, resp.text
     assert resp.json()["detail"]["code"] == "AI_TIMEOUT"
@@ -274,7 +274,7 @@ def test_from_image_bad_output_becomes_invalid_image(client, db, token_and_user,
                                prompt_tokens=1, completion_tokens=1, latency_ms=1)
 
     fake = ChatterClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     resp = _extract(client, token, image_path)
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"]["code"] == "AI_INVALID_IMAGE"
@@ -309,7 +309,7 @@ def test_from_image_truncated_output_tells_the_user_to_crop(
                                finish_reason="length")
 
     fake = TruncatingClient()
-    monkeypatch.setattr(extraction_service, "_llm_client", lambda: fake)
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
     resp = _extract(client, token, image_path)
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"]["code"] == "AI_INVALID_IMAGE"
