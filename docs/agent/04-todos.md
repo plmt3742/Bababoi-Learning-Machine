@@ -127,7 +127,7 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | FE-024 | 个人设置页 + AI API Key UI | 霹雳马桶 | P1 | 无 | `/settings`；账号信息 + AI 设置；masked 回显；密码输入/显示切换；不写 localStorage/Pinia | DONE（PR #35；mock 先行，等 BE-020） |
-| BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | 已完成（PR #73 待合；2026-11-15 前端 review 已过：Key 解析失败落终态、缓存键用用户 model、strip 校验、未配置回默认 provider、`repr` 去 Key、日志 model 用实际客户端） |
+| BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | 已完成（PR #73 已合 `2f5b131`；2026-11-15 前端 review 整改：Key 解析失败落终态、缓存键用用户 model、strip 校验、未配置回默认 provider、`repr` 去 Key、日志 model 用实际客户端） |
 
 ### 1.8 FE-027 收口（2026-11-07）
 
