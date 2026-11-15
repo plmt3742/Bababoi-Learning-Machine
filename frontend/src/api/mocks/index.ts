@@ -39,7 +39,7 @@ import type { MockState, MockUser } from './data'
 
 const LATENCY_MS = 320
 const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
-const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed']
+const TASK_STATUSES: TaskStatus[] = ['queued', 'running', 'done', 'failed', 'canceled']
 const TREND_DAY_COUNT = 7
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
 const WEAK_POINT_LIMIT = 5
@@ -56,6 +56,13 @@ const SEGMENT_DIFFICULTIES: Record<GenerationTargetIndex, Difficulty> = {
 }
 const MOCK_FAILING_SEGMENT: GenerationTargetIndex = 2
 const MOCK_FAILING_QUESTION_ID = 104
+
+const CANCEL_BLOCKED_MESSAGES: Record<Exclude<TaskStatus, 'queued'>, string> = {
+  running: '任务已开始执行，无法取消',
+  done: '任务已完成，无法取消',
+  failed: '任务已失败，无法取消',
+  canceled: '任务已取消，无需重复操作',
+}
 
 const genericAnalysis: Analysis = {
   topic_type: '待整理',
@@ -1280,6 +1287,40 @@ export function setupMocks(): void {
     return [204, null]
   })
 
+  adapter.onPost(/^\/questions\/\d+\/analyze$/).reply((config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const match = /^\/questions\/(\d+)\/analyze$/.exec(config.url ?? '')
+    const question = match ? findQuestion(state, Number.parseInt(match[1], 10)) : undefined
+    if (!question) return apiError(404, 'QUESTION_NOT_FOUND', '错题不存在或已删除')
+
+    const active = state.tasks.find(
+      (task) =>
+        task.question_id === question.id &&
+        task.stage === 'analysis' &&
+        (task.status === 'queued' || task.status === 'running'),
+    )
+    if (active) return [200, { task_id: active.id }]
+
+    const task: Task = {
+      id: state.nextTaskId,
+      question_id: question.id,
+      stage: 'analysis',
+      status: 'queued',
+      target_index: null,
+      retry_index: 0,
+      error_code: null,
+      created_at: nowIso(),
+      started_at: null,
+      finished_at: null,
+    }
+    state.nextTaskId += 1
+    state.tasks.push(task)
+    scheduleTaskProgress(task, state, question)
+
+    return [200, { task_id: task.id }]
+  })
+
   adapter.onPost(/^\/questions\/\d+\/generate$/).reply((config) => {
     if (!authorizedUser(config, state)) return unauthorized()
 
@@ -1369,6 +1410,27 @@ export function setupMocks(): void {
     task.started_at = null
     task.finished_at = null
     scheduleTaskProgress(task, state, findQuestion(state, task.question_id))
+
+    return [200, task]
+  })
+
+  adapter.onPost(/^\/tasks\/\d+\/cancel$/).reply((config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const match = /^\/tasks\/(\d+)\/cancel$/.exec(config.url ?? '')
+    const task = match
+      ? state.tasks.find((item) => item.id === Number.parseInt(match[1], 10))
+      : undefined
+    if (!task) return apiError(404, 'TASK_NOT_FOUND', '任务不存在')
+
+    if (task.status !== 'queued') {
+      return apiError(400, 'VALIDATION_ERROR', CANCEL_BLOCKED_MESSAGES[task.status])
+    }
+
+    task.status = 'canceled'
+    task.finished_at = nowIso()
+    task.error_code = null
+    task.error_message = null
 
     return [200, task]
   })

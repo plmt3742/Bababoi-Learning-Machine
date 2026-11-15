@@ -6,6 +6,7 @@ import {
   firstDetectedSubject,
   isImageItemEdited,
   toImageQuestionPayload,
+  toggleImageSelection,
 } from '../src/utils/imageIntake'
 
 const extraction: ImageExtractionResult = {
@@ -67,5 +68,19 @@ describe('image intake helpers', () => {
     expect(payload.options).toBeUndefined()
     expect(payload.blanks).toBeUndefined()
     expect(payload.image_path).toBe('uploads/1/mock.jpg')
+  })
+
+  it('keeps every selected question without a 3-question cap', () => {
+    let selected: number[] = []
+    for (const questionId of [101, 102, 103, 104, 105]) {
+      selected = toggleImageSelection(selected, questionId, true)
+    }
+
+    expect(selected).toEqual([101, 102, 103, 104, 105])
+
+    selected = toggleImageSelection(selected, 103, false)
+    expect(selected).toEqual([101, 102, 104, 105])
+
+    expect(toggleImageSelection(selected, 101, true)).toEqual([101, 102, 104, 105])
   })
 })

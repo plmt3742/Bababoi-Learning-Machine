@@ -19,7 +19,6 @@ import {
 import type { BlankAnswerDraft, ChoiceOptionDraft } from './questionEditor'
 
 export const MAX_IMAGE_CONTENT_LENGTH = 5000
-export const MAX_GENERATE_SELECTION = 3
 
 export interface ImageItemDraft {
   key: string
@@ -97,6 +96,16 @@ export function isImageItemEdited(item: ImageItemDraft): boolean {
 
 export function canSelectImageItem(item: ImageItemDraft): boolean {
   return !item.incomplete || isImageItemEdited(item)
+}
+
+export function toggleImageSelection(
+  selected: readonly number[],
+  questionId: number,
+  value: unknown,
+): number[] {
+  if (value !== true) return selected.filter((id) => id !== questionId)
+  if (selected.includes(questionId)) return [...selected]
+  return [...selected, questionId]
 }
 
 export function ensureItemStructure(item: ImageItemDraft): void {

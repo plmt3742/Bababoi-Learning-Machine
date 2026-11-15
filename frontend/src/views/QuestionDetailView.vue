@@ -12,10 +12,10 @@ import GenerationProgress from '../components/ai/GenerationProgress.vue'
 import GenerationSegments from '../components/ai/GenerationSegments.vue'
 import AnalysisCard from '../components/question/AnalysisCard.vue'
 import GeneratedQuestionCard from '../components/question/GeneratedQuestionCard.vue'
-import { generateQuestions, getQuestion, removeQuestion } from '../api/questions'
-import { retryTask } from '../api/tasks'
+import { analyzeQuestion, generateQuestions, getQuestion, removeQuestion } from '../api/questions'
+import { cancelTask, retryTask } from '../api/tasks'
 import { normalizeApiError } from '../api/errors'
-import type { QuestionDetail, Task } from '../api/types'
+import type { GenerationTargetIndex, QuestionDetail, Task } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
 import { hasActiveTasks, latestTask } from '../utils/task'
 import { isSegmentTask, summarizeSegments } from '../utils/segments'
@@ -40,6 +40,8 @@ const generationRequested = ref(false)
 const generationMode = ref<'legacy' | 'segments'>('legacy')
 const actionError = ref('')
 const retryingTaskId = ref<number | null>(null)
+const cancelingTaskId = ref<number | null>(null)
+const reanalyzing = ref(false)
 const refreshQueued = ref(false)
 
 const handledDoneTaskIds = new Set<number>()
@@ -125,6 +127,9 @@ const analysisPending = computed(
 const analysisFailed = computed(
   () => !analysisReady.value && analysisTask.value?.status === 'failed',
 )
+const analysisCanceled = computed(
+  () => !analysisReady.value && analysisTask.value?.status === 'canceled',
+)
 const quizActive = computed(() => {
   if (generationMode.value === 'segments') return segmentActive.value
   return legacyQuizTask.value?.status === 'queued' || legacyQuizTask.value?.status === 'running'
@@ -152,8 +157,16 @@ const generatedEmptyHint = computed(() => {
   if (generationMode.value === 'segments' && segmentSummary.value.failedCount > 0) {
     return '部分相似题生成失败，可在右侧处理进度中单独重试失败段。'
   }
+  if (
+    generationMode.value === 'segments' &&
+    (segmentSummary.value.status === 'canceled' ||
+      segmentSummary.value.status === 'partial-canceled')
+  ) {
+    return '有生成段已取消，可在右侧「处理进度」中重新生成该段。'
+  }
   if (analysisPending.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
   if (analysisFailed.value) return '分析任务未成功完成，处理后可生成相似题。'
+  if (analysisCanceled.value) return '分析任务已取消，可在「AI 分析」中点击「重新分析」。'
   if (!analysisReady.value) return 'AI 分析完成后，即可在右侧生成 3 道相似题。'
   return '点击右侧「生成相似题」，完成后会在本页展示 3 道题。'
 })
@@ -302,6 +315,56 @@ async function handleRetryTask(taskId: number): Promise<void> {
     actionError.value = normalizeApiError(cause).message
   } finally {
     retryingTaskId.value = null
+  }
+}
+
+async function handleReanalyze(): Promise<void> {
+  const current = question.value
+  if (!current || reanalyzing.value) return
+
+  reanalyzing.value = true
+  actionError.value = ''
+
+  try {
+    await analyzeQuestion(current.id)
+    Message.success('已重新提交分析任务')
+    startTaskPolling()
+  } catch (cause) {
+    actionError.value = normalizeApiError(cause).message
+  } finally {
+    reanalyzing.value = false
+  }
+}
+
+async function handleCancelTask(taskId: number): Promise<void> {
+  if (cancelingTaskId.value !== null) return
+
+  cancelingTaskId.value = taskId
+  actionError.value = ''
+
+  try {
+    await cancelTask(taskId)
+    Message.success('已取消排队')
+    await refreshTasks()
+  } catch (cause) {
+    actionError.value = normalizeApiError(cause).message
+  } finally {
+    cancelingTaskId.value = null
+  }
+}
+
+async function handleRegenerateSegment(index: GenerationTargetIndex): Promise<void> {
+  const current = question.value
+  if (!current) return
+
+  actionError.value = ''
+
+  try {
+    await generateQuestions(current.id, { target_index: index })
+    Message.success('已重新提交该段生成')
+    startTaskPolling()
+  } catch (cause) {
+    actionError.value = normalizeApiError(cause).message
   }
 }
 
@@ -520,7 +583,10 @@ onBeforeUnmount(() => {
             :analysis="question.analysis"
             :pending="analysisPending"
             :failed="analysisFailed"
+            :canceled="analysisCanceled"
+            :reanalyzing="reanalyzing"
             :task-label="analysisTaskLabel"
+            @reanalyze="handleReanalyze"
           />
 
           <section class="generated" aria-labelledby="generated-title">
@@ -585,7 +651,12 @@ onBeforeUnmount(() => {
             :analysis-ready="analysisReady"
             :generation-requested="generationRequested"
             :retrying-task-id="retryingTaskId"
+            :canceling-task-id="cancelingTaskId"
+            :reanalyzing="reanalyzing"
             @retry="handleRetryTask"
+            @cancel="handleCancelTask"
+            @regenerate="handleRegenerateSegment"
+            @reanalyze="handleReanalyze"
             @stop="stopTaskPolling"
             @refresh="handleRefreshTasks"
             @generate="handleGenerate"
@@ -605,7 +676,9 @@ onBeforeUnmount(() => {
             :analysis-ready="analysisReady"
             :generation-requested="generationRequested"
             :retrying-task-id="retryingTaskId"
+            :reanalyzing="reanalyzing"
             @retry="handleRetryTask"
+            @reanalyze="handleReanalyze"
             @stop="stopTaskPolling"
             @refresh="handleRefreshTasks"
             @generate="handleGenerate"

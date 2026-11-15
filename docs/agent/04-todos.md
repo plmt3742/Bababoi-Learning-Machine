@@ -153,7 +153,8 @@ ID:
 | FE-033 | 统计 mock 与真实契约对齐 | 霹雳马桶 | P1 | 无 | mock `buildRecentTrend` 改为 UTC+8、与后端同为稀疏（或由前端补 7 天展示占位，与后端拍板一致）；`total_generated_questions` 排除已删父题的生成题；mock/真机同数据同图 | DONE（2026-11-11：UTC+8 + 稀疏 + 父题过滤） |
 | FE-034 | 设置页时间显示修复 | 霹雳马桶 | P1 | 无 | `formatSettingsTime` 对无时区串补 `Z`（后端 preferences / auth.me 是 UTC naive，drafts/stats 带 Z）；"最近更新""注册时间"与 UTC+8 一致；补 Vitest | DONE（2026-11-12：解析统一到 `utils/time.ts`，覆盖设置/首页/详情/任务/草稿；8 条 Vitest） |
 | FE-035 | BYOK 降级 + 演示口令收口 | 霹雳马桶 | P1 | BE-020 已合（`2f5b131`） | 关 mock 后 `/settings/ai` 404 时 AI 面板降级、不拖垮设置页；`LoginView` 不再写死 `student01/password123`，改成"口令见演示手册"或 env 注入 | DONE（2026-11-12：AI 面板与生成偏好均在 404 时降级为"后端未启用"；登录页口令改演示手册） |
-| FE-036 | 排队可取消 + 去掉 3 道硬上限 | 霹雳马桶 | P1 | BE-027 | 任务中心 `queued` 行给「取消排队」、`canceled` 显示已取消；图片保存后多选不再硬拦 3 道，改为「先跑 3 道、其余排队」；文案写清每题生成 3 段 | TODO（2026-11-15：后端接口已就绪，等前端排期） |
+| FE-036 | 排队可取消 + 去掉 3 道硬上限 | 霹雳马桶 | P1 | BE-027 已合（`e746c09`） | 任务中心 `queued` 行给「取消排队」、`canceled` 显示已取消并可单独重新生成；图片保存后多选不再硬拦 3 道，改为「提交全部、超出并发排队」；文案写清每题 3 段 | 已完成（PR #76；mock 先行，BE-027 合并后走真接口；含 6 条 Vitest） |
+| FE-037 | 重新分析入口 + canceled 分析态 | 霹雳马桶 | P1 | BE-027、FE-036 | 详情页分析卡片在 failed / canceled / 无分析任务时给「重新分析」；右侧进度面板 canceled 显示「已取消」并可重新分析；补 Vitest | 已完成（PR #76） |
 
 > FE-017 已按 375/768/1366/1366×768 截图验收（2026-11-12，真实后端 + 种子数据），补齐录入页 Ctrl/⌘+Enter 保存。
 
@@ -164,7 +165,7 @@ ID:
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
 | BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（16 号 §三） | TODO |
 | BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 本期采用（Issue #47）：转录开思考、结构化关思考；一次 HTTP；`chapter` 只能第 1 跳给；空位统一 `___`；`ai_call_logs` 两行；vision max_tokens ≥16000；超时 ≥180s；前端 loading 已接；验收用概率表述（四张图各 2 次，末题至少 1 次返回 + incomplete） | 已完成（#67 已合 `be4dcf8`；两跳 + 两行日志 + 180s + 第 1 跳警告下沉；结果缓存 #71 已合（`7ab9cf9`），staging 真图验证 5 条 / 12.9s / 第二次 0.07s 命中：键含 model，请求 `force_refresh`（60s 冷却，调用前占用、失败也计），出参 `cached`/`extracted_at`；补列走前向迁移 `c4e8a1d62f37`） |
-| BE-027 | 排队任务取消 | 人机 | P1 | BE-006/007 | `POST /tasks/{id}/cancel`；只认 `queued` → `canceled`，`running` 不打断；取消后同一段可重新入队 | 已完成（PR 待合：6 条测试，无迁移） |
+| BE-027 | 排队任务取消 | 人机 | P1 | BE-006/007 | `POST /tasks/{id}/cancel`；只认 `queued` → `canceled`，`running` 不打断；取消后同一段可重新入队 | 已完成（#74 已合 `e746c09`；含 #75 error 字段清理；6 条测试，无迁移） |
 | BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |

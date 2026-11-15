@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import '@arco-design/web-vue/es/message/style/css.js'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
-import { circledIndex, MAX_GENERATE_SELECTION } from '../../../utils/imageIntake'
+import { circledIndex, toggleImageSelection } from '../../../utils/imageIntake'
 import type { GeneratedImageTask, SavedImageQuestion } from '../../../utils/imageIntake'
 import { questionTypeLabel } from '../../../utils/question'
 
@@ -41,16 +41,7 @@ watch(
 )
 
 function toggleSelection(questionId: number, value: unknown): void {
-  if (value !== true) {
-    selected.value = selected.value.filter((id) => id !== questionId)
-    return
-  }
-  if (selected.value.includes(questionId)) return
-  if (selected.value.length >= MAX_GENERATE_SELECTION) {
-    Message.warning(`最多选择 ${MAX_GENERATE_SELECTION} 道题生成相似题`)
-    return
-  }
-  selected.value = [...selected.value, questionId]
+  selected.value = toggleImageSelection(selected.value, questionId, value)
 }
 
 function taskFor(questionId: number): GeneratedImageTask | undefined {
@@ -60,11 +51,7 @@ function taskFor(questionId: number): GeneratedImageTask | undefined {
 function handleGenerate(): void {
   if (props.generating) return
   if (selected.value.length === 0) {
-    Message.warning('请选择 1–3 道题生成相似题')
-    return
-  }
-  if (selected.value.length > MAX_GENERATE_SELECTION) {
-    Message.error(`最多选择 ${MAX_GENERATE_SELECTION} 道题生成相似题`)
+    Message.warning('请选择至少 1 道题生成相似题')
     return
   }
   if (pendingSelection.value.length === 0) {
@@ -93,12 +80,12 @@ function excerpt(content: string, limit = 96): string {
         <span class="dot" aria-hidden="true" />
         {{ saved.length }} 道
       </span>
-      <p class="panel__head-hint">选择 1–3 道生成相似题</p>
+      <p class="panel__head-hint">选择题目生成相似题</p>
     </div>
 
     <div class="panel__body">
       <p class="saved-intro">
-        已保存 {{ saved.length }} 道，选择 1–3 道生成相似题；每道题会创建独立的生成任务。
+        已保存 {{ saved.length }} 道，选择题目生成相似题；每题生成 3 段（3 道相似题），超出并发会自动排队。
       </p>
 
       <ul class="saved-list">
@@ -138,7 +125,7 @@ function excerpt(content: string, limit = 96): string {
 
       <div class="generate-bar">
         <p class="generate-bar__hint">
-          已选 <strong>{{ selected.length }}</strong> / {{ MAX_GENERATE_SELECTION }}
+          已选 <strong>{{ selected.length }}</strong> 道
         </p>
         <button
           class="btn btn--primary"

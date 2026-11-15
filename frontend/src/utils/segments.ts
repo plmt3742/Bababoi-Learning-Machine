@@ -10,11 +10,19 @@ export const SEGMENT_DEFAULT_DIFFICULTIES: Record<GenerationTargetIndex, Difficu
 
 export type SegmentStatus = 'waiting' | Task['status']
 export type SegmentGroupStatus =
-  'waiting' | 'queued' | 'running' | 'done' | 'partial-failed' | 'failed'
+  | 'waiting'
+  | 'queued'
+  | 'running'
+  | 'done'
+  | 'partial-failed'
+  | 'failed'
+  | 'canceled'
+  | 'partial-canceled'
 
 export interface SegmentGroupSummary {
   doneCount: number
   failedCount: number
+  canceledCount: number
   activeCount: number
   /** Number of card slots that actually have a task (1–3). */
   presentCount: number
@@ -33,6 +41,7 @@ const SEGMENT_STATUS_LABELS: Record<SegmentStatus, string> = {
   running: '生成中',
   done: '已完成',
   failed: '失败',
+  canceled: '已取消',
 }
 
 const GROUP_STATUS_LABELS: Record<SegmentGroupStatus, string> = {
@@ -42,6 +51,8 @@ const GROUP_STATUS_LABELS: Record<SegmentGroupStatus, string> = {
   done: '完成',
   'partial-failed': '部分失败',
   failed: '失败',
+  canceled: '已取消',
+  'partial-canceled': '部分已取消',
 }
 
 export function isSegmentIndex(value: number | null | undefined): value is GenerationTargetIndex {
@@ -87,6 +98,7 @@ export function summarizeSegments(tasks: Task[]): SegmentGroupSummary {
   const present = slots.filter((task): task is Task => task !== null)
   const doneCount = present.filter((task) => task.status === 'done').length
   const failedCount = present.filter((task) => task.status === 'failed').length
+  const canceledCount = present.filter((task) => task.status === 'canceled').length
   const activeCount = present.filter(
     (task) => task.status === 'queued' || task.status === 'running',
   ).length
@@ -103,11 +115,15 @@ export function summarizeSegments(tasks: Task[]): SegmentGroupSummary {
     status = 'failed'
   } else if (failedCount > 0) {
     status = 'partial-failed'
+  } else if (canceledCount > 0 && doneCount === 0) {
+    status = 'canceled'
+  } else if (canceledCount > 0) {
+    status = 'partial-canceled'
   } else if (doneCount > 0) {
     status = 'done'
   }
 
-  return { doneCount, failedCount, activeCount, presentCount, status }
+  return { doneCount, failedCount, canceledCount, activeCount, presentCount, status }
 }
 
 export function groupQuizSegmentTasks(tasks: Task[]): QuizSegmentGroup[] {

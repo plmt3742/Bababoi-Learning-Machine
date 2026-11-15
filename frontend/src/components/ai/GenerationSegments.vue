@@ -10,7 +10,7 @@ import {
   IconMinus,
   IconRefresh,
 } from '@arco-design/web-vue/es/icon'
-import type { Task } from '../../api/types'
+import type { GenerationTargetIndex, Task } from '../../api/types'
 import { latestTask } from '../../utils/task'
 import {
   SEGMENT_INDEXES,
@@ -20,7 +20,7 @@ import {
 } from '../../utils/segments'
 import SegmentCard from './SegmentCard.vue'
 
-type AnalysisState = 'waiting' | 'queued' | 'running' | 'done' | 'failed'
+type AnalysisState = 'waiting' | 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
 const props = withDefaults(
   defineProps<{
@@ -35,6 +35,8 @@ const props = withDefaults(
     analysisReady?: boolean
     generationRequested?: boolean
     retryingTaskId?: number | null
+    cancelingTaskId?: number | null
+    reanalyzing?: boolean
   }>(),
   {
     polling: false,
@@ -47,11 +49,16 @@ const props = withDefaults(
     analysisReady: false,
     generationRequested: false,
     retryingTaskId: null,
+    cancelingTaskId: null,
+    reanalyzing: false,
   },
 )
 
 const emit = defineEmits<{
   retry: [taskId: number]
+  cancel: [taskId: number]
+  regenerate: [index: GenerationTargetIndex]
+  reanalyze: []
   stop: []
   refresh: []
   generate: []
@@ -76,6 +83,7 @@ const analysisState = computed<AnalysisState>(() => {
   }
 
   if (!task) return 'waiting'
+  if (task.status === 'canceled') return 'canceled'
   if (task.status === 'failed') return 'failed'
   if (task.status === 'queued' || task.status === 'running') return task.status
   return 'done'
@@ -83,6 +91,9 @@ const analysisState = computed<AnalysisState>(() => {
 
 const analysisFailed = computed(
   () => analysisState.value === 'failed' && analysisTask.value !== null,
+)
+const analysisCanceled = computed(
+  () => analysisState.value === 'canceled' && analysisTask.value !== null,
 )
 const analysisMeta = computed(() => {
   const task = analysisTask.value
@@ -96,6 +107,8 @@ const analysisMeta = computed(() => {
       return props.analysisReady ? '分析结果已就绪' : '分析完成，正在同步结果'
     case 'failed':
       return task?.error_code ? `失败 · ${task.error_code}` : '分析没有成功完成'
+    case 'canceled':
+      return '分析已取消，可重新分析'
     default:
       return '等待任务开始'
   }
@@ -137,6 +150,16 @@ const overallTag = computed<{ label: string; className: string; tone: 'done' | '
     if (segmentSummary.value.status === 'done') {
       return { label: '已完成', className: 'tag--ok', tone: 'done' }
     }
+    if (
+      segmentSummary.value.status === 'canceled' ||
+      segmentSummary.value.status === 'partial-canceled'
+    ) {
+      return {
+        label: segmentGroupStatusLabel(segmentSummary.value.status),
+        className: 'tag--draft',
+        tone: 'run',
+      }
+    }
     if (segmentSummary.value.status === 'partial-failed') {
       return {
         label: segmentGroupStatusLabel('partial-failed'),
@@ -164,6 +187,9 @@ const progressNote = computed(() => {
   if (segmentSummary.value.failedCount > 0) {
     return '生成已结束，失败段可单独重试；其余段的结果会保留。'
   }
+  if (segmentSummary.value.canceledCount > 0) {
+    return '有生成段已取消；已取消的段可单独重新生成，其余段的结果会保留。'
+  }
   if (segmentSummary.value.status === 'done') {
     return '已请求的生成段均已完成，可去练习或整组重新生成。'
   }
@@ -180,6 +206,8 @@ function analysisIcon(state: AnalysisState): Component {
       return IconClockCircle
     case 'running':
       return IconLoading
+    case 'canceled':
+      return IconMinus
     default:
       return IconMinus
   }
@@ -189,8 +217,20 @@ function handleRetry(taskId: number): void {
   emit('retry', taskId)
 }
 
+function handleCancel(taskId: number): void {
+  emit('cancel', taskId)
+}
+
+function handleRegenerate(index: GenerationTargetIndex): void {
+  emit('regenerate', index)
+}
+
 function retryAnalysis(): void {
   if (analysisTask.value) emit('retry', analysisTask.value.id)
+}
+
+function reanalyze(): void {
+  if (!props.reanalyzing) emit('reanalyze')
 }
 </script>
 
@@ -255,6 +295,16 @@ function retryAnalysis(): void {
       >
         {{ retryingTaskId === analysisTask.id ? '重试中…' : '重试' }}
       </button>
+      <button
+        v-else-if="analysisCanceled"
+        class="btn btn--quiet btn--sm analysis-row__retry"
+        type="button"
+        :disabled="reanalyzing"
+        :aria-busy="reanalyzing"
+        @click="reanalyze"
+      >
+        {{ reanalyzing ? '提交中…' : '重新分析' }}
+      </button>
     </div>
 
     <div class="segments-head">
@@ -273,7 +323,10 @@ function retryAnalysis(): void {
         :requested="generationRequested"
         :retrying="retryingTaskId === slot.task?.id"
         :retry-disabled="retryingTaskId !== null"
+        :canceling="cancelingTaskId === slot.task?.id"
         @retry="handleRetry"
+        @cancel="handleCancel"
+        @regenerate="handleRegenerate"
       />
     </div>
 
@@ -320,6 +373,16 @@ function retryAnalysis(): void {
         @click="retryAnalysis"
       >
         重试 AI 分析
+      </button>
+      <button
+        v-else-if="analysisCanceled"
+        class="btn btn--primary btn--block"
+        type="button"
+        :disabled="reanalyzing"
+        :aria-busy="reanalyzing"
+        @click="reanalyze"
+      >
+        {{ reanalyzing ? '提交中…' : '重新分析' }}
       </button>
       <button
         v-else
@@ -434,6 +497,12 @@ function retryAnalysis(): void {
   border-color: var(--color-danger-border);
   background: var(--color-surface);
   color: var(--color-danger);
+}
+
+.analysis-row__mark--canceled {
+  border-style: dashed;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-3);
 }
 
 .analysis-row__icon--spin {

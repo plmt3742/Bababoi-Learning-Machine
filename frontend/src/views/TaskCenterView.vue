@@ -10,7 +10,8 @@ import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
 import SegmentCard from '../components/ai/SegmentCard.vue'
 import { getDraft } from '../api/drafts'
-import { retryTask } from '../api/tasks'
+import { generateQuestions } from '../api/questions'
+import { cancelTask, retryTask } from '../api/tasks'
 import { normalizeApiError } from '../api/errors'
 import type { Draft, GenerationTargetIndex, Task, TaskStatus } from '../api/types'
 import { useTaskPolling } from '../composables/useTaskPolling'
@@ -37,6 +38,7 @@ const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: 'running', label: '生成中' },
   { value: 'done', label: '完成' },
   { value: 'failed', label: '失败' },
+  { value: 'canceled', label: '已取消' },
 ]
 
 const router = useRouter()
@@ -58,6 +60,7 @@ const draftLoaded = ref(false)
 const draftLoading = ref(false)
 const draftError = ref('')
 const retryingTaskId = ref<number | null>(null)
+const cancelingTaskId = ref<number | null>(null)
 const manualRefreshing = ref(false)
 const expandedGroups = ref<Set<number>>(new Set())
 
@@ -88,6 +91,9 @@ function matchesStatusFilter(row: TaskRow, filter: StatusFilter): boolean {
   if (filter === 'failed') {
     return row.group.status === 'failed' || row.group.status === 'partial-failed'
   }
+  if (filter === 'canceled') {
+    return row.group.status === 'canceled' || row.group.status === 'partial-canceled'
+  }
   if (filter === 'queued') {
     return row.group.status === 'queued' || row.group.status === 'waiting'
   }
@@ -105,6 +111,7 @@ const filterCounts = computed<Record<StatusFilter, number>>(() => {
     running: 0,
     done: 0,
     failed: 0,
+    canceled: 0,
   }
 
   for (const row of taskRows.value) {
@@ -115,6 +122,8 @@ const filterCounts = computed<Record<StatusFilter, number>>(() => {
 
     if (row.group.status === 'failed' || row.group.status === 'partial-failed') {
       counts.failed += 1
+    } else if (row.group.status === 'canceled' || row.group.status === 'partial-canceled') {
+      counts.canceled += 1
     } else if (row.group.status === 'waiting') {
       counts.queued += 1
     } else {
@@ -208,6 +217,7 @@ function formatTaskTime(value: string | null | undefined, withSeconds = true): s
 function formatTaskDuration(task: Task): string {
   if (task.status === 'queued') return '等待开始'
   if (task.status === 'running') return '自动刷新'
+  if (task.status === 'canceled') return '已取消'
 
   const finishedAt = toDate(task.finished_at)
   const startedAt = toDate(task.started_at) ?? toDate(task.created_at)
@@ -222,13 +232,16 @@ function formatTaskDuration(task: Task): string {
 }
 
 function taskStatusText(status: TaskStatus): string {
-  return status === 'running' ? '生成中' : taskStatusLabel(status)
+  if (status === 'running') return '生成中'
+  if (status === 'canceled') return '已取消'
+  return taskStatusLabel(status)
 }
 
 function taskStatusTagClass(status: TaskStatus): string {
   if (status === 'done') return 'tag tag--ok'
   if (status === 'failed') return 'tag tag--fail'
   if (status === 'running') return 'tag tag--run'
+  if (status === 'canceled') return 'tag tag--draft'
   return 'tag'
 }
 
@@ -245,6 +258,7 @@ function groupStatusTagClass(status: SegmentGroupStatus): string {
   if (status === 'done') return 'tag tag--ok'
   if (status === 'failed') return 'tag tag--fail'
   if (status === 'partial-failed') return 'tag tag--draft'
+  if (status === 'canceled' || status === 'partial-canceled') return 'tag tag--draft'
   if (status === 'running') return 'tag tag--run'
   return 'tag'
 }
@@ -261,6 +275,8 @@ function groupTimeSub(group: QuizSegmentGroup): string {
     case 'done':
     case 'partial-failed':
     case 'failed':
+    case 'canceled':
+    case 'partial-canceled':
       return `${group.doneCount} / ${groupSegmentTotal(group)} 段完成`
     default:
       return '等待开始'
@@ -327,6 +343,32 @@ async function handleRetry(taskId: number): Promise<void> {
     Message.error(normalizeApiError(cause).message)
   } finally {
     retryingTaskId.value = null
+  }
+}
+
+async function handleCancel(taskId: number): Promise<void> {
+  if (cancelingTaskId.value !== null) return
+
+  cancelingTaskId.value = taskId
+
+  try {
+    const canceled = await cancelTask(taskId)
+    tasks.value = tasks.value.map((task) => (task.id === canceled.id ? canceled : task))
+    Message.success('已取消排队')
+  } catch (cause) {
+    Message.error(normalizeApiError(cause).message)
+  } finally {
+    cancelingTaskId.value = null
+  }
+}
+
+async function handleRegenerate(questionId: number, index: GenerationTargetIndex): Promise<void> {
+  try {
+    await generateQuestions(questionId, { target_index: index })
+    await refreshTasks()
+    Message.success('已重新提交该段生成')
+  } catch (cause) {
+    Message.error(normalizeApiError(cause).message)
   }
 }
 
@@ -514,6 +556,16 @@ onMounted(() => {
                 >
                   {{ retryingTaskId === row.task.id ? '重试中…' : '重试' }}
                 </button>
+                <button
+                  v-else-if="row.task.status === 'queued'"
+                  class="btn btn--quiet btn--sm"
+                  type="button"
+                  :disabled="cancelingTaskId === row.task.id"
+                  :aria-busy="cancelingTaskId === row.task.id"
+                  @click="handleCancel(row.task.id)"
+                >
+                  {{ cancelingTaskId === row.task.id ? '取消中…' : '取消排队' }}
+                </button>
                 <span v-else class="muted">—</span>
               </div>
 
@@ -590,6 +642,9 @@ onMounted(() => {
                     <template v-if="row.group.failedCount > 0">
                       · {{ row.group.failedCount }} 段失败
                     </template>
+                    <template v-if="row.group.canceledCount > 0">
+                      · {{ row.group.canceledCount }} 段已取消
+                    </template>
                   </span>
                 </div>
                 <div class="segment-grid">
@@ -600,8 +655,11 @@ onMounted(() => {
                     :task="groupSegmentTask(row.group, index)"
                     :retrying="isSegmentRetrying(row.group, index)"
                     :retry-disabled="retryingTaskId !== null"
+                    :canceling="cancelingTaskId === groupSegmentTask(row.group, index)?.id"
                     compact
                     @retry="handleRetry"
+                    @cancel="handleCancel"
+                    @regenerate="handleRegenerate(row.group.questionId, $event)"
                   />
                 </div>
               </div>

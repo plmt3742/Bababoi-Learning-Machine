@@ -10,6 +10,7 @@ const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   running: '进行中',
   done: '完成',
   failed: '失败',
+  canceled: '已取消',
 }
 
 const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
@@ -17,6 +18,7 @@ const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
   running: 'arcoblue',
   done: 'green',
   failed: 'red',
+  canceled: 'gray',
 }
 
 const TASK_ERROR_MESSAGES: Record<string, string> = {

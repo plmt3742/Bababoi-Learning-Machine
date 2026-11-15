@@ -62,7 +62,7 @@ flowchart TD
 | QEDIT-01 | 点【保存】 | TASK-01 / QDETAIL-01 | `question`、`task_id` | P0 |
 | QEDIT-01 | 草稿变更 | DRAFT | `content`、`updated_at` | P0 |
 | QEDIT-01 | 图片裁剪/提取 | QEDIT-01 | `crop_box`、`image_path`、`questions[]`（1..N） | P0 |
-| QEDIT-01 | 确认创建后选择题目 | QEDIT-01 / TASK-01 | `question_ids[]`（≤3）、`task_ids[]` | P0 |
+| QEDIT-01 | 确认创建后选择题目 | QEDIT-01 / TASK-01 | `question_ids[]`（可多选）、`task_ids[]` | P0 |
 | TASK-01 | 点任务行 | QDETAIL-01 | `question_id`、任务状态 | P0 |
 | TASK-01 | 点失败【重试】 | TASK-01 | `task_id` | P0 |
 | TASK-01 | 点草稿行【继续编辑】 | QEDIT-01 | `draft.content` | P0 |
@@ -106,7 +106,7 @@ stateDiagram-v2
   saving --> editing: 校验/网络失败
   saved --> analyzing: 分析任务
   analyzing --> analyzed: 答案/解析/知识点
-  analyzed --> generating: 勾选 1–3 道 + 生成相似题
+  analyzed --> generating: 勾选题目（可多选）+ 生成相似题
   generating --> analyzed: 任务入队/完成
   saving --> error: AI/服务端错误
   error --> editing: 保留草稿
@@ -181,7 +181,7 @@ stateDiagram-v2
   → 前端按 ① ② ③ … 展示条目；用户逐条编辑/删除/确认
   → 每道题 POST /questions → { question, task_id }
   → 分析任务返回 answer_md / explanation_md / analysis
-  → 用户在条目列表中勾选 1–3 道（高亮）
+  → 用户在条目列表中勾选题目（可多选，高亮）
   → 每个选中题目 POST /questions/{id}/generate → task_id
   → 任务中心/详情查看 3 道相似题
 ```
@@ -192,7 +192,7 @@ stateDiagram-v2
 - `crop_box` 只表示用户裁剪（归一化 `[x,y,w,h]`），可选；前端裁剪后上传时可为空。
 - 多题共用同一 `image_path`；`index` 从 1 开始，前端显示 ① ② ③ …。
 - 当前阶段只提取文字/公式；`has_figure=true` 只提示，不提取附图。
-- 多选生成 P0 上限 3 道；超过时提示。
+- 多选生成不设上限；超出并发自动排队，排队中可取消。
 
 ## 7. 地图文件说明
 

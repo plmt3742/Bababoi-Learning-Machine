@@ -10,7 +10,7 @@ export type SourceType = 'text' | 'image'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type MasteryStatus = 'unmastered' | 'reviewing' | 'mastered'
 export type TaskStage = 'analysis' | 'quiz'
-export type TaskStatus = 'queued' | 'running' | 'done' | 'failed'
+export type TaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 export type ValidationStatus = 'valid' | 'invalid' | 'fallback'
 
 export interface User {

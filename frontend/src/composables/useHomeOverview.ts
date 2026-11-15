@@ -25,6 +25,7 @@ const TASK_PRIORITY: Record<TaskStatus, number> = {
   running: 1,
   queued: 2,
   done: 3,
+  canceled: 4,
 }
 
 function emptyErrors(): HomeSectionErrors {
