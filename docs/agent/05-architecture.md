@@ -292,7 +292,7 @@ erDiagram
 | user_id | BIGINT FK users.id | 索引 |
 | question_id | BIGINT FK questions.id | 索引 |
 | stage | VARCHAR(16) | `analysis` / `quiz` |
-| status | VARCHAR(16) | `queued` / `running` / `done` / `failed` |
+| status | VARCHAR(16) | `queued` / `running` / `done` / `failed` / `canceled`（`canceled` 只由用户取消排队产生，BE-027） |
 | target_index | INT NULL | `quiz` 段：1–3（一次生题排 3 段，ADR-006）；`analysis` 为空 |
 | difficulty | VARCHAR(16) NULL | `quiz` 段请求的难度档；`analysis` 为空 |
 | retry_index | INT | 默认 0 |
@@ -430,7 +430,7 @@ erDiagram
 }
 ```
 
-三段是三条独立任务：一段 `failed` 不影响其余两段的题，前端把那一张卡显示成失败态 + 单独重试（`POST /tasks/{id}/retry`）。P0 不做真取消，没有 `/tasks/{id}/cancel`。
+三段是三条独立任务：一段 `failed` 不影响其余两段的题，前端把那一张卡显示成失败态 + 单独重试（`POST /tasks/{id}/retry`）。排队中的任务可以取消（`POST /tasks/{id}/cancel` → `canceled`）；`running` 是在途同步请求，打断不了（取消了模型照样扣费），取消请求返回 400（BE-027）。
 
 响应里**只有 `tasks`，没有顶层 `task_id`**（后端从未双发；15 号 §3 那句"兼容旧的单 `task_id` 返回"说的是前端 FE-023 自己留的兜底分支）。FE-023 已把那条兜底删掉（2026-11-10）——核对方式：`grep -rn "task_id" frontend/src | grep -v "tasks"` 之后只剩 `tasks[].task_id` 就是安全的（16 号 §五）。
 
@@ -486,6 +486,7 @@ erDiagram
 | DELETE | `/drafts/me` | 保存/放弃后清理；204 |
 | GET | `/tasks?question_id=&status=` | 任务列表；P0 进度来源（1.5s 轮询）；任务中心跨题展示 |
 | POST | `/tasks/{id}/retry` | 失败重试 |
+| POST | `/tasks/{id}/cancel` | 取消排队中的任务（BE-027）；只认 `queued` → `canceled`，`running`/`done`/`failed` 一律 400；同时清空 `error_code`/`error_message`（自动重排会留下上一轮失败原因） |
 
 > 草稿口径（BE-018，与前端 mock 逐字对齐）：
 >
@@ -583,7 +584,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
 | POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`） |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
-| POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选 P0 上限 3 道 |
+| POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选后端不设上限（任务按 `task_max_concurrency` 排队执行，排队中可取消） |
 
 **提取响应（示例）**：
 
@@ -657,7 +658,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - **请求里带了 `subject` 就以它为准**（17 号 §三 规则 1）：`extract_from_image` 在校验之后
   把每一条的 `subject` 覆写成请求值，模型猜的（比如把复习题六答成"数学"）不会覆盖用户已经选过的学科。
   提示词里那句"沿用 subject"只是概率保证，代码这一行才是确定性保证；请求不带时才透出模型初判。
-- 多选生成 P0 上限 3 道，避免成本/延迟失控；超过时提示“最多选择 3 道”。
+- 多选生成后端不设上限：每个选中题目入队 3 段，按 `task_max_concurrency`（默认 6）排队执行；排队中的任务可取消（§6.4）。前端当前的 3 道硬上限改由 FE-036 换成"不拦、超出并发排队"。
 - 提取结果为空 → `questions: []` + `warnings`，**这不是错误**（探针实测：无题图模型就这么答，判错误等于把正常行为说成故障）；输出形状不对/被长度上限截断 → 坏输出 → `AI_INVALID_IMAGE`；部分题没认全 → 该条 `incomplete=true` + `warnings`，用户可编辑、重试或改文本。
 - **文字转录从严、题目结构从宽**（`ai/validator.py::validate_extraction` 的判据来自 `schemas/question.py::validate_type_payload`，但**结论不一样**：那边拒入库，这边降级成文本）。
   一张 4 题的页面里有一题没认全时，用户应该拿到另外 3 题 + 一条可编辑的残缺条目；照搬严格规则让整张图判坏输出，用户什么也拿不到。
@@ -1244,6 +1245,7 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-11 | v0.6.11 | **BE-018 草稿接口落地**：`GET/PUT/DELETE /api/v1/drafts/me`（每账号 1 份，表 `draft` 本就有）；`content` 必须是 JSON 对象、原样存取不解析，序列化超 `DRAFT_MAX_BYTES`（新配置键，默认 256KB）400 + 中文文案；乐观锁只认 `version`（无草稿时 `base_version` 不参与判断直接建 v1，含 null 一律按 mock 对齐），不匹配 409 `DRAFT_VERSION_CONFLICT` 走统一信封、不回传服务端草稿（06 §3.2 那句"返回服务端最新草稿"没有落地形态，以 mock 为准）；`client_updated_at` 收下不参与判断；`updated_at` 返回带时区 UTC（前端要和 localStorage 时间串比新旧）；13 条新测试，180 passed | 人机 |
 | 2026-11-14 | v0.6.16 | **BE-020 BYOK 落地**：`user_ai_settings`（迁移 `e9b1c7f3a2d5`，Fernet 密文 + `key_last4`）+ `ai_call_logs.key_source`；`GET/PUT/DELETE /settings/ai`（masked、`api_key` ≥8、白名单 host、加密密钥缺失 503）；取 Key 顺序 user → system → `AI_PROVIDER_ERROR`，执行时解析，客户端按 Key 哈希复用；mock 短路；`api_key` 可省略（= 保留已存 Key），切换 provider 必须重填。20 条 BYOK 测试，全量 247 passed | 人机 |
 | 2026-11-15 | v0.6.17 | **#73 前端 review 整改**：① Key 解析挪进 `execute_task` 的 `try`——解不开/两边都没 Key 时任务落 `failed` + `AI_PROVIDER_ERROR` + 日志行，不再永远停在 `running`；② 识图缓存键的 `model` 取用户配置的 model（只读不解密），BYOK 换模型不命中；③ `model`/`api_key` 先 `strip` 再校验长度（全空白 `api_key` 视为省略）；④ 未配置时 `GET /settings/ai` 回 `provider=deepseek` + 系统 model（与前端 mock/类型一致，不再是 null）；⑤ `LLMConfig.api_key` 不进 `repr`；⑥ 失败行 `model` 记实际客户端模型（新增 `model_override`）；⑦ 503 文案去掉内部配置名；补 §6.2 的 503 例外与本段缓存键口径 | 人机 |
+| 2026-11-15 | v0.6.18 | **BE-027 排队任务取消**：任务状态新增 `canceled`（`String(16)` 列，**无迁移**）；`POST /tasks/{id}/cancel` 只认 `queued`（条件 UPDATE 与 worker 抢同一行，抢输返回 400），`running` 是在途同步请求不可打断；`ACTIVE_STATUSES` 不含 `canceled`，取消后同一段可立即重新入队。6 条测试，全量 253 passed（400 的 message 按 running/done/failed/canceled 区分） | 人机 |
 | 2026-11-12 | v0.6.13 | **BE-024 识图拆两跳落地**：仍是 `POST /questions/from-image`、字段不变；第 1 跳转录（`vision_text_v1`，`thinking=adaptive`、`max_tokens=24000`，图 → 文本 + `chapter`），第 2 跳结构化（`vision_structure_v1`，`thinking=disabled`、8000，文本 → 现有 `ExtractedQuestion`）；`chapter` 只认第 1 跳（服务层覆盖第 2 跳的值）；空位在进校验前把 `underline{qquad}` 归一成 `___`；一次识图写两行 `ai_call_logs`（`prompt_version` 按跳分开）；无题图只跑第 1 跳；`RECOGNIZE_CLIENT_TIMEOUT_S` 90→180，移除 `VISION_THINKING`（档位按跳固定）；第 1 跳警告按题号下沉到条目；Mock 按步骤标记返回两份固定输出；四张实拍各 2 次复核通过（p4 首轮 16000 截断 → 抬到 24000 完整，17251 token/90.2s）；195 passed | 人机 |
 | 2026-11-12 | v0.6.15 | **BE-024 缓存出口**：键加 `model`（`LLM_MOCK` 时记 `mock`，换模型/mock 与真模型互不命中）；请求加 `force_refresh`（跳过读、成功后覆盖写回、命中统计归零），并加 60s 冷却（冷区内 429 `VISION_REFRESH_COOLDOWN`；**额度在调用前占用，失败/超时也算**；并发靠条件 UPDATE 只放行一个）；强刷出空结果删旧行；出参加 `cached` + `extracted_at`（aware UTC，首次生成时间）；新列走**前向迁移** `c4e8a1d62f37`（`b7c2f4a91d30` 已推过，不就地改；降级先合并同图不同 model 的重复行）；缓存读写失败降级为一行 warning。13 条缓存 + 5 条迁移测试，211 passed | 人机 |
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |

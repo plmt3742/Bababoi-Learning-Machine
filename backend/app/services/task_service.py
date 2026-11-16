@@ -166,3 +166,47 @@ def retry(session: Session, user_id: int, task_id: int) -> GenerationTask:
     session.commit()
     session.refresh(task)
     return task
+
+
+# 取消被拒时的文案：前端直接把 message 显示给用户，一句「只有排队中的任务可以取消」
+# 分不清是「已经在跑（等一下就好）」还是「已经结束（不用等了）」
+CANCEL_BLOCKED_MESSAGES = {
+    "running": "任务已开始执行，无法取消",
+    "done": "任务已完成，无法取消",
+    "failed": "任务已失败，无法取消",
+    "canceled": "任务已取消，无需重复操作",
+}
+
+
+def cancel(session: Session, user_id: int, task_id: int) -> GenerationTask:
+    """取消排队中的任务（BE-027）。
+
+    只认 `queued`：`running` 是在途同步请求，打断不了（取消了模型也照样扣费），
+    所以直接拒绝。条件 UPDATE 和 worker 的 `_claim_next` 抢同一行时只能有一个成功，
+    另一个拿到 rowcount=0，不会出现「取消了但任务还在跑」。
+    """
+    task = get_owned_task(session, user_id, task_id)
+    result = session.execute(
+        update(GenerationTask)
+        .where(GenerationTask.id == task.id, GenerationTask.status == "queued")
+        # error_* 一起清：自动重排后的任务还带着上一轮失败原因，
+        # 取消后前端/接口不该再显示一条和「已取消」矛盾的错误（retry 同样会清）
+        .values(
+            status="canceled",
+            finished_at=utcnow(),
+            error_code=None,
+            error_message=None,
+        )
+    )
+    session.commit()
+    if result.rowcount == 0:
+        # 条件没命中说明状态已经被 worker/别的请求改掉：回读真实状态再报错，
+        # 文案才能区分「在跑」与「已结束」；这一步同时把内存对象对齐到库里的值
+        session.refresh(task)
+        raise ApiError(
+            ErrorCode.VALIDATION_ERROR,
+            CANCEL_BLOCKED_MESSAGES.get(task.status, "任务当前状态不可取消"),
+            400,
+        )
+    session.refresh(task)
+    return task
