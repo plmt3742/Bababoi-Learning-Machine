@@ -9,14 +9,20 @@ const props = withDefaults(
     analysis: Analysis | null
     pending?: boolean
     failed?: boolean
+    canceled?: boolean
+    reanalyzing?: boolean
     taskLabel?: string
   }>(),
   {
     pending: false,
     failed: false,
+    canceled: false,
+    reanalyzing: false,
     taskLabel: '',
   },
 )
+
+const emit = defineEmits<{ reanalyze: [] }>()
 
 const difficultyText = computed(() => difficultyLabel(props.analysis?.difficulty))
 const knowledgePoints = computed(() => props.analysis?.knowledge_points ?? [])
@@ -57,6 +63,7 @@ const knowledgePoints = computed(() => props.analysis?.knowledge_points ?? [])
           </svg>
           分析失败
         </span>
+        <span v-else-if="canceled" class="tag tag--draft">分析已取消</span>
         <span v-else-if="pending" class="tag tag--run">
           <span class="dot" aria-hidden="true" />
           分析中
@@ -72,6 +79,10 @@ const knowledgePoints = computed(() => props.analysis?.knowledge_points ?? [])
 
       <p v-else-if="failed" class="analysis-note analysis-note--error">
         分析任务没有成功完成，请在右侧「处理进度」中重试，或直接查看原题与答案。
+      </p>
+
+      <p v-else-if="canceled" class="analysis-note analysis-note--quiet">
+        分析任务已取消，可点击「重新分析」重新开始。
       </p>
 
       <p v-else-if="!analysis" class="analysis-note analysis-note--quiet">暂无分析结果。</p>
@@ -115,6 +126,18 @@ const knowledgePoints = computed(() => props.analysis?.knowledge_points ?? [])
 
         <p class="ai-foot">由 deepseek-flash 生成，并随错题保存；请结合教材推导核对。</p>
       </template>
+
+      <div v-if="!analysis && !pending" class="analysis-actions">
+        <button
+          class="btn btn--outline btn--sm"
+          type="button"
+          :disabled="reanalyzing"
+          :aria-busy="reanalyzing"
+          @click="emit('reanalyze')"
+        >
+          {{ reanalyzing ? '提交中…' : '重新分析' }}
+        </button>
+      </div>
     </div>
   </section>
 </template>
@@ -159,6 +182,10 @@ const knowledgePoints = computed(() => props.analysis?.knowledge_points ?? [])
   border-color: var(--color-border);
   background: var(--color-bg);
   color: var(--color-text-3);
+}
+
+.analysis-actions {
+  margin-top: var(--space-3);
 }
 
 .analysis-meta {

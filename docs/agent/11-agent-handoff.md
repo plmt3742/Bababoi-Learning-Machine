@@ -28,7 +28,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 - **前端剩余**：FE-017 的 768px 宽度与完整键盘细节；真接口联调
 - **管理端**：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - **范围/交互/验收**：以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
-- **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题；见 ADR-004 / issue #13
+- **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题；见 ADR-004 / issue #13
 - **BYOK（ADR-007）**：Key 只提交后端加密存储；前端不落 localStorage/Pinia、不回显完整值；P1，不进入 11.29 演示关键路径
 - **下一步顺序**：
   1. 后端 **BE-014 图片识别**（最高优先；前端 FE-016/021 已就绪）
@@ -91,7 +91,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 页面结构/交互参照 `07-page-drafts.md` / `08-interaction-map.md`；**视觉唯一基准是 `calm-academic/index.html`**（顶部 appbar + 1140px 纸面 frame，无侧边栏）。图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
 视觉语言以 `04-design-system.md` 的第一/第二原则 + §1.2 Calm 定稿为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
-图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题。
+图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题。
 必须覆盖 cropping/uploading/extracting/confirming_items/editing/saving/error 等状态；AI 页面加 partial/retry。
 完成后跑 pnpm lint / pnpm typecheck / pnpm build，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。

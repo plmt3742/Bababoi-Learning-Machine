@@ -12,6 +12,7 @@ const props = withDefaults(
     requested?: boolean
     retrying?: boolean
     retryDisabled?: boolean
+    canceling?: boolean
     compact?: boolean
   }>(),
   {
@@ -19,11 +20,16 @@ const props = withDefaults(
     requested: false,
     retrying: false,
     retryDisabled: false,
+    canceling: false,
     compact: false,
   },
 )
 
-const emit = defineEmits<{ retry: [taskId: number] }>()
+const emit = defineEmits<{
+  retry: [taskId: number]
+  cancel: [taskId: number]
+  regenerate: [index: GenerationTargetIndex]
+}>()
 
 const number = computed(() => String(props.index).padStart(2, '0'))
 const difficultyText = computed(() => difficultyLabel(segmentDifficulty(props.task, props.index)))
@@ -40,6 +46,8 @@ const statusClass = computed(() => {
       return 'tag tag--fail'
     case 'running':
       return 'tag tag--run'
+    case 'canceled':
+      return 'tag tag--draft'
     case 'waiting':
       return 'tag tag--point'
     default:
@@ -60,6 +68,14 @@ const metaText = computed(() => {
 
 function handleRetry(): void {
   if (props.task) emit('retry', props.task.id)
+}
+
+function handleCancel(): void {
+  if (props.task) emit('cancel', props.task.id)
+}
+
+function handleRegenerate(): void {
+  emit('regenerate', props.index)
 }
 </script>
 
@@ -95,6 +111,24 @@ function handleRetry(): void {
       >
         {{ retrying ? '重试中…' : '重试该段' }}
       </button>
+      <button
+        v-else-if="status === 'queued' && task"
+        class="btn btn--quiet btn--sm segment__retry"
+        type="button"
+        :disabled="canceling"
+        :aria-busy="canceling"
+        @click="handleCancel"
+      >
+        {{ canceling ? '取消中…' : '取消排队' }}
+      </button>
+      <button
+        v-else-if="status === 'canceled'"
+        class="btn btn--quiet btn--sm segment__retry"
+        type="button"
+        @click="handleRegenerate"
+      >
+        重新生成该段
+      </button>
     </div>
   </article>
 </template>
@@ -124,6 +158,11 @@ function handleRetry(): void {
 .segment--failed {
   border-color: var(--color-danger-border);
   background: var(--color-danger-soft);
+}
+
+.segment--canceled {
+  border-style: dashed;
+  background: var(--color-surface-subtle);
 }
 
 .segment__head {

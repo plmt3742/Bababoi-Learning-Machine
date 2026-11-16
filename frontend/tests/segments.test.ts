@@ -23,6 +23,7 @@ describe('summarizeSegments', () => {
     expect(summarizeSegments([])).toEqual({
       doneCount: 0,
       failedCount: 0,
+      canceledCount: 0,
       activeCount: 0,
       presentCount: 0,
       status: 'waiting',
@@ -80,6 +81,54 @@ describe('summarizeSegments', () => {
     expect(summary.status).toBe('failed')
     expect(summary.failedCount).toBe(3)
     expect(summary.presentCount).toBe(3)
+  })
+
+  it('cancels when every present segment is canceled', () => {
+    const summary = summarizeSegments([
+      makeTask({ id: 1, target_index: 1, status: 'canceled' }),
+      makeTask({ id: 2, target_index: 2, status: 'canceled' }),
+      makeTask({ id: 3, target_index: 3, status: 'canceled' }),
+    ])
+
+    expect(summary.status).toBe('canceled')
+    expect(summary.canceledCount).toBe(3)
+    expect(summary.doneCount).toBe(0)
+    expect(summary.presentCount).toBe(3)
+  })
+
+  it('reports partial cancellation when some segments are done', () => {
+    const summary = summarizeSegments([
+      makeTask({ id: 1, target_index: 1, status: 'done' }),
+      makeTask({ id: 2, target_index: 2, status: 'done' }),
+      makeTask({ id: 3, target_index: 3, status: 'canceled' }),
+    ])
+
+    expect(summary.status).toBe('partial-canceled')
+    expect(summary.canceledCount).toBe(1)
+    expect(summary.doneCount).toBe(2)
+  })
+
+  it('keeps failure ahead of cancellation', () => {
+    const summary = summarizeSegments([
+      makeTask({ id: 1, target_index: 1, status: 'failed' }),
+      makeTask({ id: 2, target_index: 2, status: 'canceled' }),
+      makeTask({ id: 3, target_index: 3, status: 'done' }),
+    ])
+
+    expect(summary.status).toBe('partial-failed')
+    expect(summary.failedCount).toBe(1)
+    expect(summary.canceledCount).toBe(1)
+  })
+
+  it('reports queued when a canceled slot sits beside a queued one', () => {
+    const summary = summarizeSegments([
+      makeTask({ id: 1, target_index: 1, status: 'canceled' }),
+      makeTask({ id: 2, target_index: 2, status: 'queued' }),
+    ])
+
+    expect(summary.status).toBe('queued')
+    expect(summary.canceledCount).toBe(1)
+    expect(summary.activeCount).toBe(1)
   })
 })
 

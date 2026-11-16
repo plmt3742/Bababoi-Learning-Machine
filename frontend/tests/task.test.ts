@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { Task } from '../src/api/types'
 import {
   hasActiveTasks,
+  isActiveTaskStatus,
   latestTask,
   taskErrorMessage,
   taskFailureMessage,
+  taskStatusColor,
+  taskStatusLabel,
 } from '../src/utils/task'
 
 function makeTask(overrides: Partial<Task>): Task {
@@ -50,5 +53,12 @@ describe('task helpers', () => {
     expect(hasActiveTasks(tasks)).toBe(true)
     expect(latestTask(tasks, 'quiz')?.id).toBe(5)
     expect(latestTask(tasks, 'analysis')?.id).toBe(9)
+  })
+
+  it('treats canceled as a terminal status with a neutral label', () => {
+    expect(taskStatusLabel('canceled')).toBe('已取消')
+    expect(taskStatusColor('canceled')).toBe('gray')
+    expect(isActiveTaskStatus('canceled')).toBe(false)
+    expect(hasActiveTasks([makeTask({ status: 'canceled' })])).toBe(false)
   })
 })

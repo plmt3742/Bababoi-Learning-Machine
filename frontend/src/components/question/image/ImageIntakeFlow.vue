@@ -24,7 +24,6 @@ import {
   canSelectImageItem,
   createImageItemDrafts,
   firstDetectedSubject,
-  MAX_GENERATE_SELECTION,
   toImageQuestionPayload,
   validateImageItem,
 } from '../../../utils/imageIntake'
@@ -415,10 +414,6 @@ async function handleSave(): Promise<void> {
 
 async function handleGenerate(questionIds: number[]): Promise<void> {
   if (generating.value) return
-  if (questionIds.length > MAX_GENERATE_SELECTION) {
-    generateError.value = `最多选择 ${MAX_GENERATE_SELECTION} 道题生成相似题`
-    return
-  }
 
   const pending = questionIds.filter(
     (questionId) => !generatedTasks.value.some((task) => task.questionId === questionId),
@@ -448,8 +443,9 @@ async function handleGenerate(questionIds: number[]): Promise<void> {
   }
   generating.value = false
 
-  const createdTaskCount = created.reduce((count, task) => count + task.taskIds.length, 0)
-  if (createdTaskCount > 0) Message.success(`已创建 ${createdTaskCount} 个生成任务`)
+  if (created.length > 0) {
+    Message.success(`已为 ${created.length} 道题创建生成任务（每题 3 段，超出并发会自动排队）`)
+  }
   if (failures.length > 0) generateError.value = `部分题目生成失败：${failures.join('；')}`
 }
 

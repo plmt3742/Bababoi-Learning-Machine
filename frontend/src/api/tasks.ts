@@ -10,3 +10,8 @@ export async function retryTask(id: number): Promise<Task> {
   const { data } = await apiClient.post<Task>(`/tasks/${id}/retry`)
   return data
 }
+
+export async function cancelTask(id: number): Promise<Task> {
+  const { data } = await apiClient.post<Task>(`/tasks/${id}/cancel`)
+  return data
+}

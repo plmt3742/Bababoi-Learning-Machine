@@ -13,7 +13,7 @@ import {
 import type { Task } from '../../api/types'
 import { hasActiveTasks, latestTask, taskErrorMessage, taskStageLabel } from '../../utils/task'
 
-type StepState = 'waiting' | 'queued' | 'running' | 'done' | 'failed'
+type StepState = 'waiting' | 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
 interface StepView {
   key: 'analysis' | 'quiz' | 'validation'
@@ -35,6 +35,7 @@ const props = withDefaults(
     analysisReady?: boolean
     generationRequested?: boolean
     retryingTaskId?: number | null
+    reanalyzing?: boolean
   }>(),
   {
     polling: false,
@@ -47,11 +48,13 @@ const props = withDefaults(
     analysisReady: false,
     generationRequested: false,
     retryingTaskId: null,
+    reanalyzing: false,
   },
 )
 
 const emit = defineEmits<{
   retry: [taskId: number]
+  reanalyze: []
   stop: []
   refresh: []
   generate: []
@@ -71,6 +74,7 @@ const analysisState = computed<StepState>(() => {
   }
 
   if (!task) return 'waiting'
+  if (task.status === 'canceled') return 'canceled'
   if (task.status === 'failed') return 'failed'
   if (task.status === 'queued' || task.status === 'running') return task.status
   return 'done'
@@ -80,6 +84,7 @@ const quizState = computed<StepState>(() => {
   const task = quizTask.value
 
   if (task) {
+    if (task.status === 'canceled') return 'canceled'
     if (task.status === 'failed') return 'failed'
     if (task.status === 'queued' || task.status === 'running') return task.status
     return 'done'
@@ -99,6 +104,7 @@ const validationState = computed<StepState>(() => {
     case 'done':
       return 'done'
     case 'failed':
+    case 'canceled':
     case 'waiting':
       return 'waiting'
     default:
@@ -198,6 +204,8 @@ const analysisMeta = computed(() => {
       return props.analysisReady ? '分析结果已就绪' : '分析完成，正在同步结果'
     case 'failed':
       return task?.error_code ? `失败 · ${task.error_code}` : '分析没有成功完成'
+    case 'canceled':
+      return '分析已取消，可重新分析'
     case 'waiting':
       return '等待任务开始'
     default:
@@ -221,6 +229,8 @@ const quizMeta = computed(() => {
       return '生成完成，正在同步结果'
     case 'failed':
       return task?.error_code ? `失败 · ${task.error_code}` : '生成没有成功完成'
+    case 'canceled':
+      return '生成任务已取消，可重新生成'
     case 'waiting':
       return props.analysisReady ? '等待生成' : '待分析完成'
     default:
@@ -240,6 +250,7 @@ const validationMeta = computed(() => {
       return '校验未通过'
     case 'waiting':
       if (hasFailure.value) return '等待失败任务重试'
+      if (analysisState.value === 'canceled' || quizState.value === 'canceled') return '任务已取消'
       return props.analysisReady ? '等待生成任务开始' : '等待分析完成'
     default:
       return '等待生成结果'
@@ -278,6 +289,9 @@ const overallTag = computed<{ label: string; className: string; tone: 'done' | '
     if (hasFailure.value) {
       return { label: '需要处理', className: 'tag--fail', tone: 'fail' }
     }
+    if (analysisState.value === 'canceled' || quizState.value === 'canceled') {
+      return { label: '已取消', className: 'tag--draft', tone: 'run' }
+    }
     if (syncPending.value) {
       return { label: '进行中', className: 'tag--run', tone: 'run' }
     }
@@ -298,6 +312,9 @@ const progressNote = computed(() => {
   if (props.polling || hasActiveProgress.value || props.generationRequested) {
     return '任务进行中时本页每 1.5 秒自动刷新；失败会显示错误码与重试。'
   }
+  if (analysisState.value === 'canceled' || quizState.value === 'canceled') {
+    return '任务已取消，可重新提交分析或生成；取消的任务不会再自动开始。'
+  }
   if (hasFailure.value || hasFinishedTask.value) {
     return '当前任务已结束，刷新已停止。失败会显示错误码与重试。'
   }
@@ -314,6 +331,8 @@ function stepIcon(state: StepState): Component {
       return IconClockCircle
     case 'running':
       return IconLoading
+    case 'canceled':
+      return IconMinus
     case 'waiting':
       return IconMinus
   }
@@ -442,6 +461,24 @@ function handleRetry(taskId: number): void {
         {{ retryingTaskId === primaryFailure.id ? '重试中…' : '重试' }}
       </button>
       <button
+        v-else-if="analysisState === 'canceled'"
+        class="btn btn--primary btn--block"
+        type="button"
+        :disabled="reanalyzing"
+        :aria-busy="reanalyzing"
+        @click="emit('reanalyze')"
+      >
+        {{ reanalyzing ? '提交中…' : '重新分析' }}
+      </button>
+      <button
+        v-else-if="quizState === 'canceled'"
+        class="btn btn--primary btn--block"
+        type="button"
+        @click="emit('generate')"
+      >
+        重新生成
+      </button>
+      <button
         v-else
         class="btn btn--primary btn--block"
         type="button"
@@ -558,6 +595,12 @@ function handleRetry(taskId: number): void {
   border-color: var(--color-danger-border);
   background: var(--color-danger-soft);
   color: var(--color-danger);
+}
+
+.flow__mark--canceled {
+  border-style: dashed;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-3);
 }
 
 .flow__icon--spin {
