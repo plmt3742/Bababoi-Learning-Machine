@@ -486,7 +486,7 @@ erDiagram
 | DELETE | `/drafts/me` | 保存/放弃后清理；204 |
 | GET | `/tasks?question_id=&status=` | 任务列表；P0 进度来源（1.5s 轮询）；任务中心跨题展示 |
 | POST | `/tasks/{id}/retry` | 失败重试 |
-| POST | `/tasks/{id}/cancel` | 取消排队中的任务（BE-027）；只认 `queued` → `canceled`，`running`/`done`/`failed` 一律 400 |
+| POST | `/tasks/{id}/cancel` | 取消排队中的任务（BE-027）；只认 `queued` → `canceled`，`running`/`done`/`failed` 一律 400；同时清空 `error_code`/`error_message`（自动重排会留下上一轮失败原因） |
 
 > 草稿口径（BE-018，与前端 mock 逐字对齐）：
 >

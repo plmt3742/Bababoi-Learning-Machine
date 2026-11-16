@@ -119,6 +119,24 @@ def test_cancel_twice_reports_already_canceled(client, db) -> None:
         assert s.get(GenerationTask, task_id).status == "canceled"
 
 
+def test_cancel_clears_stale_error_from_previous_attempt(client, db) -> None:
+    """自动重排的任务会带着上一轮 error_code；取消后不能同时返回「已取消」和旧错误。"""
+    token = register_user(client)["access_token"]
+    _create_question(client, token)
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+        task = s.get(GenerationTask, task_id)
+        task.error_code = "AI_INVALID_OUTPUT"
+        task.error_message = "上一轮输出没过校验"
+        s.commit()
+
+    resp = _cancel(client, token, task_id)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "canceled"
+    assert body["error_code"] is None and body["error_message"] is None
+
+
 def test_cancel_other_users_task_is_forbidden(client, db) -> None:
     owner = register_user(client)["access_token"]
     other = register_user(client, username="小红_02")["access_token"]
