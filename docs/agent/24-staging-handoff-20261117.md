@@ -15,16 +15,18 @@
 
 | 项 | 状态 |
 |---|---|
-| main | `f73d247`（含 #73 / #74 / #76 / #77） |
-| staging | `http://47.107.30.226` 在线，但 API 镜像和前端 dist 都是旧版本 |
+| main | `f73d247`（含 #73 / #74 / #75 / #76 / #77） |
+| staging | `http://47.107.30.226` 已按本单更新到 `f73d247`（2026-11-17 17:58：镜像重建 + dist 切换，冒烟通过） |
 | 数据 | `/srv/bababoi/data/bababoi.db`（SQLite）+ `/srv/bababoi/data/uploads` |
 | 新迁移 | #73 带 `e9b1c7f3a2d5`（新表 `user_ai_settings` + `ai_call_logs.key_source`）；entrypoint 会自动跑，**升级前必须备份库** |
-| BYOK 密钥 | 服务器 `.env` 已写 `SETTINGS_ENCRYPTION_KEY`，但镜像没重建，`/settings/ai` 可能还是 404 |
+| BYOK 密钥 | 已生效：镜像 2026-11-17 重建后 `GET /settings/ai` 200（新账号 `configured=false`） |
 | 前端已知缺口 | 识图 `force_refresh` 未接；设置页仍强制重填 Key；503 未按“未启用”降级 |
 
 > CI 最近在 GitHub 侧偶尔卡住（#77 是本地核对后合的）。今天以“本机 checks + 服务器冒烟”为准，但要把 CI 结果补记到 PR/文档。
 
 ## 2. 部署前检查（两人一起，约 5 分钟）
+
+> 服务器上的 `/srv/bababoi` 整棵树是 `root:root`，下面涉及该目录的命令统一加 `sudo`。
 
 - [ ] 群里说一声“staging 更新，约 10 分钟”，避开有人正在演示/录屏。
 - [ ] **备份数据库**（WAL 模式，必须用 `.backup`，只拷 `.db` 会丢最近事务）：
@@ -42,7 +44,7 @@
 
 - [ ] 检查 `.env`（不要整份贴到聊天/日志里）：`JWT_SECRET` ≥32 字节、`CORS_ORIGINS` 与 `TRUSTED_PROXIES` 是 **JSON 数组**、`LLM_MOCK=false`、`LLM_API_KEY`、`SETTINGS_ENCRYPTION_KEY`、`DEMO_PASSWORD`。
 - [ ] 磁盘至少留 1G：`df -h /srv`。
-- [ ] 记下当前版本：`cat /srv/bababoi/repo/VERSION`（回滚时对得上）。
+- [ ] 记下当前版本：`sudo cat /srv/bababoi/repo/VERSION`（回滚时对得上；`/srv/bababoi` 整棵树是 root:root，不加 sudo 会 Permission denied）。
 
 ## 3. 后端更新（人机）
 
@@ -66,7 +68,7 @@ docker compose -f deploy/docker-compose.yml logs -f api
 **验证（后端自己先过一遍）：**
 
 - [ ] `curl -s http://127.0.0.1:8000/api/v1/health` → 200；`/ready` → `checks.db == "ok"`、`checks.llm == "configured"`。
-- [ ] `docker compose exec api alembic current` → `e9b1c7f3a2d5 (head)`；`docker compose exec api sqlite3 /data/bababoi.db ".tables"`（镜像里没有 sqlite3 就回宿主机查）能看到 `user_ai_settings`。
+- [ ] `docker compose exec api alembic current` → `e9b1c7f3a2d5 (head)`；镜像里**没有** sqlite3 CLI（`deploy/README.md` 已写明），表用宿主机查：`sudo sqlite3 /srv/bababoi/data/bababoi.db ".tables"`，能看到 `user_ai_settings`。
 - [ ] 带 token 请求 `/api/v1/settings/ai` → 200（不是 404）；新账号 `configured=false`。
 - [ ] 不带 token 请求 `/api/v1/tasks/1/cancel` → 401（说明路由存在）；带 token 对 running 任务 → 400。
 - [ ] 日志没有 traceback；`docker compose ps` 里 api 是 Up。
@@ -114,8 +116,8 @@ pnpm build
 ### 4.3 上传（先传到 `web.new`，再原子切换）
 
 ```bash
-# 服务器先建空目录
-ssh <user>@47.107.30.226 "mkdir -p /srv/bababoi/web.new && rm -rf /srv/bababoi/web.new/*"
+# 服务器先清空目录（固定路径，不用 glob：手误把 web.new 打成 web 就会删线上前端）
+ssh <user>@47.107.30.226 "rm -rf /srv/bababoi/web.new && mkdir -p /srv/bababoi/web.new"
 
 # 本机（Git Bash / WSL）
 rsync -a --delete frontend/dist/ <user>@47.107.30.226:/srv/bababoi/web.new/
@@ -155,7 +157,7 @@ ssh <user>@47.107.30.226 \
 | 9 | 图片保存后勾选 4 道以上生成 | 前端不再拦 3 道；任务按并发排队；可以取消其中几道 |
 | 10 | 任务失败重试（如果出现） | 失败卡有错误码/原因；单段重试不覆盖其它段 |
 | 11 | 做一道练习并提交 | 记录成功；统计页正确率/练习数变化 |
-| 12 | 设置页：配置 BYOK（用测试 Key） | 返回掩码；刷新后仍在；删除后回退系统 Key；响应/页面无明文 Key |
+| 12 | 设置页：配置 BYOK（测试 Key 用你自己的 OpenAI/DeepSeek Key，或找 人机 要一次性 Key；不要贴群/仓库） | 返回掩码；刷新后仍在；删除后回退系统 Key；响应/页面无明文 Key |
 | 13 | 设置页：生成偏好开关 | 关闭后刷新仍生效；生成时按新设置执行 |
 | 14 | 手机 4G：登录 / 图片 / 详情 / 任务中心 | 375 不横向溢出；相机/相册能选图；图片按钮可用 |
 | 15 | 错误态：断网 / 大图 / 错 Key | 断网有错误提示；>10MB 图有提示（413 由 nginx 直接返回，文案可能较通用）；错 Key 返回 AI 错误而不是白屏 |
@@ -202,10 +204,23 @@ cd repo && BABABOI_ENV_FILE=/srv/bababoi/.env \
 
 **如果迁移/数据出问题：**
 
+> 顺序必须是 **停 → 删 WAL/SHM → 拷 → 起**。SQLite 打开库文件时会把目录里残留的 `-wal` 重放上去，先拷库不删 WAL 会把刚恢复的备份立刻污染回旧数据。
+
 1. 停容器：`docker compose -f deploy/docker-compose.yml stop api`
-2. 用备份替换库（保留 WAL/SHM 一起清理）：`cp /srv/bababoi/backup/bababoi-YYYYMMDD-HHMM.db /srv/bababoi/data/bababoi.db`
-3. 起容器：`docker compose ... up -d`
-4. 本批只有 #73 一个新迁移（新增表/列），旧代码遇到新表通常无害；但“只回代码不回库”要先确认。
+2. 删残留 WAL/SHM：
+
+   ```bash
+   sudo rm -f /srv/bababoi/data/bababoi.db-wal /srv/bababoi/data/bababoi.db-shm
+   ```
+
+3. 用备份替换库：
+
+   ```bash
+   sudo cp -a /srv/bababoi/backup/bababoi-YYYYMMDD-HHMM.db /srv/bababoi/data/bababoi.db
+   ```
+
+4. 起容器：`docker compose ... up -d`
+5. 本批只有 #73 一个新迁移（新增表/列），旧代码遇到新表通常无害；但“只回代码不回库”要先确认。
 
 ## 8. 已知问题 / 这次不做
 
@@ -229,6 +244,8 @@ cd repo && BABABOI_ENV_FILE=/srv/bababoi/.env \
 | 11.24 | 种子数据/账号/数据清理 | 人机 |
 | 11.26 / 11.28 / 11.29 | 彩排；备用录屏/截图；正式演示 | 两人 |
 
+> 两个“冻结”不是同一件事：这里的 **11.22 是功能冻结**（不再加新功能），`deploy/README.md` 的 **11.28 是部署冻结**（不再改部署配置）。
+
 ## 10. 排障速查
 
 | 现象 | 多半是 | 处理 |
@@ -244,6 +261,8 @@ cd repo && BABABOI_ENV_FILE=/srv/bababoi/.env \
 | 识图慢/截断 | 180s 超时、24000 token 上限；不是缓存问题 | 看 `ai_call_logs` 的 latency/finish_reason |
 | 同一张图很快 | 缓存命中（预期） | 目前没有“强制重跑”按钮，属已知缺口 |
 | 任务一直 running | worker 异常/旧任务 | 看 api 日志；重启会重置 running→queued，但要查原因 |
+
+> 重启救回几条任务不用手工查库：`docker compose -f deploy/docker-compose.yml logs api | grep 卡在 running` 能看到每次启动把多少条 running 放回队列（`main.py` lifespan 里的 `reset_stale_running`）。
 
 ## 11. 链接
 
