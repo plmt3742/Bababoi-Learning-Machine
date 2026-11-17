@@ -49,6 +49,7 @@
 | [agent/21-backend-handoff-20261110.md](agent/21-backend-handoff-20261110.md) | 后端优先开工对接单：10 步顺序（#60/#58/统计/草稿/OpenAPI/staging/种子/P1）、前端所需接口契约、验收清单 | 后端排期 / 前端切真实接口 / staging 与演示准备 |
 | [agent/22-backend-review-20261111.md](agent/22-backend-review-20261111.md) | 后端 5 个 open PR 的 review 对接单：1 个阻断（种子 env）、各 PR 应修项与行号、合并顺序、待拍板口径、回执模板 | 后端合并前 / 联调复核 |
 | [agent/23-backend-handoff-20261113.md](agent/23-backend-handoff-20261113.md) | 合并后的后端对接单：前端已实测清单、必须保持的契约（时间/错误码/各接口）、BYOK 接口形状、识图两步、种子题型、部署确认、待拍板 | 后端继续开发 / 部署前对齐 / 演示准备 |
+| [agent/24-staging-handoff-20261117.md](agent/24-staging-handoff-20261117.md) | Staging 更新与真接口回归对接单：现状、备份、后端镜像、前端 dist、15 步回归、BYOK 核对、回滚与排障 | staging 更新 / 演示前真接口回归 / 部署排障 |
 
 ### 产品设计
 
