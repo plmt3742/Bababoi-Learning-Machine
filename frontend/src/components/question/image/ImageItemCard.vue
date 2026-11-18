@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { IconDelete } from '@arco-design/web-vue/es/icon'
 import BlankEditor from '../editor/BlankEditor.vue'
 import ChoiceEditor from '../editor/ChoiceEditor.vue'
+import QuestionPreview from '../editor/QuestionPreview.vue'
 import QuestionTypeSelector from '../editor/QuestionTypeSelector.vue'
 import {
   canSelectImageItem,
@@ -28,6 +29,8 @@ const emit = defineEmits<{
   remove: []
   update: [item: ImageItemDraft]
 }>()
+
+const editMode = ref(false)
 
 const validationMessage = computed(() => {
   if (!props.item.content_md.trim()) return '题干不能为空'
@@ -69,6 +72,14 @@ watch(
       (_option, index) => optionLabel(index) === props.item.correct_label,
     )
     if (!exists) patch({ correct_label: '' })
+  },
+)
+
+watch(
+  () => props.showValidation,
+  (show) => {
+    // 提交校验失败时把用户拉回编辑态，避免在预览里看不到可改的输入框
+    if (show && validationMessage.value) editMode.value = true
   },
 )
 </script>
@@ -120,20 +131,54 @@ watch(
       </div>
 
       <div class="item-field">
-        <label class="field-label" :for="`image-content-${item.key}`">题干</label>
-        <a-textarea
-          :model-value="item.content_md"
-          :auto-size="{ minRows: 3, maxRows: 12 }"
-          :max-length="MAX_IMAGE_CONTENT_LENGTH"
-          :textarea-attrs="{ id: `image-content-${item.key}` }"
-          placeholder="提取出的题干，可在这里直接修改；公式用 $...$ 包裹"
-          @update:model-value="handleContent"
-        />
-        <div class="item-meta">
-          <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
-          <span class="item-meta__count">
-            {{ item.content_md.length }} / {{ MAX_IMAGE_CONTENT_LENGTH }}
-          </span>
+        <div class="item-field__head">
+          <label v-if="editMode" class="field-label" :for="`image-content-${item.key}`">题干</label>
+          <p v-else class="field-label">题干</p>
+          <div class="seg" role="group" aria-label="题干编辑方式">
+            <button type="button" :aria-pressed="editMode" @click="editMode = true">编辑</button>
+            <button type="button" :aria-pressed="!editMode" @click="editMode = false">预览</button>
+          </div>
+        </div>
+
+        <template v-if="editMode">
+          <a-textarea
+            :model-value="item.content_md"
+            :auto-size="{ minRows: 3, maxRows: 12 }"
+            :max-length="MAX_IMAGE_CONTENT_LENGTH"
+            :textarea-attrs="{ id: `image-content-${item.key}` }"
+            placeholder="提取出的题干，可在这里直接修改；公式用 $...$ 包裹"
+            @update:model-value="handleContent"
+          />
+          <div class="item-meta">
+            <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
+            <span class="item-meta__count">
+              {{ item.content_md.length }} / {{ MAX_IMAGE_CONTENT_LENGTH }}
+            </span>
+          </div>
+          <div class="preview">
+            <p class="preview__label">渲染预览</p>
+            <div class="preview__body">
+              <QuestionPreview
+                v-if="item.content_md.trim()"
+                :content="item.content_md"
+                :question-type="item.question_type"
+                :options="item.options"
+                :correct-label="item.correct_label"
+              />
+              <p v-else class="preview__empty">输入题干后，这里会显示渲染结果。</p>
+            </div>
+          </div>
+        </template>
+
+        <div v-else class="preview preview--solo">
+          <QuestionPreview
+            v-if="item.content_md.trim()"
+            :content="item.content_md"
+            :question-type="item.question_type"
+            :options="item.options"
+            :correct-label="item.correct_label"
+          />
+          <p v-else class="preview__empty">题干为空，切到「编辑」补充。</p>
         </div>
       </div>
 
@@ -269,6 +314,81 @@ watch(
 
 .item-field .field-label {
   margin-bottom: 6px;
+}
+
+.item-field__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: 6px;
+}
+
+.item-field__head .field-label {
+  margin-bottom: 0;
+}
+
+.seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.seg button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.seg button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.seg button:hover {
+  background: var(--color-bg);
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-weight: 650;
+}
+
+.preview {
+  margin-top: var(--space-3);
+  padding-top: 11px;
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.preview--solo {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.preview__label {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.preview__body {
+  max-width: 46em;
+  margin-top: var(--space-1);
+}
+
+.preview__empty {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
 }
 
 .item-meta {
