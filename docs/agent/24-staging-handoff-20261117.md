@@ -113,6 +113,8 @@ pnpm build
 
 > 也可以按 `deploy/README.md` 用 `node:22-alpine + pnpm@9` 的 Docker 命令构建；服务器上不装 Node，前端只在开发机构建。
 
+> ⚠️ **Windows Git Bash 不要写 `VITE_API_BASE_URL=/api/v1 npx pnpm build`**：MSYS 会把值改写成本机路径（实测变成 `C:/Program Files/Git/api/v1`），bundle 里所有请求都会 404。Git Bash 里改用 `frontend/.env.production.local`（内容 `VITE_API_BASE_URL=/api/v1` 和 `VITE_USE_MOCK=false`，构完删掉），或设 `MSYS_NO_PATHCONV=1`。
+
 ### 4.3 上传（先传到 `web.new`，再原子切换）
 
 ```bash
@@ -135,6 +137,7 @@ ssh <user>@47.107.30.226 \
 
 **验证：**
 
+- [ ] **构建产物里的 API 基址**：在 `frontend/dist/assets/index-*.js` 里搜 `baseURL:`，值必须是 `/api/v1`；出现 `Program Files/Git` 就是 Windows 路径改写，必须重 build（见 §4.2 警告）。
 - [ ] `curl -I http://47.107.30.226/` → 200，`Cache-Control: no-cache`（index.html）。
 - [ ] `curl -I http://47.107.30.226/assets/<某个hash文件>` → `immutable`。
 - [ ] 浏览器硬刷新（Ctrl+F5）或无痕窗口，任务中心能看到「已取消」筛选、详情页能看到「重新分析」。
