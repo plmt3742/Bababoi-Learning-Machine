@@ -95,7 +95,17 @@ export function isImageItemEdited(item: ImageItemDraft): boolean {
 }
 
 export function canSelectImageItem(item: ImageItemDraft): boolean {
-  return !item.incomplete || isImageItemEdited(item)
+  if (!item.incomplete) return true
+  if (isImageItemEdited(item)) return true
+
+  // 结构修好也算处理过；解答题没有结构可补，仍要求核对题干。
+  return item.question_type !== 'solve' && validateImageItem(item) === null
+}
+
+export function imageItemLockHint(item: ImageItemDraft): string {
+  if (item.question_type === 'blank') return '补全空位答案后可勾选保存。'
+  if (item.question_type === 'choice') return '补全选项内容后可勾选保存。'
+  return '核对并编辑题干后可勾选保存。'
 }
 
 export function toggleImageSelection(
