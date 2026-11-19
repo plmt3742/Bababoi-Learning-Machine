@@ -44,11 +44,18 @@ const validationMessage = computed(() => {
 const lockHint = computed(() => imageItemLockHint(props.item))
 
 function patch(changes: Partial<ImageItemDraft>): void {
-  emit('update', { ...props.item, ...changes })
+  const touchesStructure =
+    'question_type' in changes || 'options' in changes || 'blanks' in changes
+
+  emit('update', {
+    ...props.item,
+    ...changes,
+    structureEdited: props.item.structureEdited || touchesStructure,
+  })
 }
 
 function changeType(value: QuestionType): void {
-  const next = { ...props.item, question_type: value }
+  const next = { ...props.item, question_type: value, structureEdited: true }
   ensureItemStructure(next)
   emit('update', next)
 }

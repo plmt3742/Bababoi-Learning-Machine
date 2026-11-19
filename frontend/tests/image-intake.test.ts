@@ -61,6 +61,15 @@ describe('image intake helpers', () => {
     expect(canSelectImageItem(edited)).toBe(true)
   })
 
+  it('keeps an incomplete item locked when its valid structure was never edited', () => {
+    const item = {
+      ...createImageItemDrafts(extraction)[1],
+      blanks: [{ answer_md: '42' }],
+    }
+    expect(canSelectImageItem(item)).toBe(false)
+    expect(canSelectImageItem({ ...item, structureEdited: true })).toBe(true)
+  })
+
   it('unlocks an incomplete item after switching to blank and filling answers', () => {
     const solveItem = {
       ...createImageItemDrafts(extraction)[1],
@@ -72,6 +81,7 @@ describe('image intake helpers', () => {
     const blankWithoutAnswers = {
       ...solveItem,
       question_type: 'blank' as const,
+      structureEdited: true,
     }
     expect(canSelectImageItem(blankWithoutAnswers)).toBe(false)
 

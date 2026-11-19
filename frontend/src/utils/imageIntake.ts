@@ -35,6 +35,7 @@ export interface ImageItemDraft {
   has_figure: boolean
   warnings: string[]
   incomplete: boolean
+  structureEdited: boolean
   selected: boolean
   saveError: string
   savedQuestion: Question | null
@@ -84,6 +85,7 @@ export function createImageItemDrafts(result: ImageExtractionResult): ImageItemD
     has_figure: question.has_figure,
     warnings: [...question.warnings],
     incomplete: question.incomplete === true,
+    structureEdited: false,
     selected: question.incomplete !== true,
     saveError: '',
     savedQuestion: null,
@@ -98,8 +100,12 @@ export function canSelectImageItem(item: ImageItemDraft): boolean {
   if (!item.incomplete) return true
   if (isImageItemEdited(item)) return true
 
-  // 结构修好也算处理过；解答题没有结构可补，仍要求核对题干。
-  return item.question_type !== 'solve' && validateImageItem(item) === null
+  // 用户动过结构且校验通过才算处理过；解答题没有结构可补，仍要求核对题干。
+  return (
+    item.structureEdited &&
+    item.question_type !== 'solve' &&
+    validateImageItem(item) === null
+  )
 }
 
 export function imageItemLockHint(item: ImageItemDraft): string {
