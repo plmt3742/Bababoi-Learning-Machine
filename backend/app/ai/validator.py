@@ -268,6 +268,43 @@ def validate_transcript(raw: dict) -> dict:
 _WARNING_ITEM_POINTER = re.compile(r"第\s*(\d+)\s*[题条]")
 
 
+# 只用来探结构：占位答案要能过"答案不能为空"，但不会出现在返回里
+_BLANK_ANSWER_PLACEHOLDER = "$0$"
+
+
+def _blank_shape_ok_without_answers(content_md: str, blanks: list[dict]) -> bool:
+    """空答案不算结构问题：把空答案换成占位答案，再跑一遍同一份校验器。
+
+    教材页/卷面经常不印答案，提示词第 2 条明确让模型"图上没有印答案就留空字符串"——
+    这是**内容缺失**，不是结构不自洽。能过说明空位数、序号、上限都成立，
+    保留填空题让用户在卡片里直接补答案；过不了（空位数对不上、序号乱）才按旧规则降级。
+    """
+    probe = [
+        {
+            **blank,
+            "answer_md": (blank.get("answer_md") or "").strip()
+            or _BLANK_ANSWER_PLACEHOLDER,
+        }
+        for blank in blanks
+    ]
+    try:
+        validate_type_payload("blank", content_md, None, probe)
+    except ValidationError:
+        return False
+    return True
+
+
+def _mark_missing_blank_answers(item: ExtractedQuestion) -> None:
+    """保留填空题，把"答案没印"记成warning，交给编辑器补。"""
+    missing = 0
+    for blank in item.blanks or []:
+        if not blank.answer_md.strip():
+            blank.answer_md = ""  # 纯空白统一成空串，前端输入框才是空的
+            missing += 1
+    item.incomplete = True
+    item.warnings.append(f"有 {missing} 个空位没有答案，请补全后再保存")
+
+
 def attach_transcript_warnings(
     warnings: list[str], questions: list, *, transcript_count: int
 ) -> None:
@@ -368,7 +405,13 @@ def validate_extraction(raw: dict) -> dict:
                 validate_type_payload(item.question_type, item.content_md,
                                       payload_options, payload_blanks)
             except ValidationError as exc:
-                structure_problem = structure_problem_zh(item.question_type, exc)
+                if item.question_type == "blank" and _blank_shape_ok_without_answers(
+                    item.content_md, payload_blanks
+                ):
+                    # 结构成立、只是答案没印（教材/卷面很常见）：保留填空题
+                    _mark_missing_blank_answers(item)
+                else:
+                    structure_problem = structure_problem_zh(item.question_type, exc)
         if structure_problem:
             # 不自洽就**降级成纯文本条目**，而不是把半套结构原样交给用户：
             # ADR-004 §5 里 `options?`/`blanks?` 本来就是可选，识图的职责是"识别成文本"，
