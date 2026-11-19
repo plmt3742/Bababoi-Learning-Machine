@@ -7,6 +7,7 @@ import {
   isImageItemEdited,
   toImageQuestionPayload,
   toggleImageSelection,
+  visibleImageItemWarnings,
 } from '../src/utils/imageIntake'
 
 const extraction: ImageExtractionResult = {
@@ -68,6 +69,17 @@ describe('image intake helpers', () => {
     }
     expect(canSelectImageItem(item)).toBe(false)
     expect(canSelectImageItem({ ...item, structureEdited: true })).toBe(true)
+  })
+
+  it('hides the missing-answer warning once the blank structure is complete', () => {
+    const item = {
+      ...createImageItemDrafts(extraction)[1],
+      structureEdited: true,
+    }
+    expect(visibleImageItemWarnings(item)).toContain('空位答案缺失')
+
+    const filled = { ...item, blanks: [{ answer_md: '42' }] }
+    expect(visibleImageItemWarnings(filled)).toEqual([])
   })
 
   it('unlocks an incomplete item after switching to blank and filling answers', () => {
