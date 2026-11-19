@@ -38,18 +38,23 @@ def verify_password(raw: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, token_version: int) -> str:
     now = utcnow()
     payload = {
         "sub": str(user_id),
+        "ver": token_version,
         "iat": now,
         "exp": now + timedelta(days=settings.access_token_expire_days),
     }
     return jwt.encode(payload, _secret(), algorithm="HS256")
 
 
-def decode_access_token(token: str) -> int:
-    """校验并取出 user_id；过期与其他非法 token 用不同错误码（05 §6.2）。"""
+def decode_access_token(token: str) -> tuple[int, int]:
+    """校验并取出 `(user_id, token_version)`；过期与其他非法 token 用不同错误码（05 §6.2）。
+
+    没有 `ver` 声明的老 token 按 0 处理（BE-028 部署兼容）：版本号从 0 开始，
+    所以部署后旧 token 在用户下次登录前仍然有效，不会被一次上线集体踢下线。
+    """
     try:
         payload = jwt.decode(token, _secret(), algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
@@ -62,8 +67,10 @@ def decode_access_token(token: str) -> int:
         ) from None
     sub = payload.get("sub")
     try:
-        return int(sub)
+        user_id = int(sub)
+        version = int(payload.get("ver", 0))
     except (TypeError, ValueError):
         raise ApiError(
             ErrorCode.AUTH_INVALID_CREDENTIALS, "无效的登录凭证", 401
         ) from None
+    return user_id, version
