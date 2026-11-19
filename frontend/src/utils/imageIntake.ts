@@ -114,6 +114,13 @@ export function imageItemLockHint(item: ImageItemDraft): string {
   return '核对并编辑题干后可勾选保存。'
 }
 
+export function visibleImageItemWarnings(item: ImageItemDraft): string[] {
+  if (item.question_type === 'blank' && validateImageItem(item) === null) {
+    return item.warnings.filter((warning) => !/空位.*(?:没有答案|答案缺失)/.test(warning))
+  }
+  return item.warnings
+}
+
 export function toggleImageSelection(
   selected: readonly number[],
   questionId: number,
