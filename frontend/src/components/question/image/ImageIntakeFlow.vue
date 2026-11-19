@@ -24,6 +24,7 @@ import {
   canSelectImageItem,
   createImageItemDrafts,
   firstDetectedSubject,
+  imageItemLockHint,
   toImageQuestionPayload,
   validateImageItem,
 } from '../../../utils/imageIntake'
@@ -332,7 +333,7 @@ async function handleSave(): Promise<void> {
   const blocked = targets.find((item) => item.incomplete && !canSelectImageItem(item))
   if (blocked) {
     const position = items.value.findIndex((item) => item.key === blocked.key) + 1
-    Message.error(`第 ${position} 道题信息不完整，请先编辑题干再勾选保存`)
+    Message.error(`第 ${position} 道题信息不完整，${imageItemLockHint(blocked)}`)
     return
   }
 
