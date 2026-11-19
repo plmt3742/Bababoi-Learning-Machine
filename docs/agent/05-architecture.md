@@ -608,15 +608,15 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
     {
       "index": 2,
       "content_md": "设 $A=\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$，则 $A$ 的特征值为 ___ 和 ___。",
-      "question_type": "solve",
+      "question_type": "blank",
       "subject": null,
       "chapter": null,
       "difficulty": null,
       "options": null,
-      "blanks": null,
+      "blanks": [{"index": 1, "answer_md": ""}, {"index": 2, "answer_md": ""}],
       "has_figure": false,
       "incomplete": true,
-      "warnings": ["每个空位都要有答案，已按文本题返回；需要选择题/填空题请在编辑器里补结构"]
+      "warnings": ["有 2 个空位没有答案，请补全后再保存"]
     }
   ],
   "warnings": []
@@ -629,10 +629,13 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 `incomplete=false` 进前端，而 §6.8/17 号 §四 第 4 项 让前端只看标志位（v0.6.3 之前那条真图是 p1 第 5 题）。
 
 - **题干残缺**（漏字、`[不清]`、页边把末题裁掉）→ 条目原样返回 + warning。
-- **结构不自洽**（选择题读出的选项少于 2、填空题空位数≠答案数、空位答案为空、
-  解答题却带选项）→ **整条降级成纯文本**：`question_type` 改 `solve`、`options`/`blanks` 清空，
+- **结构不自洽**（选择题读出的选项少于 2、填空题空位数≠答案数、解答题却带选项）→ **整条降级成纯文本**：`question_type` 改 `solve`、`options`/`blanks` 清空，
   加一句"已按文本题返回，需要选择题/填空题请在编辑器里补结构"。
   半套结构不往外传——契约里 `options?`/`blanks?` 本来就是可选（ADR-004 §5）。
+- **空位答案为空**（v0.6.21 起不再降级）：教材页/卷面不印答案是常态，提示词本来就要求"图上没有印答案就留空"。
+  只要空位数、序号与题干里的 `___` 对得上，就**保留填空题**，空答案原样交给编辑器，加一句"有 N 个空位没有答案，请补全后再保存"+ incomplete。
+  判法是把空答案换成占位答案再跑一遍 `validate_type_payload`：能过说明结构成立、缺的只是内容；
+  过不了才按上一条降级。这样判据仍然只有一份，识图侧不另写"空位数对不对"。
 
 顶层 `warnings` 里**点得到第几条的那句**（实测四张真图 4/4 写成「第 5 题…」「第 1 条…」）
 会下沉到对应条目并留在卡片上，顶层不再重复；点不到条目的（如"整页光线偏暗"）留在顶层。
@@ -761,9 +764,10 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
   → 校验 validate_extraction（1..N 条；题干非空的才留；index 重编成连续）
       ├─ 文字到手 → 返回前端按 ①②… 条目展示，用户逐条编辑/确认 → 确认后才走严格入库校验
       ├─ 题干残缺（漏字 / [不清] / 页边裁掉）→ 条目留着 + incomplete + warning
-      ├─ 结构不自洽（选项 <2、空位数≠答案数、空位答案为空、解答题带选项）
+      ├─ 结构不自洽（选项 <2、空位数≠答案数、解答题带选项）
       │    → **整条降级成纯文本**（question_type=solve、options/blanks 清空）+ incomplete + warning
       │      判据仍只有 validate_type_payload 一份；这里只决定"拒收"还是"降成文本"（ADR-004 §5：options/blanks 可选）
+      ├─ 只是空位答案为空（空位数/序号对得上）→ **保留填空题**（v0.6.21），空答案交给编辑器 + incomplete + "有 N 个空位没有答案"
       ├─ 一条坏（连对象都不是）→ 丢掉那一条 + 顶层 warning，其余照常返回（不整单失败）
       ├─ questions=[] → 正常响应 + warnings（图里确实没题不是故障）
       ├─ finish_reason=length → 直接坏输出，不重试（重试只会再截断一次）
@@ -839,6 +843,9 @@ POST /questions/from-image
   `image_sha` 取自内容寻址文件名；`subject_key` 用空串不用 NULL（MySQL 唯一索引里 NULL 互不相等）；
   `model` 记产出这份结果的模型身份（`LLM_MOCK=true` 记 `mock`）——换模型不换版本号也不会命中旧模型的结果，
   mock 与真模型的结果也互不认，避免本地假结果污染演示库。
+  `hop2_version` 同时代表**第 2 跳提示词 + `validate_extraction` 后处理语义**：只改后处理也要升版
+  （v0.6.21 空答案不再降级 → `vision_structure_v2`），否则同图同学科会命中旧 payload，看起来像修复没生效。
+  升级后旧行自然不再命中；可择机删掉 `hop2_version='vision_structure_v1'` 的行，不删也不影响正确性。
 - 只缓存**两跳成功且有题**的结果（含 `incomplete`）；空结果与失败不缓存。
 - 请求带 `force_refresh=true` 时跳过缓存读，成功后**覆盖写回同一行**（`hit_count` / `last_hit_at` 归零）。
   这是"重新识别"的出口：含 `incomplete` 的结果进缓存后，不给出口就再也拿不到别的结果。
@@ -1251,3 +1258,4 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
+| 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |

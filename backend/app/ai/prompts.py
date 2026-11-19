@@ -24,7 +24,10 @@ PROMPT_VERSION_ANALYZE = "analyze_v1"
 PROMPT_VERSION_GENERATE = "generate_v2"
 # BE-024（05 §6.8）：识图拆两跳，各自计版本——转录与结构化分开排查
 PROMPT_VERSION_VISION_TEXT = "vision_text_v1"
-PROMPT_VERSION_VISION_STRUCTURE = "vision_structure_v1"
+# v2（2026-11-19）：提示词文本没变，变的是 `validate_extraction` 的后处理语义
+# （空答案不再降级成解答题）。版本号进识图缓存键，必须升版——否则同图同学科会命中
+# 旧 payload，修复在浏览器上看起来没生效。
+PROMPT_VERSION_VISION_STRUCTURE = "vision_structure_v2"
 # BE-026：strict 把「题型必须与原题一致」写进 prompt，文本变了就必须计新版本。
 # 同一版本号配两套语义会让 ai_call_logs 分不清判死是因为哪版 prompt（05 §7.3）。
 PROMPT_VERSION_GENERATE_STRICT = "generate_v3"
