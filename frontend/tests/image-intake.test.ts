@@ -4,6 +4,7 @@ import {
   canSelectImageItem,
   createImageItemDrafts,
   firstDetectedSubject,
+  imageItemLockHint,
   isImageItemEdited,
   toImageQuestionPayload,
   toggleImageSelection,
@@ -80,6 +81,18 @@ describe('image intake helpers', () => {
 
     const filled = { ...item, blanks: [{ answer_md: '42' }] }
     expect(visibleImageItemWarnings(filled)).toEqual([])
+  })
+
+  it('asks the user to fill missing answers or confirm a complete blank structure', () => {
+    const unfilled = {
+      ...createImageItemDrafts(extraction)[1],
+      blanks: [{ answer_md: '' }],
+    }
+    expect(imageItemLockHint(unfilled)).toContain('还有 1 个空位答案待补全')
+
+    const filled = { ...unfilled, blanks: [{ answer_md: '42' }] }
+    expect(imageItemLockHint(filled)).toContain('修改任一空位答案')
+    expect(imageItemLockHint(filled)).not.toContain('补全空位答案')
   })
 
   it('unlocks an incomplete item after switching to blank and filling answers', () => {
