@@ -2109,6 +2109,26 @@
         ]
       }
     },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "吊销当前会话（BE-028）：版本号 +1，手里的 token 下一次请求即 401。",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "me_api_v1_auth_me_get",

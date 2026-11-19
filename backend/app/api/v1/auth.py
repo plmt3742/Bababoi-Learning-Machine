@@ -1,4 +1,4 @@
-"""认证路由（05 §6.3）：register / login / me，三个端点都是薄壳。"""
+"""认证路由（05 §6.3）：register / login / logout / me，都是薄壳。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
@@ -15,7 +15,8 @@ from app.utils.client_ip import client_ip
 
 def _token_response(user: User) -> TokenResponse:
     return TokenResponse(
-        access_token=create_access_token(user.id), user=UserResponse.model_validate(user)
+        access_token=create_access_token(user.id, user.token_version),
+        user=UserResponse.model_validate(user),
     )
 
 
@@ -35,6 +36,14 @@ def login(
 ) -> TokenResponse:
     user = auth_service.login(session, client_ip(request), data.username, data.password)
     return _token_response(user)
+
+
+@router.post("/logout", status_code=204)
+def logout(
+    user: User = Depends(get_current_user), session: Session = Depends(get_session)
+) -> None:
+    """吊销当前会话（BE-028）：版本号 +1，手里的 token 下一次请求即 401。"""
+    auth_service.logout(session, user.id)
 
 
 @router.get("/me", response_model=UserResponse)

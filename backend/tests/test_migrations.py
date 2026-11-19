@@ -69,6 +69,31 @@ def test_upgrade_from_published_cache_revision_adds_columns(tmp_path, monkeypatc
     assert "subject_key, model" in normalized, "唯一键必须扩成含 model"
 
 
+def test_token_version_backfills_zero_for_existing_users(tmp_path, monkeypatch) -> None:
+    """BE-028：老用户升级后 token_version=0，没有 `ver` 的旧 token 不会因上线被踢。"""
+    db = tmp_path / "tokenver.db"
+    monkeypatch.setenv("ALEMBIC_DATABASE_URL", f"sqlite:///{db.as_posix()}")
+    cfg = _config(db)
+    command.upgrade(cfg, "e9b1c7f3a2d5")
+
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "insert into users (username, password_hash, created_at, updated_at)"
+        " values ('老用户', 'x', '2026-11-01 00:00:00', '2026-11-01 00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    command.upgrade(cfg, "head")
+
+    conn = sqlite3.connect(db)
+    value = conn.execute(
+        "select token_version from users where username='老用户'"
+    ).fetchone()[0]
+    conn.close()
+    assert value == 0
+
+
 def test_downgrade_merges_rows_that_differ_only_by_model(tmp_path, monkeypatch) -> None:
     """唯一键要缩回 5 列：同图两种 model 的两行会撞键，降级前必须先合并掉重复行。"""
     db = tmp_path / "downgrade.db"

@@ -180,6 +180,7 @@ erDiagram
 | password_hash | VARCHAR(255) | bcrypt/argon2 |
 | created_at / updated_at | DATETIME | UTC |
 | last_login_at | DATETIME NULL | 可选 |
+| token_version | INT NOT NULL DEFAULT 0 | BE-028：会话版本号；登录/登出/改密 +1，JWT 的 `ver` 不一致即 401（单会话） |
 
 #### questions
 
@@ -367,7 +368,7 @@ erDiagram
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | 参数校验失败 |
 | 401 | `AUTH_INVALID_CREDENTIALS` | 用户名/密码错误 |
-| 401 | `AUTH_TOKEN_EXPIRED` | JWT 过期 |
+| 401 | `AUTH_TOKEN_EXPIRED` | JWT 过期，或会话已被吊销（BE-028：登录/登出/改密后 `ver` 不一致） |
 | 403 | `QUESTION_FORBIDDEN` | 访问他人错题 |
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
@@ -396,10 +397,12 @@ erDiagram
 |---|---|---|---|
 | POST | `/auth/register` | `{username, password, email?}` | `{access_token, token_type, user}` |
 | POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user}` |
+| POST | `/auth/logout` | — | `204`；吊销当前会话 |
 | GET | `/auth/me` | — | `{id, username, email, created_at}` |
 
 - 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
-- JWT `sub=user_id`，`exp=7d`；MVP 不做 refresh token。
+- JWT `sub=user_id`、`ver=token_version`，`exp=7d`；MVP 不做 refresh token。
+- **单会话（BE-028）**：`users.token_version` 是服务端可吊销的会话版本。登录成功、`POST /auth/logout` 都会 +1，`get_current_user` 发现 `ver` 与库里的值不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。因此同一账号同一时刻只有一个有效会话——**新登录会让其他设备下线**；登出/改密也走同一机制。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户下次登录后旧 token 才失效。多设备并存（手机+电脑）需要 per-session 表，属后续项。
 - 登录失败 5 次/分钟/IP 限流（简单内存或 DB 计数）。IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。
 
 ### 6.4 错题
@@ -1251,3 +1254,4 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
+| 2026-11-19 | v0.6.20 | **BE-028 会话吊销 + 单会话**。`users.token_version`（前向迁移 `b3c7d9e1f204`，NOT NULL DEFAULT 0，历史行迁移即得 0）；JWT 加 `ver` 声明，`get_current_user` 与库里比对不一致 → 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端无需改分支）；登录成功 / 新增 `POST /auth/logout` 都把版本 +1（SQL 表达式自增，并发登录稳定是"最后一次生效"），因此同一账号同一时刻只有一个有效会话；**没有 `ver` 的老 token 按 0 处理**，部署本身不踢人，用户下次登录后旧 token 失效。改密接口尚未做，但走同一机制即可。7 条会话测试 + 1 条迁移回填测试；OpenAPI 快照重导 | 人机 |
