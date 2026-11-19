@@ -314,7 +314,9 @@ function handleAllSelected(value: unknown): void {
 function handleItemUpdate(next: ImageItemDraft): void {
   const index = items.value.findIndex((item) => item.key === next.key)
   if (index === -1) return
-  items.value.splice(index, 1, next)
+
+  const normalized = canSelectImageItem(next) ? next : { ...next, selected: false }
+  items.value.splice(index, 1, normalized)
 }
 
 function removeItem(key: string): void {
