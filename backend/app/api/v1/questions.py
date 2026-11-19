@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
+from app.core import ai_ratelimit
 from app.core.config import settings
 from app.db.session import get_session
 from app.models import User
@@ -30,6 +31,8 @@ def create_question(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> QuestionCreateOut:
+    # 保存后必然入队 analysis（= 一次模型调用），所以计在 AI 入队额度里
+    ai_ratelimit.enqueue_limiter.hit(user.id)
     question, task = question_service.create(session, user.id, data)
     return QuestionCreateOut(question=QuestionOut.model_validate(question), task_id=task.id)
 

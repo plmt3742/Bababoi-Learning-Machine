@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.v1.deps import get_current_user
+from app.core import ai_ratelimit
 from app.db.session import get_session
 from app.models import User
 from app.schemas.question import (
@@ -27,6 +28,7 @@ def analyze_question(
     session: Session = Depends(get_session),
 ) -> TaskIdOut:
     """重新分析：入队 analysis 任务；已有进行中的同 stage 任务时复用。"""
+    ai_ratelimit.enqueue_limiter.hit(user.id)
     task = task_service.enqueue(session, user.id, question_id, stage="analysis")
     return TaskIdOut(task_id=task.id)
 
@@ -43,6 +45,7 @@ def generate_question(
     请求体可整个省略（详情页那个"生成 3 道同类题"按钮就是这么点的），
     省略 = 整组 + 默认递增难度。
     """
+    ai_ratelimit.enqueue_limiter.hit(user.id)
     params = body or GenerateRequest()
     tasks = task_service.enqueue_generation(
         session, user.id, question_id,

@@ -69,6 +69,13 @@ class Settings(BaseSettings):
     image_llm_max_edge_px: int = 1200
     image_allowed_types: list[str] = ["image/jpeg", "image/png", "image/webp"]
 
+    # AI 提交限流（BE-016 / 05 §6.2）：按用户计的进程内滑动窗口，单实例部署够用
+    # （与登录限流同一口径，12号 §3.3 不引入 Redis）。阈值按"一次完整演示"算：
+    # 识图 1–2 次、建题+分析+生题共 9 次；演示账号多人共用，所以留足余量。
+    ai_rate_window_s: int = 60
+    ai_vision_rate_limit: int = 12
+    ai_enqueue_rate_limit: int = 60
+
     # 分页（05 §6.1）
     page_size_default: int = 20
     page_size_max: int = 100

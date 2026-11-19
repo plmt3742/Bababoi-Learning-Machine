@@ -43,7 +43,10 @@ BababoiLearningMachine/
 │   ├── alembic/versions/
 │   │   ├── 7d155a41e345_initial_schema.py
 │   │   ├── 3f9c1a7e5b24_generated_slot_and_task_difficulty.py   # ADR-006 两列 + 历史格位回填
-│   │   └── c8e1b6a4d902_generation_preferences_and_policy.py   # BE-026：偏好开关 + type_policy + 偏好时间
+│   │   ├── c8e1b6a4d902_generation_preferences_and_policy.py   # BE-026：偏好开关 + type_policy + 偏好时间
+│   │   ├── b7c2f4a91d30_vision_extract_cache.py                 # BE-024：识图结果缓存
+│   │   ├── c4e8a1d62f37_vision_cache_model_and_force.py         # BE-024：缓存键加 model + 强刷列
+│   │   └── e9b1c7f3a2d5_user_ai_settings.py                     # BE-020：BYOK 设置表
 │   ├── static/test-console.html   # 本地测试台：登录/录错题/分析/三段生成/练习/识图上传
 │   ├── scripts/
 │   │   ├── spike_llm.py                    # 真模型连通性与输出质量（不进 CI）
@@ -52,7 +55,7 @@ BababoiLearningMachine/
 │   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
 │   ├── app/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
-│   │   ├── core/                  # config / security / errors / observability
+│   │   ├── core/                  # config / security / errors / observability / ai_ratelimit
 │   │   ├── db/                    # base / session
 │   │   ├── models/                # user / question / generation / records / draft / cache
 │   │   ├── schemas/               # auth / question / image / practice / drafts / stats / settings
@@ -63,9 +66,10 @@ BababoiLearningMachine/
 │   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors
 │   │   └── utils/                 # client_ip（反代后取真实来源 IP）
 │   ├── fixtures/                  # 目前为空；识图实拍样本在 _scratch/images/（不入库）
-│   └── tests/                     # ai / auth / client_ip / health / images_api / migrations /
-│                                  # models / practice_api / question_schema / questions_api /
-│                                  # tasks + conftest
+│   └── tests/                     # ai / ai_rate_limit / auth / client_ip / drafts_api / health /
+│                                  # images_api / migrations / models / openapi_snapshot /
+│                                  # practice_api / question_schema / questions_api / settings_* /
+│                                  # stats_api / tasks / vision_cache + conftest
 ├── contracts/
 │   ├── README.md
 │   ├── openapi/README.md + openapi.json   # FastAPI 导出快照（BE-009；CI 比对防漂移）

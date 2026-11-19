@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.ai.errors import AIError
 from app.api.v1.deps import get_current_user, get_session_factory
+from app.core import ai_ratelimit
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
 from app.models import User
@@ -92,6 +93,7 @@ def extract_from_image(
     session_factory: sessionmaker = Depends(get_session_factory),
 ) -> ImageExtractionOut:
     """图片 → 1..N 条可编辑题目条目。不建错题、不分析、不返回 bbox（ADR-004）。"""
+    ai_ratelimit.vision_limiter.hit(user.id)
     try:
         result = extraction_service.extract_from_image(
             session_factory,

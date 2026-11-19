@@ -390,6 +390,8 @@ erDiagram
 
 > `AI_PROVIDER_ERROR` 的例外：BYOK 写入时服务端缺 `SETTINGS_ENCRYPTION_KEY`（或 key 非法）返回 **503**，不是 502；客户端按 `code` 分支不受影响（BE-020 §6.9）。
 
+> `AI_RATE_LIMITED`（BE-016）：会触发模型调用的**提交**限流，按用户计的进程内滑动窗口（单实例部署，与登录限流同一口径）。两档额度：`POST /questions/from-image` 12 次/分钟（单次 17–90s，最贵）；建题（自动入队 analysis）、`POST /questions/{id}/analyze`、`POST /questions/{id}/generate` **合计** 60 次/分钟。超限 429、不调模型。**不按 IP**：反代后 `TRUSTED_PROXIES` 未配时全站共用一个 socket 对端，演示账号本身也是多人共用，按 IP 会让一个人拖垮所有人；换号可绕过，但 token 成本另有 `TASK_MAX_CONCURRENCY` 兜底。上传图片不计入（不碰模型）。
+
 ### 6.3 认证
 
 | 方法 | 路径 | 请求 | 响应 |
@@ -582,7 +584,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`（前端裁剪后上传）；**201** 返回 `{image_path, url, width, height}`。服务端按字节嗅格式 → EXIF 转正 → 剥元数据 → 压到长边 ≤2000px JPEG（q85，体积退让到 ≤5MB）；返回的 width/height 是**落盘那份的实际尺寸**，前端按它占位防跳版 |
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
-| POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`） |
+| POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`）；另受按用户 AI 提交限流约束（12 次/分钟 → 429 `AI_RATE_LIMITED`，BE-016） |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
 | POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选后端不设上限（任务按 `task_max_concurrency` 排队执行，排队中可取消） |
 
@@ -939,7 +941,8 @@ POST /questions/from-image
 >
 > 与本文的已知偏差：上面「失败：该段 requeue 1 次」目前是**同 prompt 重新入队**（worker 的任务级重试），
 > 没有把校验失败原因拼回重试 prompt。真模型一次生成 8k–12k 输出 token、36–58s，
-> 加反馈重试会把延迟和成本再翻一倍，MVP 先不做；BE-016 做限流时一并评估。
+> 加反馈重试会把延迟和成本再翻一倍，MVP 先不做；BE-016 做限流时一并评估（结论：**仍不做**——
+> 提交侧限流已经挡住连点，而反馈重试的收益只覆盖「坏输出」这一类，代价是正常题也翻倍）。
 
 **生成输出 schema**（一段一次调用 = 一个对象）：
 
@@ -1141,6 +1144,11 @@ ACCESS_TOKEN_EXPIRE_DAYS=7
 LOGIN_RATE_LIMIT=5
 LOGIN_RATE_WINDOW_S=60
 
+# --- AI 提交限流（BE-016）：按用户计的进程内滑动窗口 ---
+AI_RATE_WINDOW_S=60
+AI_VISION_RATE_LIMIT=12        # POST /questions/from-image；单次 17–90s，额度按最贵的一类收
+AI_ENQUEUE_RATE_LIMIT=60       # 建题 + 分析 + 生题入队合计；一次完整演示约 9 次
+
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-flash
@@ -1251,3 +1259,4 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
+| 2026-11-19 | v0.6.19 | **BE-016 第一部分：AI 提交限流**。新增 `app/core/ai_ratelimit.py`（按用户计的进程内滑动窗口，先判后记在锁内完成，过期 key 随记账清扫）；两档额度：`from-image` 12 次/分钟（`AI_VISION_RATE_LIMIT`）、建题/分析/生题入队合计 60 次/分钟（`AI_ENQUEUE_RATE_LIMIT`），窗口 `AI_RATE_WINDOW_S=60`；超限 429 `AI_RATE_LIMITED`、不调模型。**按用户不按 IP**：反代后 `TRUSTED_PROXIES` 为空时全站共用一个 socket 对端，且演示账号多人共用，按 IP 会互相拖累；换号可绕过，但成本另有 `TASK_MAX_CONCURRENCY` 兜底。同批记录「反馈重试」评估结论：仍不做（§7.2 已注明）。4 条新测试（两桶隔离、按用户隔离、窗口过期、429 信封），258 passed；无迁移、无 OpenAPI 快照变化 | 人机 |

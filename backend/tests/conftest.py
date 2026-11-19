@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.ai_ratelimit import enqueue_limiter, vision_limiter
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_session
@@ -52,6 +53,8 @@ def client(db, tmp_path, monkeypatch):
     # 上传的图落到临时目录：不隔离的话测试会往仓库 backend/uploads/ 里写真文件
     monkeypatch.setattr(settings, "upload_dir", (tmp_path / "uploads").as_posix())
     login_limiter.clear()
+    vision_limiter.clear()
+    enqueue_limiter.clear()
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
