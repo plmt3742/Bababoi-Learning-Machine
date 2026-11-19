@@ -332,8 +332,9 @@ def extract_from_image(
         if chosen:
             # 17 号 §三 规则 1：用户已经选了学科，就别让模型猜的值覆盖它
             item.subject = chosen
-    # 第 1 跳的「第 N 题被裁掉」类警告要落到条目上，前端确认步骤才拦得住
-    validator.attach_transcript_warnings(
+    # 第 1 跳的「第 N 题被裁掉」类警告要落到条目上，前端确认步骤才拦得住。
+    # 函数返回没下沉掉的剩余：已挂到卡片的不能再拼回顶层，否则同一句显示两次。
+    kept_transcript_warnings = validator.attach_transcript_warnings(
         transcript["warnings"], items, transcript_count=len(transcript["questions"])
     )
     result = {
@@ -341,7 +342,11 @@ def extract_from_image(
         # 出 model_dump 而不是 validator 的模型对象：响应模型是 schemas.image 那一套，
         # 跨模块的 pydantic 实例不会自动互认，直接把服务返回值变成可序列化的 dict 更干净
         "questions": [item.model_dump() for item in items],
-        "warnings": list(transcript["warnings"]) + list(structure["warnings"]),
+        # 两跳可能回同一句顶层说明（第 2 跳能看到第 1 跳的转录），原样拼接会在页面上
+        # 显示两个一模一样的提示；按出现顺序去重，保留先出现的那条。
+        "warnings": list(
+            dict.fromkeys([*kept_transcript_warnings, *structure["warnings"]])
+        ),
         "extracted_at": extracted_at,
     }
     if key is not None:

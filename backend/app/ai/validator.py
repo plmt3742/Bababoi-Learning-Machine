@@ -307,28 +307,34 @@ def _mark_missing_blank_answers(item: ExtractedQuestion) -> None:
 
 def attach_transcript_warnings(
     warnings: list[str], questions: list, *, transcript_count: int
-) -> None:
+) -> list[str]:
     """把第 1 跳里点得到题号的警告下沉到条目（05 §6.8 三条硬约束的配套）。
 
     第 1 跳的顶层 warning（如「第5题的密度函数表达式被截断」）原本只留在响应
     顶层横幅上；前端确认步骤看的是**条目**的 `incomplete`（17 号 §四-4），
     光有横幅等于没拦住用户提交。这里按题号挂到对应条目并置 `incomplete`。
 
+    返回**没有下沉掉的**警告，调用方拿它拼顶层 warnings。原实现只 append、
+    不返回剩余，service 又把 `transcript["warnings"]` 全量拼回去，结果同一条警告
+    在横幅和卡片上各显示一次（和 `validate_extraction` 的下沉语义不一致）。
+
     `transcript_count != len(questions)` 时**不猜**：第 2 跳丢/并过条目后下标会漂，
-    挂错题比不挂更糟（15 号踩过同款坑），此时保留顶层警告。
+    挂错题比不挂更糟（15 号踩过同款坑），此时一条也不下沉、全部留在顶层。
     """
     if not warnings or not questions or transcript_count != len(questions):
-        return
+        return list(warnings)
     by_index = {item.index: item for item in questions}
+    kept: list[str] = []
     for warning in warnings:
         match = _WARNING_ITEM_POINTER.search(warning)
-        if not match:
+        item = by_index.get(int(match.group(1))) if match else None
+        if item is None:
+            kept.append(warning)
             continue
-        item = by_index.get(int(match.group(1)))
-        if item is None or warning in item.warnings:
-            continue
-        item.warnings.append(warning)
+        if warning not in item.warnings:
+            item.warnings.append(warning)
         item.incomplete = True
+    return kept
 
 
 # 实测模型转录真图时把空位写成 \underline{\qquad} / \underline{\hspace{...}}，
