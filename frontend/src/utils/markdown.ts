@@ -8,6 +8,7 @@
 import DOMPurify from 'dompurify'
 import katex from 'katex'
 import MarkdownIt from 'markdown-it'
+import { findClosingDelimiter, wrapBareLatex } from './latex'
 
 interface MathItem {
   placeholder: string
@@ -57,35 +58,6 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
-}
-
-function findClosingDelimiter(
-  source: string,
-  start: number,
-  delimiter: string,
-  display: boolean,
-): number {
-  let index = start
-
-  while (index < source.length) {
-    if (source[index] === '\\') {
-      index += 2
-      continue
-    }
-
-    if (source.startsWith(delimiter, index)) {
-      // A `$` delimiter can never close on the first half of a `$$` pair.
-      if (!display && source[index + 1] === '$') {
-        index += 2
-        continue
-      }
-      return index
-    }
-
-    index += 1
-  }
-
-  return -1
 }
 
 function extractMath(source: string): ExtractedMarkdown {
@@ -185,11 +157,11 @@ function injectMath(html: string, math: MathItem[]): string {
 export function renderMarkdown(source: string): string {
   if (!source.trim()) return ''
 
-  const { text, math } = extractMath(source)
+  const { text, math } = extractMath(wrapBareLatex(source))
   const html = injectMath(markdown.render(text), math)
 
   return DOMPurify.sanitize(html, {
-    USE_PROFILES: { html: true, mathMl: true },
-    ADD_ATTR: ['target', 'rel'],
+    USE_PROFILES: { html: true, mathMl: true, svg: true, svgFilters: true },
+    ADD_ATTR: ['target', 'rel', 'xmlns'],
   })
 }
