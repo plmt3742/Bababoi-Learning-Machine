@@ -390,7 +390,9 @@ erDiagram
 
 > `AI_PROVIDER_ERROR` 的例外：BYOK 写入时服务端缺 `SETTINGS_ENCRYPTION_KEY`（或 key 非法）返回 **503**，不是 502；客户端按 `code` 分支不受影响（BE-020 §6.9）。
 
-> `AI_RATE_LIMITED`（BE-016）：会触发模型调用的**提交**限流，按用户计的进程内滑动窗口（单实例部署，与登录限流同一口径）。两档额度：`POST /questions/from-image` 12 次/分钟（单次 17–90s，最贵）；建题（自动入队 analysis）、`POST /questions/{id}/analyze`、`POST /questions/{id}/generate` **合计** 60 次/分钟。超限 429、不调模型。**不按 IP**：反代后 `TRUSTED_PROXIES` 未配时全站共用一个 socket 对端，演示账号本身也是多人共用，按 IP 会让一个人拖垮所有人；换号可绕过，但 token 成本另有 `TASK_MAX_CONCURRENCY` 兜底。上传图片不计入（不碰模型）。
+> `AI_RATE_LIMITED`（BE-016）：会触发模型调用的**提交**限流，按用户计的进程内滑动窗口。两档额度：`POST /questions/from-image` 12 次/分钟（单次 17–90s，最贵）；建题（自动入队 analysis）、`POST /questions/{id}/analyze`、`POST /questions/{id}/generate` **合计** 60 次/分钟。超限 429、不调模型。**按用户不按 IP**：额度归属是账号，成本也记在账号/Key 上；按 IP 会把同一账号从不同出口的请求拆成多份额度（拦不住共用账号），也会让学校 NAT 出口下的多个同学挤进同一个桶；且不依赖反代是否配了 `TRUSTED_PROXIES`。上传图片不计入（不碰模型）。
+>
+> **定位与边界**：这层只挡同用户的短时连点/脚本。**总量（日配额）与并发（识图信号量，防 40 线程池被 17–90s 的同步识图占满）尚未做**；计数在进程内存里，**只对单实例部署成立**（当前 `--workers 1`；多 worker/多容器各记一份，扩容前先换 Redis 或网关闭流）。换号可绕过，属于 BE-016 余下项。
 
 ### 6.3 认证
 
@@ -1259,4 +1261,4 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
-| 2026-11-19 | v0.6.19 | **BE-016 第一部分：AI 提交限流**。新增 `app/core/ai_ratelimit.py`（按用户计的进程内滑动窗口，先判后记在锁内完成，过期 key 随记账清扫）；两档额度：`from-image` 12 次/分钟（`AI_VISION_RATE_LIMIT`）、建题/分析/生题入队合计 60 次/分钟（`AI_ENQUEUE_RATE_LIMIT`），窗口 `AI_RATE_WINDOW_S=60`；超限 429 `AI_RATE_LIMITED`、不调模型。**按用户不按 IP**：反代后 `TRUSTED_PROXIES` 为空时全站共用一个 socket 对端，且演示账号多人共用，按 IP 会互相拖累；换号可绕过，但成本另有 `TASK_MAX_CONCURRENCY` 兜底。同批记录「反馈重试」评估结论：仍不做（§7.2 已注明）。4 条新测试（两桶隔离、按用户隔离、窗口过期、429 信封），258 passed；无迁移、无 OpenAPI 快照变化 | 人机 |
+| 2026-11-19 | v0.6.19 | **BE-016 第一部分：AI 提交限流**。新增 `app/core/ai_ratelimit.py`（按用户计的进程内滑动窗口，先判后记在锁内完成，过期 key 随记账清扫）；两档额度：`from-image` 12 次/分钟（`AI_VISION_RATE_LIMIT`）、建题/分析/生题入队合计 60 次/分钟（`AI_ENQUEUE_RATE_LIMIT`），窗口 `AI_RATE_WINDOW_S=60`；超限 429 `AI_RATE_LIMITED`、不调模型。**按用户不按 IP**：额度与成本都归属账号，按 IP 会被不同出口拆成多份、也挡不住共用账号，且不依赖 `TRUSTED_PROXIES` 是否配对。**明确定位**：只挡连点/脚本；日配额、识图并发信号量未做，且依赖单实例（`--workers 1`，扩容前换 Redis 或网关闭流）。同批记录「反馈重试」评估结论：仍不做（§7.2 已注明）。4 条新测试（两桶隔离、按用户隔离、窗口过期、429 信封），258 passed；无迁移、无 OpenAPI 快照变化 | 人机 |
