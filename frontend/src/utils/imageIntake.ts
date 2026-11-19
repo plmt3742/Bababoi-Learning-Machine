@@ -7,6 +7,7 @@ import type {
   QuestionType,
 } from '../api/types'
 import {
+  countBlankMarkers,
   createBlankAnswer,
   createChoiceOption,
   createDefaultChoiceOptions,
@@ -109,8 +110,22 @@ export function canSelectImageItem(item: ImageItemDraft): boolean {
 }
 
 export function imageItemLockHint(item: ImageItemDraft): string {
-  if (item.question_type === 'blank') return '补全空位答案后可勾选保存。'
-  if (item.question_type === 'choice') return '补全选项内容后可勾选保存。'
+  if (item.question_type === 'blank') {
+    const missing = item.blanks.filter((blank) => !blank.answer_md.trim()).length
+    if (countBlankMarkers(item.content_md) > 0 && missing > 0) {
+      return `还有 ${missing} 个空位答案待补全，补全后可勾选保存。`
+    }
+    if (validateImageItem(item) === null) {
+      return '结构已完整；核对并修改任一空位答案后可勾选保存。'
+    }
+    return '请先修正题干中的 ___ 标记或空位答案。'
+  }
+  if (item.question_type === 'choice') {
+    if (validateImageItem(item) === null) {
+      return '结构已完整；核对并修改任一选项后可勾选保存。'
+    }
+    return '补全选项内容后可勾选保存。'
+  }
   return '核对并编辑题干后可勾选保存。'
 }
 
