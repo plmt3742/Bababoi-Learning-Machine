@@ -14,12 +14,14 @@ export async function uploadImage(file: File): Promise<ImageUploadResult> {
 export async function extractQuestions(
   imagePath: string,
   subject?: string,
+  forceRefresh = false,
 ): Promise<ImageExtractionResult> {
   const { data } = await apiClient.post<ImageExtractionResult>(
     '/questions/from-image',
     {
       image_path: imagePath,
       ...(subject?.trim() ? { subject: subject.trim() } : {}),
+      ...(forceRefresh ? { force_refresh: true } : {}),
     },
     { timeout: 180_000 },
   )
