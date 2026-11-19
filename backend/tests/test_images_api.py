@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 
 import pytest
@@ -13,6 +14,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from app.ai import prompts
+from app.ai.client import LLMResponse, MockLLMClient
 from app.ai.errors import AITimeoutError
 from app.core.config import settings
 from app.models import AiCallLog
@@ -353,3 +355,32 @@ def test_queue_path_still_logs_after_the_ai_log_refactor(client, db) -> None:
         log = s.scalars(select(AiCallLog)).all()[-1]
         assert log.operation == "analysis" and log.status == "success"
         assert log.queue_wait_ms is not None  # 任务侧才有的排队时长，识图那条是 None
+
+
+class _EchoTopWarningClient(MockLLMClient):
+    """两跳都回同一句顶层说明：第 2 跳看得到第 1 跳的转录，模型常把同一句话再抄一遍。"""
+
+    def complete(self, operation, messages, **kwargs):
+        response = super().complete(operation, messages, **kwargs)
+        payload = json.loads(response.text)
+        if isinstance(payload, dict) and "questions" in payload:
+            payload["warnings"] = ["图片底部有一行被裁掉"]
+        return LLMResponse(
+            text=json.dumps(payload, ensure_ascii=False),
+            model=response.model,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            latency_ms=response.latency_ms,
+            finish_reason=response.finish_reason,
+        )
+
+
+def test_from_image_dedupes_identical_top_warnings(client, db, token_and_user, monkeypatch) -> None:
+    token, _ = token_and_user
+    monkeypatch.setattr(
+        extraction_service, "_llm_client", lambda *args, **kwargs: _EchoTopWarningClient()
+    )
+    image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
+
+    body = _extract(client, token, image_path).json()
+    assert body["warnings"].count("图片底部有一行被裁掉") == 1, body["warnings"]
