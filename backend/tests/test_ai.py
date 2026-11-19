@@ -482,6 +482,40 @@ def _item(index: int, content: str, qtype: str = "solve", **over) -> dict:
     return {"index": index, "content_md": content, "question_type": qtype, **over}
 
 
+def test_extraction_keeps_blank_when_answers_are_not_printed() -> None:
+    """空位答案为空不是结构问题（教材/卷面不印答案）：保留填空题，空答案交给编辑器补。
+
+    与"空位数对不上"区分开：那种才是结构不自洽、继续降级成文本题。
+    """
+    result = validator.validate_extraction(_extract_payload(
+        _item(
+            1,
+            "随机变量 $X\\sim N(1,4)$，则 $E(2X-1)=$ ___，$D(X-1)=$ ___。",
+            "blank",
+            # 模型偶尔会给 blank 塞 options；保留填空题时不清掉会同时出现 options/blanks
+            options=[{"label": "A", "content_md": "$1$"}],
+            blanks=[{"index": 1, "answer_md": ""}, {"index": 2, "answer_md": ""}],
+        ),
+        _item(
+            2,
+            "极限 $\\lim_{x\\to 0}\\dfrac{\\sin 3x}{x}=$ ___，$\\lim_{x\\to\\infty}\\dfrac{1}{x}=$ ___。",
+            "blank",
+            blanks=[{"index": 1, "answer_md": "$3$"}, {"index": 2, "answer_md": " "}],
+        ),
+    ))
+    both_empty, one_missing = result["questions"]
+    for item in (both_empty, one_missing):
+        assert item.question_type == "blank", "结构成立就不该降级成解答题"
+        assert item.incomplete is True, "答案缺失仍要用户核对"
+        assert len(item.blanks) == 2
+        joined = " ".join(item.warnings)
+        assert "空位" in joined and "文本题" not in joined, joined
+    # blank 不吃 options，响应形状要干净
+    assert both_empty.options is None
+    # 已读到的答案保留，空/纯空白的统一成空串（前端输入框才是空的）
+    assert [b.answer_md for b in one_missing.blanks] == ["$3$", ""]
+
+
 def test_extraction_degrades_inconsistent_structure_to_plain_text() -> None:
     """结构不自洽 → 整条降级成纯文本，而不是把半套结构交给用户。
 
