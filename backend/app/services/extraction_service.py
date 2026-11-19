@@ -341,9 +341,7 @@ def extract_from_image(
         # 出 model_dump 而不是 validator 的模型对象：响应模型是 schemas.image 那一套，
         # 跨模块的 pydantic 实例不会自动互认，直接把服务返回值变成可序列化的 dict 更干净
         "questions": [item.model_dump() for item in items],
-        # 两跳可能回同一句顶层说明（第 2 跳能看到第 1 跳的转录），原样拼接会在页面上
-        # 显示两个一模一样的提示；按出现顺序去重，保留先出现的那条。
-        "warnings": list(dict.fromkeys([*transcript["warnings"], *structure["warnings"]])),
+        "warnings": list(transcript["warnings"]) + list(structure["warnings"]),
         "extracted_at": extracted_at,
     }
     if key is not None:
