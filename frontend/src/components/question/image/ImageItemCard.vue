@@ -12,6 +12,7 @@ import {
   imageItemLockHint,
   MAX_IMAGE_CONTENT_LENGTH,
   validateImageItem,
+  visibleImageItemWarnings,
 } from '../../../utils/imageIntake'
 import type { ImageItemDraft } from '../../../utils/imageIntake'
 import { optionLabel } from '../../../utils/questionEditor'
@@ -42,6 +43,10 @@ const validationMessage = computed(() => {
 })
 
 const lockHint = computed(() => imageItemLockHint(props.item))
+const selectable = computed(() => canSelectImageItem(props.item))
+const showLockedState = computed(() => props.item.incomplete && !selectable.value)
+const showReadyState = computed(() => props.item.incomplete && selectable.value)
+const visibleWarnings = computed(() => visibleImageItemWarnings(props.item))
 
 function patch(changes: Partial<ImageItemDraft>): void {
   const touchesStructure =
@@ -103,16 +108,17 @@ watch(
         <span class="tag">{{ questionTypeLabel(item.question_type) }}</span>
         <span v-if="item.subject" class="tag tag--point">学科：{{ item.subject }}</span>
         <span v-if="item.difficulty" class="tag">难度：{{ difficultyLabel(item.difficulty) }}</span>
-        <span v-if="item.incomplete" class="tag tag--fail">
+        <span v-if="showLockedState" class="tag tag--fail">
           <span class="dot" aria-hidden="true" />
           信息不完整
         </span>
+        <span v-else-if="showReadyState" class="tag tag--ok">可保存</span>
         <span v-if="item.has_figure" class="tag tag--reviewing">含图 · 仅文字</span>
 
         <div class="item-head__actions">
           <a-checkbox
             :model-value="item.selected"
-            :disabled="!canSelectImageItem(item)"
+            :disabled="!selectable"
             @update:model-value="handleSelected"
           >
             保存这道题
@@ -129,12 +135,15 @@ watch(
         </div>
       </div>
 
-      <p v-if="item.incomplete && !canSelectImageItem(item)" class="item-lock-hint">
+      <p v-if="showLockedState" class="item-lock-hint">
         {{ lockHint }}
       </p>
+      <p v-else-if="showReadyState" class="item-ready-hint">
+        已可保存；核对后勾选「保存这道题」。
+      </p>
 
-      <div v-if="item.warnings.length" class="item-warnings">
-        <span v-for="warning in item.warnings" :key="warning" class="tag tag--draft">
+      <div v-if="visibleWarnings.length" class="item-warnings">
+        <span v-for="warning in visibleWarnings" :key="warning" class="tag tag--draft">
           {{ warning }}
         </span>
       </div>
@@ -313,6 +322,17 @@ watch(
   border-radius: var(--radius-md);
   background: var(--color-warning-soft);
   color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.item-ready-hint {
+  margin-top: var(--space-2);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
 }
