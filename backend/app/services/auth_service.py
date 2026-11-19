@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -91,6 +91,23 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
 
     login_limiter.reset(ip)
     user.last_login_at = utcnow()
+    # BE-028：单会话策略——版本号 +1 后，其他设备手里的旧 token 立刻失效。
+    # 用 SQL 表达式自增而不是"读出来 +1 再写回"：两个并发登录也能各自拿到新版本，
+    # 结果稳定是"最后一次登录生效"，不会出现两个 token 同时有效。
+    session.execute(
+        update(User).where(User.id == user.id).values(token_version=User.token_version + 1)
+    )
     session.commit()
     session.refresh(user)
     return user
+
+
+def logout(session: Session, user_id: int) -> None:
+    """吊销该账号当前的会话（BE-028）：版本号 +1，手里的 token 下一次请求即 401。
+
+    幂等：重复调用只是多 +1，没有副作用。
+    """
+    session.execute(
+        update(User).where(User.id == user_id).values(token_version=User.token_version + 1)
+    )
+    session.commit()
