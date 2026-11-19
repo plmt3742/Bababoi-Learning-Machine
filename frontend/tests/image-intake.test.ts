@@ -52,13 +52,45 @@ describe('image intake helpers', () => {
     expect(firstDetectedSubject(extraction)).toBe('高等数学')
   })
 
-  it('blocks incomplete items until the stem is edited', () => {
+  it('keeps incomplete items locked until the stem or structure is repaired', () => {
     const item = createImageItemDrafts(extraction)[1]
     expect(canSelectImageItem(item)).toBe(false)
 
     const edited = { ...item, content_md: '填空 ___（已补全）。' }
     expect(isImageItemEdited(edited)).toBe(true)
     expect(canSelectImageItem(edited)).toBe(true)
+  })
+
+  it('keeps an incomplete item locked when its valid structure was never edited', () => {
+    const item = {
+      ...createImageItemDrafts(extraction)[1],
+      blanks: [{ answer_md: '42' }],
+    }
+    expect(canSelectImageItem(item)).toBe(false)
+    expect(canSelectImageItem({ ...item, structureEdited: true })).toBe(true)
+  })
+
+  it('unlocks an incomplete item after switching to blank and filling answers', () => {
+    const solveItem = {
+      ...createImageItemDrafts(extraction)[1],
+      question_type: 'solve' as const,
+      blanks: [],
+    }
+    expect(canSelectImageItem(solveItem)).toBe(false)
+
+    const blankWithoutAnswers = {
+      ...solveItem,
+      question_type: 'blank' as const,
+      structureEdited: true,
+    }
+    expect(canSelectImageItem(blankWithoutAnswers)).toBe(false)
+
+    const blankWithAnswer = {
+      ...blankWithoutAnswers,
+      blanks: [{ answer_md: '42' }],
+    }
+    expect(isImageItemEdited(blankWithAnswer)).toBe(false)
+    expect(canSelectImageItem(blankWithAnswer)).toBe(true)
   })
 
   it('builds a solve payload without options or blanks', () => {

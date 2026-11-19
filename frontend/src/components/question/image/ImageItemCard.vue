@@ -9,7 +9,7 @@ import {
   canSelectImageItem,
   circledIndex,
   ensureItemStructure,
-  isImageItemEdited,
+  imageItemLockHint,
   MAX_IMAGE_CONTENT_LENGTH,
   validateImageItem,
 } from '../../../utils/imageIntake'
@@ -41,12 +41,21 @@ const validationMessage = computed(() => {
   return null
 })
 
+const lockHint = computed(() => imageItemLockHint(props.item))
+
 function patch(changes: Partial<ImageItemDraft>): void {
-  emit('update', { ...props.item, ...changes })
+  const touchesStructure =
+    'question_type' in changes || 'options' in changes || 'blanks' in changes
+
+  emit('update', {
+    ...props.item,
+    ...changes,
+    structureEdited: props.item.structureEdited || touchesStructure,
+  })
 }
 
 function changeType(value: QuestionType): void {
-  const next = { ...props.item, question_type: value }
+  const next = { ...props.item, question_type: value, structureEdited: true }
   ensureItemStructure(next)
   emit('update', next)
 }
@@ -120,8 +129,8 @@ watch(
         </div>
       </div>
 
-      <p v-if="item.incomplete && !isImageItemEdited(item)" class="item-lock-hint">
-        信息不完整：请先核对并编辑题干，之后才能勾选保存。
+      <p v-if="item.incomplete && !canSelectImageItem(item)" class="item-lock-hint">
+        {{ lockHint }}
       </p>
 
       <div v-if="item.warnings.length" class="item-warnings">
