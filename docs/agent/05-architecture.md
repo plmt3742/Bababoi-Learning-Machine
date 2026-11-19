@@ -639,6 +639,9 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 顶层 `warnings` 里**点得到第几条的那句**（实测四张真图 4/4 写成「第 5 题…」「第 1 条…」）
 会下沉到对应条目并留在卡片上，顶层不再重复；点不到条目的（如"整页光线偏暗"）留在顶层。
+**两条下沉路径都必须把已下沉的从顶层剔除**：第 2 跳由 `validate_extraction` 自己返回 `kept`；
+第 1 跳的 `attach_transcript_warnings` 返回未下沉的剩余，`extraction_service` 只拼这个返回值（v0.6.23）。
+两跳各回一次同一句时再按出现顺序去重——第 2 跳看得到第 1 跳的转录，模型常把同一句说明再抄一遍（v0.6.22）。
 按 `index`（模型自己的编号）匹配而不是按列表下标——坏输出被丢掉之后列表会前移，
 用下标会把"第 1 条题干为空，已跳过"挂到幸存的那道题上（`tests/test_ai.py` 真复现过）。
 
@@ -1259,3 +1262,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-20 | v0.6.22 | **识图顶层警告去重**：两跳可能回同一句页面级说明（第 2 跳看得到第 1 跳的转录），`transcript + structure` 直接拼接会在前端显示两个相同 chip；改为按出现顺序 `dict.fromkeys` 去重。1 条新测试，257 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-20 | v0.6.23 | **修正 v0.6.22 只做了去重、位置太浅**：第 1 跳的「第 N 题…」警告被 `attach_transcript_warnings` 挂到条目后，service 仍把 `transcript["warnings"]` 全量拼回顶层，前端横幅和卡片各显示一次。改为函数**返回未下沉的剩余**，service 只拼返回值（与 `validate_extraction` 的 `kept` 语义一致）；题数对不上（第 2 跳丢/并条目）时一条也不下沉、全部留顶层。补 validator 返回值断言 + service 级用例（第 1 跳带「第 2 题…」→ 顶层没有、卡片上有），258 passed；无迁移、无 OpenAPI 变化 | 人机 |

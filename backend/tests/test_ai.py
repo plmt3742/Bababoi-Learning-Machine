@@ -724,16 +724,19 @@ def test_step1_warnings_are_attached_by_question_number() -> None:
     from app.ai.validator import ExtractedQuestion
 
     questions = [ExtractedQuestion(index=1, content_md="题一"), ExtractedQuestion(index=2, content_md="题二")]
-    validator.attach_transcript_warnings(
+    kept = validator.attach_transcript_warnings(
         ["第2题的公式被页边裁掉，未能完整辨认"], questions, transcript_count=2
     )
     assert questions[0].incomplete is False
     assert questions[1].incomplete is True
     assert any("裁掉" in w for w in questions[1].warnings)
+    # 下沉掉的不能留顶层：service 拿返回值拼横幅，否则同一条显示两次
+    assert kept == []
 
-    # 数量对不上就不猜（第 2 跳可能丢/并条目，下标会漂）
+    # 数量对不上就不猜（第 2 跳可能丢/并条目，下标会漂），此时一条也不下沉
     drifted = [ExtractedQuestion(index=1, content_md="题一")]
-    validator.attach_transcript_warnings(
+    kept_drifted = validator.attach_transcript_warnings(
         ["第2题的公式被页边裁掉"], drifted, transcript_count=2
     )
     assert drifted[0].incomplete is False and drifted[0].warnings == []
+    assert kept_drifted == ["第2题的公式被页边裁掉"]
