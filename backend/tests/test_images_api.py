@@ -12,6 +12,7 @@ import pytest
 from PIL import Image
 from sqlalchemy import select
 
+from app.ai import prompts
 from app.ai.errors import AITimeoutError
 from app.core.config import settings
 from app.models import AiCallLog
@@ -217,7 +218,7 @@ def test_from_image_returns_editable_items(client, db, token_and_user) -> None:
         logs = s.scalars(select(AiCallLog).where(AiCallLog.operation == "vision")).all()
         # BE-024：一次识图两行日志，prompt_version 按跳分开
         assert [log.prompt_version for log in logs] == [
-            "vision_text_v1", "vision_structure_v1"
+            prompts.PROMPT_VERSION_VISION_TEXT, prompts.PROMPT_VERSION_VISION_STRUCTURE
         ]
         assert all(log.status == "success" for log in logs)
 

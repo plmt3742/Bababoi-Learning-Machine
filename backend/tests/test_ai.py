@@ -492,6 +492,8 @@ def test_extraction_keeps_blank_when_answers_are_not_printed() -> None:
             1,
             "随机变量 $X\\sim N(1,4)$，则 $E(2X-1)=$ ___，$D(X-1)=$ ___。",
             "blank",
+            # 模型偶尔会给 blank 塞 options；保留填空题时不清掉会同时出现 options/blanks
+            options=[{"label": "A", "content_md": "$1$"}],
             blanks=[{"index": 1, "answer_md": ""}, {"index": 2, "answer_md": ""}],
         ),
         _item(
@@ -508,6 +510,8 @@ def test_extraction_keeps_blank_when_answers_are_not_printed() -> None:
         assert len(item.blanks) == 2
         joined = " ".join(item.warnings)
         assert "空位" in joined and "文本题" not in joined, joined
+    # blank 不吃 options，响应形状要干净
+    assert both_empty.options is None
     # 已读到的答案保留，空/纯空白的统一成空串（前端输入框才是空的）
     assert [b.answer_md for b in one_missing.blanks] == ["$3$", ""]
 

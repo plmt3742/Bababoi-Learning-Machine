@@ -408,7 +408,9 @@ def validate_extraction(raw: dict) -> dict:
                 if item.question_type == "blank" and _blank_shape_ok_without_answers(
                     item.content_md, payload_blanks
                 ):
-                    # 结构成立、只是答案没印（教材/卷面很常见）：保留填空题
+                    # 结构成立、只是答案没印（教材/卷面很常见）：保留填空题。
+                    # 模型偶尔会给 blank 也塞 options；blank 不用它，清掉让响应形状干净。
+                    item.options = None
                     _mark_missing_blank_answers(item)
                 else:
                     structure_problem = structure_problem_zh(item.question_type, exc)

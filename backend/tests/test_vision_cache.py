@@ -175,9 +175,41 @@ def test_prompt_version_change_misses(client, db, user, monkeypatch) -> None:
     image_path = _upload(client, token)
 
     assert _extract(client, token, image_path).status_code == 200
-    monkeypatch.setattr(prompts, "PROMPT_VERSION_VISION_STRUCTURE", "vision_structure_v2")
+    monkeypatch.setattr(
+        prompts,
+        "PROMPT_VERSION_VISION_STRUCTURE",
+        prompts.PROMPT_VERSION_VISION_STRUCTURE + "_next",
+    )
     assert _extract(client, token, image_path).status_code == 200
     assert fake.calls == 4, "版本变了自然不命中，不用手动清表"
+
+
+def test_old_validator_semantics_cache_row_is_not_reused(client, db, user, monkeypatch) -> None:
+    """BE-014 修复升了 hop2_version：旧语义的缓存行（降级成解答题）不能被继续命中。
+
+    提示词没变、只有后处理变了，如果版本号不升，部署后同图同学科会直接命中旧 payload，
+    浏览器上看起来"修复没生效"，只能靠 force_refresh 或换图才能看到新行为。
+    """
+    token, user_id = user
+    fake = CountingClient()
+    monkeypatch.setattr(extraction_service, "_llm_client", lambda *a, **k: fake)
+    image_path = _upload(client, token)
+
+    assert _extract(client, token, image_path).status_code == 200
+    assert fake.calls == 2
+
+    # 把刚写下的行改回旧版本，模拟部署前留下的缓存
+    with db() as s:
+        row = s.scalar(
+            select(VisionExtractCache).where(VisionExtractCache.user_id == user_id)
+        )
+        row.hop2_version = "vision_structure_v1"
+        s.commit()
+
+    second = _extract(client, token, image_path)
+    assert second.status_code == 200
+    assert fake.calls == 4, "旧版本缓存行必须未命中，重新走模型"
+    assert second.json()["cached"] is False
 
 
 def test_empty_result_is_not_cached(client, db, user, monkeypatch) -> None:
@@ -396,8 +428,8 @@ def test_missing_file_still_404_before_cache(client, db, user, monkeypatch) -> N
                 image_sha="0" * 16,
                 subject_key="",
                 model="mock",
-                hop1_version="vision_text_v1",
-                hop2_version="vision_structure_v1",
+                hop1_version=prompts.PROMPT_VERSION_VISION_TEXT,
+                hop2_version=prompts.PROMPT_VERSION_VISION_STRUCTURE,
                 payload={"image_path": "x", "questions": [], "warnings": []},
             )
         )
