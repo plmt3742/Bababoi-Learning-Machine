@@ -401,7 +401,7 @@ erDiagram
 - 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
 - JWT `sub=user_id`，`exp=7d`；MVP 不做 refresh token。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。
-- **注册按 IP 3 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。
+- **注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。默认取 30 而不是 3：实验室考核全班通常共用一个 NAT 出口，3/小时会把正常注册挡在外面；公开部署想收紧再调小。
 - 两个限流的额度字符串在**启动期解析**（`validate_rate_limit_config`），配置写错不会拖到第一个请求才炸。
 - IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。
 
@@ -1150,7 +1150,7 @@ JWT_SECRET=change-me-to-a-random-32-byte-string
 ACCESS_TOKEN_EXPIRE_DAYS=7
 LOGIN_RATE_LIMIT=5
 LOGIN_RATE_WINDOW_S=60
-REGISTER_RATE_LIMIT=3          # 注册按 IP；零成本入口，不挡可绕过按用户 AI 额度
+REGISTER_RATE_LIMIT=30         # 注册按 IP/小时；实验室一个出口 IP 时别设太小
 REGISTER_RATE_WINDOW_S=3600
 RATE_LIMIT_STORAGE_URL=memory://  # 多实例改 redis://host:6379/0（需 limits[redis]）
 
@@ -1265,4 +1265,4 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
-| 2026-11-20 | v0.6.24 | **限流引擎换 `limits`（MovingWindow）+ 注册限流**。`core/rate_limit.py` 薄壳：`hit`（记账并抛 429）/`check`（只看不记账）/`record`/`reset`，存储 `RATE_LIMIT_STORAGE_URL` 默认 `memory://`、多实例换 `redis://`（`limits[redis]`）；登录限流的行为不变（失败才记账、5 次/分钟/IP）；新增**注册按 IP 3 次/小时**（`REGISTER_RATE_LIMIT`/`REGISTER_RATE_WINDOW_S`）；额度字符串在启动期 `validate_rate_limit_config()` 解析。选 MovingWindow 而非固定窗口：固定窗口边界两秒可放行 2×额度。新增依赖 `limits>=5.8`；257 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-20 | v0.6.24 | **限流引擎换 `limits`（MovingWindow）+ 注册限流**。`core/rate_limit.py` 薄壳：`hit`（记账并抛 429）/`check`（只看不记账）/`record`/`reset`，存储 `RATE_LIMIT_STORAGE_URL` 默认 `memory://`、多实例换 `redis://`（`limits[redis]`）；登录限流的行为不变（失败才记账、5 次/分钟/IP）；新增**注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT`/`REGISTER_RATE_WINDOW_S`；实验室共用 NAT 出口，3 会挡正常注册）；额度字符串在启动期 `validate_rate_limit_config()` 解析。选 MovingWindow 而非固定窗口：固定窗口边界两秒可放行 2×额度。新增依赖 `limits>=5.8`；257 passed；无迁移、无 OpenAPI 变化 | 人机 |

@@ -31,8 +31,10 @@ class Settings(BaseSettings):
     # 登录失败限流（05 §6.3）：5 次/分钟/IP；存储由下面的 rate_limit_storage_url 决定
     login_rate_limit: int = 5
     login_rate_window_s: int = 60
-    # 注册按 IP 限额：注册是零成本的，不挡的话"换号"就能绕过按用户的 AI 额度
-    register_rate_limit: int = 3
+    # 注册按 IP 限额：注册是零成本的，不挡的话"换号"就能绕过按用户的 AI 额度。
+    # 默认 30/小时：实验室考核全班通常一个 NAT 出口，3/小时会把正常注册挡在外面；
+    # 公开部署想收紧就调小（或被邀请码取代）。
+    register_rate_limit: int = 30
     register_rate_window_s: int = 3600
     # 限流存储（limits URI）：单实例默认进程内存；多实例改 redis://host:6379/0
     #（需安装 limits[redis]），业务代码不用改

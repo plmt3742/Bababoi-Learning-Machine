@@ -192,9 +192,15 @@ def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
     assert verify_password("p@ssw0rd9", user.password_hash)
 
 
-def test_register_is_rate_limited_per_ip(client) -> None:
-    """注册按 IP 限额（默认 3/小时）：反复注册是"换号绕过按用户额度"的入口。"""
-    for index in range(3):
+def test_register_is_rate_limited_per_ip(client, monkeypatch) -> None:
+    """注册按 IP 限额：反复注册是"换号绕过按用户额度"的入口。"""
+    from limits import parse
+
+    from app.services.auth_service import register_limiter
+
+    # 默认 30/小时是为了容纳实验室同 NAT 的全班注册；这里把额度压小来测判据
+    monkeypatch.setattr(register_limiter, "item", parse("2/hour"))
+    for index in range(2):
         resp = client.post(
             "/api/v1/auth/register",
             json={"username": f"ratelimit_{index}", "password": "p@ssw0rd9"},
@@ -203,7 +209,7 @@ def test_register_is_rate_limited_per_ip(client) -> None:
 
     blocked = client.post(
         "/api/v1/auth/register",
-        json={"username": "ratelimit_3", "password": "p@ssw0rd9"},
+        json={"username": "ratelimit_2", "password": "p@ssw0rd9"},
     )
     assert blocked.status_code == 429, blocked.text
     assert blocked.json()["detail"]["code"] == str(ErrorCode.AUTH_RATE_LIMITED)
