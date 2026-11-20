@@ -17,6 +17,7 @@ from app.api.v1.settings import router as settings_router
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.observability import register_observability, setup_logging
+from app.core.rate_limit import validate_rate_limit_config
 from app.db.session import SessionLocal
 from app.services import task_worker
 
@@ -27,6 +28,8 @@ setup_logging()
 async def lifespan(app: FastAPI):
     # 密钥类配置在启动时一次查完；留到第一个登录请求只会变成一个没信息的 500
     settings.validate_for_startup()
+    # 限流额度也是配置：解析失败在启动时就炸，别等第一个登录请求
+    validate_rate_limit_config()
     # 进程重启把 running 放回队列（12号 §3.3），再拉起后台 worker
     if settings.task_workers_enabled:
         stale = task_worker.reset_stale_running(SessionLocal)

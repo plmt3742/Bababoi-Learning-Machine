@@ -24,9 +24,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse)
 def register(
-    data: RegisterRequest, session: Session = Depends(get_session)
+    data: RegisterRequest, request: Request, session: Session = Depends(get_session)
 ) -> TokenResponse:
-    return _token_response(auth_service.register(session, data))
+    return _token_response(auth_service.register(session, data, client_ip(request)))
 
 
 @router.post("/login", response_model=TokenResponse)
