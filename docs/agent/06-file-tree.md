@@ -52,7 +52,7 @@ BababoiLearningMachine/
 │   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
 │   ├── app/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
-│   │   ├── core/                  # config / security / errors / observability
+│   │   ├── core/                  # config / security / errors / observability / rate_limit
 │   │   ├── db/                    # base / session
 │   │   ├── models/                # user / question / generation / records / draft / cache
 │   │   ├── schemas/               # auth / question / image / practice / drafts / stats / settings
