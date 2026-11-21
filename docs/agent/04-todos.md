@@ -130,6 +130,10 @@ ID:
 |---|---|---|---|---|---|---|
 | FE-024 | 个人设置页 + AI API Key UI | 霹雳马桶 | P1 | 无 | `/settings`；账号信息 + AI 设置；masked 回显；密码输入/显示切换；不写 localStorage/Pinia | DONE（PR #35；mock 先行，等 BE-020） |
 | BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | 已完成（PR #73 已合 `2f5b131`；2026-11-15 前端 review 整改：Key 解析失败落终态、缓存键用用户 model、strip 校验、未配置回默认 provider、`repr` 去 Key、日志 model 用实际客户端） |
+| FE-038 | 个人设置重置密码（凭旧密码） | 霹雳马桶 | P1 | 无 | `/settings` 重置密码卡：当前密码 + 新密码 + 确认；8–72 字节、新旧不得相同；成功清会话回登录并提示；404/405 降级 | DONE（mock 先行；typecheck/lint/test 通过，等 BE-029） |
+| BE-029 | 重置密码接口（凭旧密码） | 人机 | P1 | BE-003 | `POST /auth/change-password`；校验旧密码；更新 bcrypt hash；成功后吊销旧 token（建议 token_version）；限流；测试 | TODO（口径见 26 号单 §2） |
+| FE-039 | 登录页忘记密码 + 管理员授权说明 | 霹雳马桶 | P1 | 无 | 登录页「忘记密码？」展开说明；不提交表单；登录/注册切换时收起 | DONE |
+| BE-030 | 管理员重置密码（admin P1） | 人机 | P1 | ADM-002/004 | 管理员核验身份后重置；后续 `POST /admin/users/{id}/reset-password`；审计日志；吊销 token；学生端不调用 | BLOCKED（管理端未建；当前人工改库） |
 
 ### 1.8 FE-027 收口（2026-11-07）
 
