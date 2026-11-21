@@ -96,7 +96,7 @@ VITE_USE_MOCK=true
 | `/tasks` | 任务中心（列表/筛选/重试） | AppShell |
 | `/practice/:id?` | 练习（`id` 可选）            | AppShell |
 | `/stats`         | 统计/概览（P1）              | AppShell |
-| `/settings`      | 个人设置 / AI Key / 生成偏好 | AppShell |
+| `/settings`      | 个人设置 / 修改密码 / AI Key / 生成偏好 | AppShell |
 | 其余路径         | 404                          | AppShell |
 
 ## 错题页面（FE-007 / FE-008）

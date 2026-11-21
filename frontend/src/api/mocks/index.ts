@@ -6,6 +6,7 @@ import type {
   AiSettings,
   Analysis,
   AuthResponse,
+  ChangePasswordPayload,
   Difficulty,
   Draft,
   DraftSavePayload,
@@ -36,6 +37,7 @@ import type {
 } from '../types'
 import { createMockState, makeExcerpt } from './data'
 import type { MockState, MockUser } from './data'
+import { MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, utf8ByteLength } from '../../utils/password'
 
 const LATENCY_MS = 320
 const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
@@ -925,6 +927,44 @@ export function setupMocks(): void {
     if (!user) return unauthorized()
 
     return [200, toPublicUser(user)]
+  })
+
+  // FE-038：改密 mock 与 BE-029 契约保持一致；真实后端会把旧 token 作废，
+  // 前端在成功后统一清会话回登录页。
+  adapter.onPost('/auth/change-password').reply((config) => {
+    const user = authorizedUser(config, state)
+    if (!user) return unauthorized()
+
+    const body = readBody<ChangePasswordPayload>(config)
+    if (
+      !body ||
+      typeof body.current_password !== 'string' ||
+      typeof body.new_password !== 'string'
+    ) {
+      return apiError(400, 'VALIDATION_ERROR', '请填写当前密码和新密码')
+    }
+
+    if (user.password !== body.current_password) {
+      return apiError(401, 'AUTH_INVALID_CREDENTIALS', '当前密码不正确')
+    }
+
+    const next = body.new_password
+    if (next.length < MIN_PASSWORD_LENGTH) {
+      return apiError(400, 'VALIDATION_ERROR', `新密码至少 ${MIN_PASSWORD_LENGTH} 位`)
+    }
+    if (utf8ByteLength(next) > MAX_PASSWORD_BYTES) {
+      return apiError(
+        400,
+        'VALIDATION_ERROR',
+        `新密码最多 ${MAX_PASSWORD_BYTES} 字节（中文约 24 个字）`,
+      )
+    }
+    if (next === body.current_password) {
+      return apiError(400, 'VALIDATION_ERROR', '新密码不能与当前密码相同')
+    }
+
+    user.password = next
+    return [204, null]
   })
 
   adapter.onGet('/settings/ai').reply((config) => {
