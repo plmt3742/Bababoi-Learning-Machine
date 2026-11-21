@@ -67,10 +67,8 @@
 | [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
 | [product/07-page-drafts.md](product/07-page-drafts.md) | 8 个关键页面的线框级设计 | 已定稿（待按图片 v2 更新） |
 | [product/08-interaction-map.md](product/08-interaction-map.md) | 页面交互地图、跳转关系、数据流、状态机 | 已定稿（待按图片 v2 更新） |
-| [product/09-knowledge-map.md](product/09-knowledge-map.md) | 知识点脉络/掌握地图：页面结构、交互、数据与 API 提案 | 设计稿（未开发） |
 | [product/drafts/prototype.html](product/drafts/prototype.html) | 可本地打开的页面原型（8 页线框） | 旧框题版；待更新 |
 | [product/drafts/interaction-map.html](product/drafts/interaction-map.html) | 可本地打开的页面地图（HTML，点击页面框打开原型） | 旧框题版；待更新 |
-| [product/drafts/knowledge-map.html](product/drafts/knowledge-map.html) | 可本地打开的知识脉络/掌握地图视觉稿 | 设计稿 |
 
 ### 架构决策
 
