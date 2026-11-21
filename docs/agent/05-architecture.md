@@ -401,9 +401,9 @@ erDiagram
 - 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
 - JWT `sub=user_id`，`exp=7d`；MVP 不做 refresh token。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。
-- **注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。默认取 30 而不是 3：实验室考核全班通常共用一个 NAT 出口，3/小时会把正常注册挡在外面；公开部署想收紧再调小。
+- **注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。默认取 30 而不是 3：实验室考核全班通常共用一个 NAT 出口，3/小时会把正常注册挡在外面；公开部署想收紧再调小。**30 是硬上限**：全班同一出口时第 31 个成功注册会 429，需等窗口滑过或临时调高；重名 409 不扣额度（额度在重名检查之后扣），所以"打错用户名重试"不会吃掉名额。
 - 两个限流的额度字符串在**启动期解析**（`validate_rate_limit_config`），配置写错不会拖到第一个请求才炸。
-- IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。
+- IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。**支持单个 IP 与 CIDR**（如 `172.19.0.0/16`）——Docker 下后端看到的对端是网桥网关，建议按 `docker network inspect` 的实际网段填，容器重建后也不失效。
 
 ### 6.4 错题
 
@@ -1120,7 +1120,7 @@ app/
 - AI 日志：operation、model、prompt_version、tokens、latency、status、error_code。
 - `/health`：返回 `{status, version, db}`；`db` 是真跑了一次 `SELECT 1` 的结果（`ok`/`unavailable`），连不上返回 **503**，compose/nginx 的 healthcheck 靠状态码。issue #11 起生效。
 - `/ready`：`{status, version, checks:{db, llm}}`；检查 DB 连通与 LLM 配置是否齐备（mock 模式不需要 Key），**不实际调模型**。
-- 客户端 IP：只有直连来源在 `TRUSTED_PROXIES` 里时才读 `X-Forwarded-For`，并从右往左取第一个不可信地址（最左那项是客户端自己写的）。反代后不配这个，登录限流会把全站算成同一个 IP。
+- 客户端 IP：只有直连来源在 `TRUSTED_PROXIES` 里时才读 `X-Forwarded-For`，并从右往左取第一个不可信地址（最左那项是客户端自己写的）。`TRUSTED_PROXIES` 接受单个 IP 或 CIDR 网段。反代后不配这个，登录限流会把全站算成同一个 IP；Docker 下对端是网桥网关，配 `127.0.0.1` 不起作用。
 - 演示前检查日志，确保没有密钥/密码泄漏。
 
 ## 10. 性能与可靠性
@@ -1265,4 +1265,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-21 | v0.6.27 | **限流复核修复**：`TRUSTED_PROXIES` 支持 CIDR（Docker 下按网桥网段填，容器重建不失效；写错只忽略并在日志告警，不放行代理头）；注册额度改为**重名检查之后**扣（同 NAT 下打错用户名不占全班名额）；`clear()` 注明只在测试用（redis 下是 flushdb）；文档写清 30 是硬上限。3 条新测试 | 人机 |
 | 2026-11-20 | v0.6.24 | **限流引擎换 `limits`（MovingWindow）+ 注册限流**。`core/rate_limit.py` 薄壳：`hit`（记账并抛 429）/`check`（只看不记账）/`record`/`reset`，存储 `RATE_LIMIT_STORAGE_URL` 默认 `memory://`、多实例换 `redis://`（`limits[redis]`）；登录限流的行为不变（失败才记账、5 次/分钟/IP）；新增**注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT`/`REGISTER_RATE_WINDOW_S`；实验室共用 NAT 出口，3 会挡正常注册）；额度字符串在启动期 `validate_rate_limit_config()` 解析。选 MovingWindow 而非固定窗口：固定窗口边界两秒可放行 2×额度。新增依赖 `limits>=5.8`；257 passed；无迁移、无 OpenAPI 变化 | 人机 |

@@ -76,5 +76,10 @@ class SlidingWindowLimiter:
         self._limiter.clear(self.item, *identifiers)
 
     def clear(self) -> None:
-        """清空全部计数；测试复位用。"""
+        """清空全部计数；**只给测试复位用**。
+
+        红线：生产别调。memory:// 下每个 limiter 有独立存储，互不影响；
+        换成 redis:// 后 `reset()` 是 flushdb，会清掉同一个 DB 里的所有键
+        （包括其他限流桶），不是只清自己这一类。
+        """
         self._storage.reset()

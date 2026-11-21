@@ -56,11 +56,13 @@ register_limiter = SlidingWindowLimiter(
 
 
 def register(session: Session, data: RegisterRequest, ip: str) -> User:
-    register_limiter.hit(ip)
     exists = session.scalar(select(User).where(User.username == data.username))
     if exists is not None:
         raise ApiError(ErrorCode.USERNAME_TAKEN, "用户名已被占用", 409)
 
+    # 扣额度放在重名检查之后：实验室全班共用一个出口 IP，
+    # 一个人把用户名打错重试几次，不该吃掉全班的名额。
+    register_limiter.hit(ip)
     user = User(
         username=data.username,
         email=data.email,

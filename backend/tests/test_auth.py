@@ -213,3 +213,31 @@ def test_register_is_rate_limited_per_ip(client, monkeypatch) -> None:
     )
     assert blocked.status_code == 429, blocked.text
     assert blocked.json()["detail"]["code"] == str(ErrorCode.AUTH_RATE_LIMITED)
+
+
+def test_duplicate_username_does_not_consume_register_quota(client, monkeypatch) -> None:
+    """重名 409 不扣额度：同 NAT 下一个人打错用户名，不该吃掉全班的名额。"""
+    from limits import parse
+
+    from app.services.auth_service import register_limiter
+
+    monkeypatch.setattr(register_limiter, "item", parse("2/hour"))
+    payload = {"username": "alice", "password": "p@ssw0rd9"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 200
+
+    for _ in range(2):
+        dup = client.post("/api/v1/auth/register", json=payload)
+        assert dup.status_code == 409, dup.text
+
+    # 还剩一个名额：若重名也计数，这里已经被 429 挡住了
+    rest = client.post(
+        "/api/v1/auth/register",
+        json={"username": "bob", "password": "p@ssw0rd9"},
+    )
+    assert rest.status_code == 200, rest.text
+
+    blocked = client.post(
+        "/api/v1/auth/register",
+        json={"username": "carol", "password": "p@ssw0rd9"},
+    )
+    assert blocked.status_code == 429, blocked.text

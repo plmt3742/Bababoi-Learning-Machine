@@ -28,6 +28,11 @@ def trusted(monkeypatch):
     monkeypatch.setattr(settings, "trusted_proxies", ["10.0.0.2"])
 
 
+@pytest.fixture()
+def trusted_cidr(monkeypatch):
+    monkeypatch.setattr(settings, "trusted_proxies", ["10.0.0.0/8"])
+
+
 def test_direct_connection_ignores_forwarded_header() -> None:
     """没配可信代理时，客户端自己塞的 X-Forwarded-For 一律不认。"""
     req = _request("203.0.113.9", {"X-Forwarded-For": "8.8.8.8"})
@@ -52,3 +57,21 @@ def test_proxy_without_forwarded_header_falls_back_to_peer(trusted) -> None:
 
 def test_missing_peer_is_reported_as_unknown() -> None:
     assert client_ip(_request(None)) == "unknown"
+
+
+def test_cidr_trusted_proxy_reads_forwarded_header(trusted_cidr) -> None:
+    """网段可信：容器重建后网关 IP 变了也不会静默退化成全站一个桶。"""
+    req = _request("10.1.2.3", {"X-Forwarded-For": "203.0.113.9"})
+    assert client_ip(req) == "203.0.113.9"
+
+
+def test_spoofed_entry_inside_trusted_cidr_is_skipped(trusted_cidr) -> None:
+    req = _request("10.1.2.3", {"X-Forwarded-For": "10.9.9.9, 203.0.113.9"})
+    assert client_ip(req) == "203.0.113.9"
+
+
+def test_invalid_trusted_entry_is_ignored(monkeypatch) -> None:
+    """配置写错时不放行代理头（退回对端 IP），也不该 500。"""
+    monkeypatch.setattr(settings, "trusted_proxies", ["not-an-ip"])
+    req = _request("203.0.113.9", {"X-Forwarded-For": "8.8.8.8"})
+    assert client_ip(req) == "203.0.113.9"
