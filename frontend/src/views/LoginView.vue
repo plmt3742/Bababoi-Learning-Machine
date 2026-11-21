@@ -14,6 +14,8 @@ const auth = useAuthStore()
 
 const formRef = ref<FormInstance>()
 const activeKey = ref<AuthMode>('login')
+const passwordChanged = ref(route.query.password_changed === '1')
+const showForgot = ref(false)
 const form = reactive({
   username: '',
   password: '',
@@ -46,6 +48,8 @@ function resolveRedirect(value: unknown): string {
 
 function handleTabChange(key: string | number): void {
   activeKey.value = key === 'register' ? 'register' : 'login'
+  passwordChanged.value = false
+  showForgot.value = false
   auth.clearError()
   formRef.value?.clearValidate()
 }
@@ -95,6 +99,11 @@ async function handleSubmit(): Promise<void> {
           }}
         </p>
       </header>
+
+      <div v-if="passwordChanged" class="login-view__notice" role="status">
+        <span class="login-view__notice-mark" aria-hidden="true"></span>
+        <span>密码已更新，请用新密码重新登录。</span>
+      </div>
 
       <div class="login-view__switch" role="group" aria-label="登录或注册">
         <button
@@ -154,6 +163,21 @@ async function handleSubmit(): Promise<void> {
             </template>
           </a-input-password>
         </a-form-item>
+
+        <div v-if="!isRegister" class="login-view__forgot">
+          <button
+            type="button"
+            class="login-view__forgot-link"
+            :aria-expanded="showForgot"
+            aria-controls="login-forgot-note"
+            @click="showForgot = !showForgot"
+          >
+            忘记密码？
+          </button>
+          <p v-if="showForgot" id="login-forgot-note" class="login-view__forgot-note" role="note">
+            忘记密码需要管理员授权：请联系项目管理员核验身份后重置。当前版本不提供邮箱自助重置。
+          </p>
+        </div>
 
         <div v-if="auth.error" class="login-view__error" role="alert">
           <span class="login-view__error-mark" aria-hidden="true"></span>
@@ -243,6 +267,65 @@ async function handleSubmit(): Promise<void> {
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
+  text-wrap: pretty;
+}
+
+.login-view__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: 10px var(--space-3);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.login-view__notice-mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  background: currentColor;
+}
+
+.login-view__forgot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+  margin-bottom: var(--space-3);
+}
+
+.login-view__forgot-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.login-view__forgot-link:hover {
+  color: var(--color-primary-hover);
+}
+
+.login-view__forgot-note {
+  align-self: stretch;
+  padding: 10px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-align: left;
   text-wrap: pretty;
 }
 

@@ -233,10 +233,11 @@ BababoiLearningMachine/
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
 | `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |
 | `frontend/src/components/upload/` | 图片上传、预览、手机拍照/相册入口 | 业务 API 编排（放 views/composables） |
+| `frontend/src/components/settings/` | 设置页独立表单卡（账号安全/修改密码） | 页面级数据请求（放 views/composables） |
 | `frontend/src/views/` | 路由页面，负责编排数据与组件 | 大段可复用 UI（拆到 components） |
 | `frontend/src/stores/` | 跨页面状态（auth、ui） | 只在一个组件用的局部状态 |
 | `frontend/src/composables/` | 可复用逻辑（SSE、分页、异步状态） | 纯展示 |
-| `frontend/src/utils/` | 纯函数（markdown、sanitize、format） | 有副作用的业务逻辑 |
+| `frontend/src/utils/` | 纯函数（markdown、sanitize、format、password 校验） | 有副作用的业务逻辑 |
 | `backend/app/api/v1/` | 路由、参数校验、鉴权、调用 service | SQL、业务规则 |
 | `backend/app/services/` | 业务规则、事务、AI 编排 | HTTP 细节 |
 | `backend/app/models/` | SQLAlchemy 模型 | 业务逻辑 |

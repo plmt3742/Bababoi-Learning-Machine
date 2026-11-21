@@ -4,7 +4,13 @@ import { ApiError, normalizeApiError } from './errors'
 
 const DEFAULT_BASE_URL = '/api/v1'
 const REQUEST_TIMEOUT_MS = 120_000
-const AUTH_ENDPOINTS_WITH_OWN_401 = ['/auth/login', '/auth/register']
+// 401 在接口内部有业务含义的端点：登录失败、改密时当前密码错误。
+// 它们不能触发全局“清 token + 跳登录”，否则改密输错一次就被踢出。
+const AUTH_ENDPOINTS_WITH_OWN_401 = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/change-password',
+]
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_BASE_URL,

@@ -51,6 +51,7 @@
 | [agent/23-backend-handoff-20261113.md](agent/23-backend-handoff-20261113.md) | 合并后的后端对接单：前端已实测清单、必须保持的契约（时间/错误码/各接口）、BYOK 接口形状、识图两步、种子题型、部署确认、待拍板 | 后端继续开发 / 部署前对齐 / 演示准备 |
 | [agent/24-staging-handoff-20261117.md](agent/24-staging-handoff-20261117.md) | Staging 更新与真接口回归对接单：现状、备份、后端镜像、前端 dist、15 步回归、BYOK 核对、回滚与排障 | staging 更新 / 演示前真接口回归 / 部署排障 |
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
+| [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
 
 ### 产品设计
 

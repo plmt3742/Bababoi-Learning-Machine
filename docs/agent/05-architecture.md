@@ -35,7 +35,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 | 分组 | 端点 | 用途 |
 |---|---|---|
-| 认证 | `/auth/register`、`/auth/login`、`/auth/me` | 最小账号体系 |
+| 认证 | `/auth/register`、`/auth/login`、`/auth/me`、`/auth/change-password`（前端已接，后端待实现 BE-029） | 最小账号体系 |
 | 错题 | `/questions`、`/questions/{id}` | CRUD、筛选、搜索、分析编辑 |
 | AI/任务 | `/questions/{id}/analyze`、`/questions/{id}/generate`、`/questions/{id}/events`、`/tasks` | 入队、进度轮询（SSE P1）、重试 |
 | 图片 | `/uploads/images`、`/questions/from-image` | 用户裁剪上传 + 多题文本提取（结果按 ①②… 条目确认） |
@@ -397,8 +397,11 @@ erDiagram
 | POST | `/auth/register` | `{username, password, email?}` | `{access_token, token_type, user}` |
 | POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user}` |
 | GET | `/auth/me` | — | `{id, username, email, created_at}` |
+| POST | `/auth/change-password` | 已登录；`{current_password, new_password}` | 204；旧密码错误 401 `AUTH_INVALID_CREDENTIALS`；新密码 8–72 字节且不得与旧密码相同 |
 
 - 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
+- 改密成功后应吊销旧 token（建议随 BE-028 token_version 一起做）；前端在成功后清会话并回登录页。当前后端未实现（BE-029），前端已按 mock 接通，404/405 时表单降级为“后端未启用”。
+- 不做邮箱自助找回；忘记密码由管理员授权重置（管理端 P1，BE-030；当前人工处理）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
 - JWT `sub=user_id`，`exp=7d`；MVP 不做 refresh token。
 - 登录失败 5 次/分钟/IP 限流（简单内存或 DB 计数）。IP 取法见 §9.5：反代部署必须配 `TRUSTED_PROXIES`，否则全站共享一个限流桶。
 
