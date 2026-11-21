@@ -48,11 +48,12 @@ class Settings(BaseSettings):
     # 注意它是「每次 LLM 调用」而不是整单——识图两跳，整单最坏是两个它。
     recognize_client_timeout_s: int = 180
     # 识图任务化（B 档，05 §6.8）：提交拿单号 → 轮询取结果。
-    # 用户最长等待 180s = 排队上限 60 + 运行 deadline 120（2026-11-21 拍板）。
-    # 单次 120：实测密页转录跳 90.2s，90 会打平；整单 deadline 才是真正的硬截止。
-    vision_call_timeout_s: int = 120
-    vision_run_deadline_s: int = 120
-    vision_queue_wait_max_s: int = 60
+    # 用户最长等待 180s = 排队上限 40 + 运行 deadline 140（2026-11-21 复核后调整）。
+    # 排队时间确定、LLM 时间方差大，预算给后者：密页转录实测 90.2s + 结构化仍有余量。
+    # 单次上限与整单相同即可——真正生效的是整单 deadline（每次调用前按剩余收紧）。
+    vision_call_timeout_s: int = 140
+    vision_run_deadline_s: int = 140
+    vision_queue_wait_max_s: int = 40
     vision_max_concurrency: int = 8
     vision_queue_max_depth: int = 200
     # force_refresh 的冷却：每次强刷都是一次 17–90s 的两跳调用，不设冷却等于成本放大器。
