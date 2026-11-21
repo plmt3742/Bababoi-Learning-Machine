@@ -8,6 +8,7 @@ import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
+import MarkdownRenderer from '../components/common/MarkdownRenderer.vue'
 import SegmentCard from '../components/ai/SegmentCard.vue'
 import { getDraft } from '../api/drafts'
 import { generateQuestions, getQuestion } from '../api/questions'
@@ -98,20 +99,6 @@ async function hydrateQuestionSummaries(): Promise<void> {
 }
 
 watch(tasks, () => void hydrateQuestionSummaries(), { immediate: true })
-
-function questionExcerpt(questionId: number): string {
-  const raw = questionSummaries.value[questionId]
-  if (!raw) return '查看题目'
-
-  const text = raw
-    .replace(/`+/g, '')
-    .replace(/[*_>#]/g, '')
-    .replace(/\${1,2}/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return text.length > 64 ? `${text.slice(0, 64)}…` : text
-}
 
 const taskRows = computed<TaskRow[]>(() => {
   const rows: TaskRow[] = []
@@ -572,7 +559,13 @@ onMounted(() => {
             <template v-if="row.kind === 'task'">
               <div class="task-row__main">
                 <RouterLink class="task-row__link" :to="`/questions/${row.task.question_id}`">
-                  {{ questionExcerpt(row.task.question_id) }}
+                  <MarkdownRenderer
+                    v-if="questionSummaries[row.task.question_id]"
+                    class="task-row__question"
+                    :content="questionSummaries[row.task.question_id]"
+                    compact
+                  />
+                  <span v-else class="task-row__question-placeholder">查看题目</span>
                   <IconArrowRight aria-hidden="true" />
                 </RouterLink>
               </div>
@@ -632,7 +625,13 @@ onMounted(() => {
               <div class="task-row__main">
                 <span class="task-row__group-tag">相似题生成任务</span>
                 <RouterLink class="task-row__link" :to="`/questions/${row.group.questionId}`">
-                  {{ questionExcerpt(row.group.questionId) }}
+                  <MarkdownRenderer
+                    v-if="questionSummaries[row.group.questionId]"
+                    class="task-row__question"
+                    :content="questionSummaries[row.group.questionId]"
+                    compact
+                  />
+                  <span v-else class="task-row__question-placeholder">查看题目</span>
                   <IconArrowRight aria-hidden="true" />
                 </RouterLink>
               </div>
@@ -1052,6 +1051,30 @@ onMounted(() => {
   height: 14px;
   flex: none;
   color: var(--color-text-3);
+}
+
+.task-row__question {
+  min-width: 0;
+  max-height: 6.2em;
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.task-row__question :deep(p) {
+  margin: 0;
+}
+
+.task-row__question :deep(.katex-display) {
+  margin: 0.15em 0;
+}
+
+.task-row__question-placeholder {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
 }
 
 .task-row__stage {
