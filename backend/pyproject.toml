@@ -18,6 +18,7 @@ dependencies = [
     "cryptography>=43",  # BYOK：用户 AI Key 加密存储（ADR-007）
     "pillow>=13.0.0",
     "python-multipart>=0.0.33",
+    "limits>=5.8",
 ]
 
 [dependency-groups]

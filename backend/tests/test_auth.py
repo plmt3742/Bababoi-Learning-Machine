@@ -6,6 +6,7 @@ fixture 在 tests/conftest.py。
 """
 from __future__ import annotations
 
+import time
 from datetime import timedelta
 
 import jwt as pyjwt
@@ -169,21 +170,16 @@ def test_rate_limit_counts_ips_independently() -> None:
     limiter.check("2.2.2.2")  # 不抛，即未限流
 
 
-def test_rate_limit_drops_expired_ip_entries(monkeypatch) -> None:
-    """记账时顺带清掉过期 IP，字典不会随扫库的 IP 只增不减（issue #11 BE-003）。"""
-    from app.services import auth_service
-
-    clock = {"now": 1000.0}
-    monkeypatch.setattr(auth_service, "monotonic", lambda: clock["now"])
-    limiter = auth_service.LoginRateLimiter(limit=5, window_s=60)
-
-    for index in range(50):
-        limiter.record_failure(f"10.0.0.{index}")
-    assert len(limiter._failures) == 50
-
-    clock["now"] += 121  # 全部滑出 60 秒窗口
+def test_rate_limit_window_expires() -> None:
+    """滑动窗口滑过之后重新放行（计数与过期清理由 limits 负责）。"""
+    limiter = LoginRateLimiter(limit=1, window_s=1)
     limiter.record_failure("198.51.100.7")
-    assert list(limiter._failures) == ["198.51.100.7"]
+    with pytest.raises(ApiError) as excinfo:
+        limiter.check("198.51.100.7")
+    assert excinfo.value.code == ErrorCode.AUTH_RATE_LIMITED
+
+    time.sleep(1.05)
+    limiter.check("198.51.100.7")  # 窗口滑过，不抛
 
 
 def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
@@ -194,3 +190,54 @@ def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
     assert "p@ssw0rd9" != user.password_hash
     # 散列验证能通过，登录链路用的就是库里这份值
     assert verify_password("p@ssw0rd9", user.password_hash)
+
+
+def test_register_is_rate_limited_per_ip(client, monkeypatch) -> None:
+    """注册按 IP 限额：反复注册是"换号绕过按用户额度"的入口。"""
+    from limits import parse
+
+    from app.services.auth_service import register_limiter
+
+    # 默认 30/小时是为了容纳实验室同 NAT 的全班注册；这里把额度压小来测判据
+    monkeypatch.setattr(register_limiter, "item", parse("2/hour"))
+    for index in range(2):
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"username": f"ratelimit_{index}", "password": "p@ssw0rd9"},
+        )
+        assert resp.status_code == 200, resp.text
+
+    blocked = client.post(
+        "/api/v1/auth/register",
+        json={"username": "ratelimit_2", "password": "p@ssw0rd9"},
+    )
+    assert blocked.status_code == 429, blocked.text
+    assert blocked.json()["detail"]["code"] == str(ErrorCode.AUTH_RATE_LIMITED)
+
+
+def test_duplicate_username_does_not_consume_register_quota(client, monkeypatch) -> None:
+    """重名 409 不扣额度：同 NAT 下一个人打错用户名，不该吃掉全班的名额。"""
+    from limits import parse
+
+    from app.services.auth_service import register_limiter
+
+    monkeypatch.setattr(register_limiter, "item", parse("2/hour"))
+    payload = {"username": "alice", "password": "p@ssw0rd9"}
+    assert client.post("/api/v1/auth/register", json=payload).status_code == 200
+
+    for _ in range(2):
+        dup = client.post("/api/v1/auth/register", json=payload)
+        assert dup.status_code == 409, dup.text
+
+    # 还剩一个名额：若重名也计数，这里已经被 429 挡住了
+    rest = client.post(
+        "/api/v1/auth/register",
+        json={"username": "bob", "password": "p@ssw0rd9"},
+    )
+    assert rest.status_code == 200, rest.text
+
+    blocked = client.post(
+        "/api/v1/auth/register",
+        json={"username": "carol", "password": "p@ssw0rd9"},
+    )
+    assert blocked.status_code == 429, blocked.text

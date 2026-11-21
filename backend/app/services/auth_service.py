@@ -1,19 +1,16 @@
 """注册/登录业务（05 §6.3）：查重、验密、失败限流、更新 last_login_at。
 
-限流用进程内存计数——单实例部署（12号 §3.3 明确不引入 Redis）够用；
-多实例部署时这里要换成 DB 计数，05 §6.3 也留了这个口子。
+限流计数交给 `core/rate_limit`（limits 的 MovingWindow）。默认进程内存存储，
+只对单实例成立；多实例时把 `RATE_LIMIT_STORAGE_URL` 换成 redis:// 即可。
 """
 from __future__ import annotations
-
-import threading
-from collections import deque
-from time import monotonic
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
+from app.core.rate_limit import SlidingWindowLimiter
 from app.core.security import hash_password, verify_password
 from app.db.base import utcnow
 from app.models import User
@@ -21,66 +18,51 @@ from app.schemas.auth import RegisterRequest
 
 
 class LoginRateLimiter:
-    """按 IP 记录最近的登录失败时间；窗口内失败达到上限后拒绝该 IP 的登录。
+    """按 IP 记录最近的登录失败；窗口内失败达到上限后拒绝该 IP 的登录。
 
-    `_failures` 会记住每一个来试过的 IP，长期跑下去只增不减（issue #11 BE-003）。
-    这里在每次记账时顺带扫一遍过期项：登录失败是低频事件，全表扫的代价可以接受，
-    比引入定时器简单，也不用担心线程生命周期。
+    计数与过期清理交给 `core/rate_limit`（limits 的 MovingWindow 存储，内部自带锁），
+    这里只保留登录特有的"失败才记账"语义。
     """
 
     def __init__(self, limit: int, window_s: int) -> None:
-        self.limit = limit
-        self.window_s = window_s
-        self._failures: dict[str, deque[float]] = {}
-        # 同步端点跑在线程池里（05 §9.2），dict 读写要加锁
-        self._lock = threading.Lock()
-
-    def _prune(self, failures: deque[float], now: float) -> None:
-        while failures and now - failures[0] > self.window_s:
-            failures.popleft()
-
-    def _drop_stale(self, now: float) -> None:
-        for ip in [ip for ip, d in self._failures.items() if not d or now - d[-1] > self.window_s]:
-            self._failures.pop(ip, None)
+        self._limiter = SlidingWindowLimiter(
+            f"{limit}/{window_s} seconds",
+            code=ErrorCode.AUTH_RATE_LIMITED,
+            message="登录失败次数过多，请稍后再试",
+        )
 
     def check(self, ip: str) -> None:
-        with self._lock:
-            failures = self._failures.get(ip)
-            if not failures:
-                return
-            self._prune(failures, monotonic())
-            if len(failures) >= self.limit:
-                raise ApiError(
-                    ErrorCode.AUTH_RATE_LIMITED,
-                    "登录失败次数过多，请一分钟后再试",
-                    429,
-                )
+        self._limiter.check(ip)
 
     def record_failure(self, ip: str) -> None:
-        with self._lock:
-            now = monotonic()
-            self._drop_stale(now)
-            self._failures.setdefault(ip, deque()).append(now)
+        self._limiter.record(ip)
 
     def reset(self, ip: str) -> None:
-        with self._lock:
-            self._failures.pop(ip, None)
+        self._limiter.reset(ip)
 
     def clear(self) -> None:
         """清空全部计数；测试复位用。"""
-        with self._lock:
-            self._failures.clear()
+        self._limiter.clear()
 
 
-# 模块级实例：进程内共享；测试里直接清空 _failures 即可复位
+# 模块级实例：进程内共享；测试里 clear() 复位
 login_limiter = LoginRateLimiter(settings.login_rate_limit, settings.login_rate_window_s)
+# 注册按 IP 限额（反复注册可以绕过"按用户"的 AI 额度，必须单独挡）
+register_limiter = SlidingWindowLimiter(
+    f"{settings.register_rate_limit}/{settings.register_rate_window_s} seconds",
+    code=ErrorCode.AUTH_RATE_LIMITED,
+    message="注册过于频繁，请稍后再试",
+)
 
 
-def register(session: Session, data: RegisterRequest) -> User:
+def register(session: Session, data: RegisterRequest, ip: str) -> User:
     exists = session.scalar(select(User).where(User.username == data.username))
     if exists is not None:
         raise ApiError(ErrorCode.USERNAME_TAKEN, "用户名已被占用", 409)
 
+    # 扣额度放在重名检查之后：实验室全班共用一个出口 IP，
+    # 一个人把用户名打错重试几次，不该吃掉全班的名额。
+    register_limiter.hit(ip)
     user = User(
         username=data.username,
         email=data.email,
