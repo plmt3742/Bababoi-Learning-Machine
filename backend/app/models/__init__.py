@@ -7,6 +7,7 @@ from app.models.generation import GeneratedQuestion, GenerationTask
 from app.models.question import Question, QuestionTag, Tag
 from app.models.records import AiCallLog, PracticeRecord
 from app.models.user import User
+from app.models.vision import VisionJob
 
 __all__ = [
     "Base",
@@ -19,6 +20,7 @@ __all__ = [
     "Draft",
     "UserAiSettings",
     "VisionExtractCache",
+    "VisionJob",
     "PracticeRecord",
     "AiCallLog",
 ]
