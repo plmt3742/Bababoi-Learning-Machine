@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import '@arco-design/web-vue/es/message/style/css.js'
 import { IconCheck } from '@arco-design/web-vue/es/icon'
+import MarkdownRenderer from '../../common/MarkdownRenderer.vue'
 import { circledIndex, toggleImageSelection } from '../../../utils/imageIntake'
 import type { GeneratedImageTask, SavedImageQuestion } from '../../../utils/imageIntake'
 import { questionTypeLabel } from '../../../utils/question'
@@ -65,11 +66,6 @@ function openFirst(): void {
   const first = props.saved[0]
   if (first) emit('open-question', first.question.id)
 }
-
-function excerpt(content: string, limit = 96): string {
-  const compact = content.replace(/\s+/g, ' ').trim()
-  return compact.length <= limit ? compact : `${compact.slice(0, limit)}…`
-}
 </script>
 
 <template>
@@ -110,7 +106,9 @@ function excerpt(content: string, limit = 96): string {
               </span>
             </div>
 
-            <p class="saved-row__content">{{ excerpt(entry.question.content_md) }}</p>
+            <div class="saved-row__content">
+              <MarkdownRenderer :content="entry.question.content_md" compact />
+            </div>
 
             <button
               class="btn btn--quiet btn--sm"
