@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶 / 人机
-last_updated: 2026-11-05
+last_updated: 2026-11-15
 status: active
 read_when: 第一次提交前；每天协作；每周复盘；联调/部署前
 ---
@@ -225,7 +225,7 @@ docker compose -f deploy/docker-compose.dev.yml up -d
 |---|---|---|---|---|
 | local | `pnpm dev` :5173 | uvicorn :8000 | SQLite | 日常开发 |
 | local-mysql | `pnpm dev` | uvicorn :8000 | Docker MySQL | 验证兼容性 |
-| staging | 部署地址 | 部署 API | MySQL | 11.14 起每天验证 |
+| staging | 部署地址 | 部署 API | SQLite + WAL（MySQL 兼容 BE-011 待做） | 11.16 起每天验证（原 11.14 未达成） |
 | demo | 部署地址 | 部署 API | MySQL | 11.29 答辩 |
 
 - `.env` 不提交；`.env.example` 必须保持最新。

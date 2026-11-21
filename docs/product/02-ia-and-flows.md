@@ -169,7 +169,7 @@ flowchart TD
 | 任务中心 | `GET /tasks?question_id=`（P0 轮询）、`POST /tasks/{id}/retry`、`GET/PUT/DELETE /drafts/me`；SSE P1 | task status、draft |
 | 详情 | `GET /questions/{id}?include=generated`、`POST /questions/{id}/generate`、`POST /generated-questions/{id}/regenerate` | analysis、answer/explanation、generated、tasks |
 | 练习 | `GET /questions/{id}?include=generated`、`POST /practice-records` | 题卡、记录 |
-| 统计/概览（P1） | `GET /stats/overview`、`GET /stats/trends`、`GET /stats/weak-points` | 数字、趋势、薄弱点 |
+| 统计/概览（P1） | `GET /stats/overview`（趋势/薄弱点都在 overview 里） | 数字、趋势、薄弱点 |
 
 ## 9. 流程设计检查
 
