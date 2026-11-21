@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-10
+last_updated: 2026-11-15
 status: active
 read_when: 每天开工领取任务；每天收工更新状态；周会同步进度
 ---
@@ -29,10 +29,11 @@ ID:
 备注:
 ```
 
-## 1. 当前冲刺：M0（11.4–11.7）
+## 1. M0 归档（11.4–11.7）
 
 **目标**：产品设计 + 技术选型 + 仓库骨架，11.7 24:00 前全部可展示。
 
+> 2026-11-15 同步：`main @ 7ab9cf9`（#71 识图缓存已合）。前端 FE-001~035 已完成，Vitest 9 files / 35 tests，`frontend/dist/` 可构建；后端 pytest 223 passed（2026-11-15 快照）。M1 功能切片已完成，但 staging 地址与 MySQL 验证未达退出条件（OPS-005 / BE-011）；当前进入 M2。前端已无 P0 功能任务，下一步是 staging 真机走查、演示兜底与文档收口。
 > 当前同步（2026-11-07）：main 已合 #39（BE-021 三段并发 + ADR-006）、#42（BE-014 图片识图）、#49（FE-026 纯前端）、#50（测试控制台）、#51（FE-027 收口）；#38 已关闭并由 #49 替代。FE-027 已完成：题目编辑、题型开关、18 号识图口径、Vitest、PRD 清理。后端 follow-up：#43 BE-025 三题型 PATCH、#44 BE-026 生成偏好、#45 BE-013 统计、#46 BE-018 草稿、#32 BE-020 BYOK、#47 BE-024 两步识图、#48 seed/OpenAPI/staging。
 > 2026-11-13 同步：main 已合 #60/#61/#63/#64/#62/#58/#65/#68/#69/#70 与 #67（`be4dcf8`）；待合 #66（文档）、缓存（分支已就绪，待开 PR）。
 > 2026-11-14 同步：staging 已上线 `http://47.107.30.226`（宿主机 nginx + api 容器，真 Key 已切并跑通真图识图）；#71 已合 `7ab9cf9`；待合 #66、部署 PR #72。
@@ -56,22 +57,23 @@ ID:
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| SH-001 | API 契约 v0 | 人机 + 霹雳马桶 | P0 | DS-001 | `05-architecture.md` 覆盖 P0 接口、队列/草稿/任务中心、字段、错误码、SSE 事件、图片框题；两人确认 | DOING |
-| SH-002 | 仓库骨架 | 人机 + 霹雳马桶 | P0 | 无 | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DOING |
+| SH-001 | API 契约 v0 | 人机 + 霹雳马桶 | P0 | DS-001 | `05-architecture.md` 覆盖 P0 接口、队列/草稿/任务中心、字段、错误码、SSE 事件、图片框题；两人确认 | DONE（OpenAPI 快照 + CI `--check` 已固化；新增接口只加不改） |
+| SH-002 | 仓库骨架 | 人机 + 霹雳马桶 | P0 | 无 | `frontend/`、`backend/`、`contracts/`、`deploy/`、`scripts/`、`.github/`、`.gitignore`、README；`tools/` 本地工具不上传；脚手架/CI 待 FE-001/BE-001 | DONE（`frontend/`/`backend/`/CI/`deploy` README 已落地） |
 | SH-003 | CI 流水线 | 人机 | P0 | SH-002 | PR 触发 frontend lint/typecheck/build + backend ruff/pytest；绿 | DONE（PR #10；frontend 在 FE-001 后生效） |
 | SH-004 | Issue/PR 模板 + 任务板 | 霹雳马桶 | P1 | SH-002 | 模板可用；看板列：Backlog/本周/进行中/评审/完成 | DOING |
 | SH-005 | ADR-001/002/003 | 霹雳马桶 | P1 | SH-001 | 技术栈、MVP 范围、识图方案三份 ADR，链接到文档 | DONE |
-| SH-006 | M0 验收 + 产品评审同步 | 两人 | P0 | 所有 M0 | 逐项过 `03-roadmap.md` M0 退出检查；下周计划明确 | TODO |
+| SH-006 | M0 验收 + 产品评审同步 | 两人 | P0 | 所有 M0 | 逐项过 `03-roadmap.md` M0 退出检查；下周计划明确 | DONE（2026-11-15 现状收口；`03-page-specs`、可用性测试、SH-007 风险评审、OPS-001 compose 转 P1 遗留） |
 | SH-007 | 风险登记册首次评审 | 两人 | P1 | 无 | `09-risks.md` 每条有负责人/缓解措施/触发信号 | TODO |
 | SH-017 | 关闭旧 PRD 任务 | 两人 | P1 | SH-001 | 范围/交互/验收以 01-prd-lite + 02-ia-and-flows + 03-page-specs 为准 | DEFERRED |
 
-> 2026-11-05 状态说明：SH-001 的 v0.3 草案与 `12-backend-alignment.md` 已完成，待两人逐节确认后冻结；SH-004 的 Issue/PR 模板已建，GitHub 看板待建；SH-005 三份 ADR 已建（ADR-002 仍为 Proposed）；SH-017 的旧 PRD 已删除，不再维护独立 PRD。
+> 2026-11-05 状态说明（历史）：SH-001 的 v0.3 草案与 `12-backend-alignment.md` 已完成；2026-11-15 起契约已由 OpenAPI 快照 + CI `--check` 固化。SH-004 的 Issue/PR 模板已建，GitHub 看板待建；SH-005 三份 ADR 已建（ADR-002 仍为 Proposed）；SH-017 的旧 PRD 已删除，不再维护独立 PRD。
 
 ### 1.3 前端（霹雳马桶）
 
-> 开发页面时参照 `docs/product/drafts/prototype.html` 的结构 + `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与旧原型冲突时以 ADR-004 / 05 v0.4 为准。
+> 开发页面时参照 `docs/product/drafts/prototype.html` 的结构 + `07-page-drafts.md` / `08-interaction-map.md` 的交互；图片 v2 与旧原型冲突时以 ADR-004 / 05 v0.6.16 + OpenAPI 为准。
 > 视觉语言以 `04-design-system.md` 第一/第二原则为准：**可读性优先、整体使用流畅**；风格评审先过这两项，再看一致性/美感。
 > 2026-11-06：FE-001~012/015 已合入 main；FE-009/019 在 PR #19（CI 绿）；全量 Calm Academic 视觉覆写在 `feat/frontend-calm-redesign` / PR #21（stacked 在 PR #19，CI 绿，未合并）。四核心屏 1366/375、搜索/筛选、创建→分析→生成→任务中心、失败重试均已本地验证。旧 `feat/frontend-style-calm-studio` / PR #20 已关闭。
+> 2026-11-15：FE-001~035 全部合入 main；Vitest 9 files / 35 tests；`frontend/dist/` 可构建。FE-017 按 375/768/1366/1366×768 截图验收；无新增 P0 前端功能任务。
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
@@ -136,16 +138,16 @@ ID:
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-025 | 完整三题型编辑 PATCH 扩展 | 人机 | P0 | BE-004 | `QuestionUpdate` 接受 `question_type/options/blanks`；切换题型清掉不适用的一半；四个结构输入任一变动都整题复核 `validate_type_payload`，不合法 400 且回滚；文案走 `structure_problem_zh`；Issue #43 | DONE（#55 已合） |
-| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | PR #58 已补 `generate_v3` + prompt 同题型（176 passed；真实 27/27）；#58 已合（`06e29e7`，2026-11-12），strict 默认开启 |
+| BE-026 | 用户生成偏好 + 题型一致性开关 | 人机 | P0 | BE-021 | `users.enforce_same_question_type` 列 + 迁移回填默认 TRUE；`GET/PUT /settings/preferences`；`ai_call_logs.type_policy=strict\|soft`；生成链路按偏好执行硬/软校验；不要在 pipeline 叠二层重试；Issue #44 | DONE（#58 已合 `06e29e7`；`generate_v3` + prompt 同题型；strict 默认开启；FE-032 偏好持久化实测通过） |
 | FE-027 | 题目编辑页（完整三题型） | 霹雳马桶 | P0 | FE-007/FE-020/BE-025 | `/questions/:id/edit`；题干/答案/解析/学科/标签/选项/空位/掌握度；保存后回详情；后端未支持时明确提示 | DONE（PR #51） |
 | FE-028 | 设置页题型一致性开关 | 霹雳马桶 | P0 | FE-024/BE-026 | 默认开启；按用户后端持久化；mock/类型/API 就绪；错误可重试 | DONE（PR #51；后端 #58 已合，strict 执行生效） |
 | FE-029 | 识图口径收口 | 霹雳马桶 | P0 | FE-016/FE-021/BE-014 | `incomplete` 置灰 + warnings + 编辑后解锁；options/blanks 空值保护；两步 loading + 180s 超时；顶层丢题横幅 | DONE（PR #51） |
-| FE-030 | 前端 Vitest 单元测试 | 霹雳马桶 | P0 | FE-001 | 覆盖 API 归一化、错误码、草稿、图片映射、统计、设置；`pnpm test` 可跑并接入 CI | DONE（PR #51；7 files / 20 tests） |
+| FE-030 | 前端 Vitest 单元测试 | 霹雳马桶 | P0 | FE-001 | 覆盖 API 归一化、错误码、草稿、图片映射、统计、设置；`pnpm test` 可跑并接入 CI | DONE（PR #51；9 files / 35 tests，2026-11-15） |
 | FE-031 | PRD 清理与文档同步 | 霹雳马桶 | P1 | 无 | 删除 PRD-v0.8 归档；移除 PRD.md 描述；05/04/README 同步 | DONE（PR #51） |
 
 ### 1.9 后端五 PR 合并后的前端联调（2026-11-11）
 
-> 背景：后端 #64 草稿 / #62 统计 / #58 偏好 / #65 OpenAPI / #63 种子 已交付并通过 review；功能、架构、安全检查结论见 `22-backend-review-20261111.md`。本节只列前端要做的事，后端修完并合并后按序执行。
+> 背景：后端 #64 草稿 / #62 统计 / #58 偏好 / #65 OpenAPI / #63 种子 / #67+#71 识图 已交付并合并；功能、架构、安全检查结论见 `22-backend-review-20261111.md`。本节只列前端要做的事。
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
@@ -160,6 +162,8 @@ ID:
 
 ## 2. M1：纵向切片（11.8–11.14）
 
+> 2026-11-15 状态：核心闭环已完成；退出条件仍缺 staging 地址（OPS-005）与 MySQL 迁移验证（BE-011）。
+
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
 | BE-010 | SSE 阶段事件（P1） | 人机 | P1 | BE-006/007 | P0 用 `GET /tasks` 轮询；SSE 为 P1；task_status/stage/done/error；断连处理；nginx 配置 | TODO |
@@ -169,42 +173,47 @@ ID:
 | BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |
-| BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT/DELETE /drafts/me`；每账号 1 份；防抖覆盖；`content` 原样存 draft JSON；`DRAFT_MAX_BYTES=256KB`；测试 | 已完成（#64 已合；对齐口径以 mock 为准） |
+| BE-018 | 草稿接口 | 人机 | P0 | BE-003 | `GET/PUT/DELETE /drafts/me`；每账号 1 份；防抖覆盖；`content` 原样存 draft JSON；`DRAFT_MAX_BYTES=256KB`；测试 | DONE（#64 已合；FE-032 草稿 204/200/409/204 实测） |
 | FE-007 | 录入页（文本） | 霹雳马桶 | P0 | FE-004/006 | 题干/答案/学科/标签；校验；提交；loading/错误 | DONE（PR #18） |
 | FE-008 | 列表/详情页 | 霹雳马桶 | P0 | FE-004/006 | 分页、筛选、搜索、详情、空状态、删除确认 | DONE（PR #18） |
 | FE-009 | AI 生成 UI | 霹雳马桶 | P0 | FE-007/008/BE-007 | `GET /tasks` 轮询进度、3 张题卡、重试/取消、错误提示 | DONE（PR #19） |
 | FE-010 | Markdown + 公式渲染 | 霹雳马桶 | P0 | FE-001 | markdown-it + KaTeX + DOMPurify；长题干/公式/表格测试 | DONE（PR #18） |
 | FE-011 | Auth store + 路由守卫 | 霹雳马桶 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | DONE（PR #17） |
 | FE-012 | 空/错/loading 组件 | 霹雳马桶 | P0 | FE-003 | 统一组件 + 至少 5 处使用 | DONE（PR #18） |
-| SH-008 | 契约同步 + 联调 | 两人 | P0 | BE-009/FE-010 | OpenAPI diff；字段/错误码一致；联调记录 | TODO |
+| SH-008 | 契约同步 + 联调 | 两人 | P0 | BE-009/FE-010 | OpenAPI diff；字段/错误码一致；联调记录 | DONE（FE-032 实测：草稿 204/200/409/204、统计 0.667 + 7 天稀疏、图片 201 + from-image 4 条、偏好持久化；2026-11-13） |
 | OPS-005 | Staging 部署 | 人机 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | DOING（2026-11-15：`http://47.107.30.226` 已上线，真 Key 跑通真图 + 缓存命中；演示口令已换、库已备份；待重建镜像启用 BYOK、手机 4G 实测） |
 
 ## 3. M2：功能完整（11.15–11.21）
 
+> 当前冲刺（2026-11-15）：P0 功能已齐；重点转为 staging 真机走查、100+ 数据回归、真实 DeepSeek 验证、用户走查与演示兜底。11.22 功能冻结。
+> 已知缺口：FE-018 的“离开录入页三选项”（取消退出 / 保存草稿后退出 / 直接退出）仍未做；归入 M2 前端收口，不新增任务号。
+
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
-| BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；等 FE-013 真接口联调） |
-| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 只实现 `/stats/overview`（trends/weak-points 从 05 删除）；rich shape：total_*、mastery counts、weak_knowledge_points、recent_trend；无记录 accuracy=0 | 已完成（#62 已合；含「父题活着 + 生成题软删」用例） |
+| BE-012 | 练习记录 | 人机 | P0 | BE-004 | 创建/查询；时长；对错；防重复；测试 | DONE（PR #9；FE-032 已联调） |
+| BE-013 | 统计接口 | 人机 | P1 | BE-012 | 只实现 `/stats/overview`（trends/weak-points 从 05 删除）；rich shape：total_*、mastery counts、weak_knowledge_points、recent_trend；无记录 accuracy=0 | DONE（#62 已合；FE-032 统计 accuracy 0.667 + 7 天稀疏趋势实测；含「父题活着 + 生成题软删」用例） |
 | BE-014 | 图片文本提取接口（DeepSeek 多模态） | 人机 | P0 | BE-005/BE-017 | 图片校验/压缩；`from-image` 返回 `questions[]`（1..N，公式 LaTeX）；不返回 bbox/candidates；用户确认后每道 `POST /questions`；分析补 answer/explanation；当前阶段不提取附图；错误处理/测试 | DONE（PR #42 已合；`subject/chapter/difficulty` 可空；空结果 200 + `questions[]`；`image_path` 落库并透出列表） |
 | BE-015 | 单题重新生成/质量反馈 | 人机 | P0 | BE-007/BE-019 | 「重排该段」已由 `POST /questions/{id}/generate` + `target_index` 覆盖（ADR-006）；剩下是 `/generated-questions/{id}/regenerate` 与质量反馈标记；不覆盖原记录 | TODO |
 | BE-016 | 性能/安全加固 | 人机 | P0 | BE-013 | 索引；分页上限；AI 限流；XSS/CORS/文件校验 | TODO |
 | BE-019 | 队列 worker + 任务 API | 人机 | P0 | BE-002/BE-005 | `generation_task` worker；queued/running/done/failed；重试 1 次；120s 超时；`GET /tasks`；启动恢复 | DONE（并入 PR #5；并发位与重试窗口由 BE-021 调整） |
 | BE-021 | 三段并发生成改造（ADR-006） | 人机 | P0 | BE-006/007/019 | `/generate` 返回 `tasks[]`（整组 3 段 / 单段 `target_index`+`difficulty`）；`generated_questions.target_index` + `generation_task.difficulty` 迁移；按格替换；一段失败不牵连其余；`TASK_MAX_CONCURRENCY=6`；requeue 前判 90s；`generate_v2` prompt；ADR-006 | DONE（PR #39 已合；题型一致性改由 BE-026 用户开关控制） |
-| FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | DONE（PR #23；mock 先行，待联调） |
-| FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | DONE（PR #24；mock 先行，待 BE-013） |
+| FE-013 | 练习页 | 霹雳马桶 | P0 | FE-008/BE-012 | 逐题、计时、查看答案、自评、结果页 | DONE（PR #23；FE-032 已联调） |
+| FE-014 | 统计/概览页 | 霹雳马桶 | P1 | FE-003/BE-013 | 4 个核心数字 + 图表 + 薄弱点列表 + 空状态 | DONE（PR #24；BE-013 已合，FE-032 已联调） |
 | FE-015 | 搜索/筛选/标签 | 霹雳马桶 | P0 | FE-008 | URL 同步、防抖、清空、空结果提示 | DONE（PR #18） |
-| FE-016 | 图片录入（电脑粘贴/拖入 + 手机相册/拍照）+ 裁剪 + 多题文本提取 | 霹雳马桶 | P0 | FE-007/BE-014 | 电脑粘贴/拖入；手机相册/拍照；上传前裁剪/重置；提取 1..N 道题按 ① ②… 条目展示；逐条编辑/删除/确认；当前阶段只提取文本；失败重试/退回文本；HTTPS 提示 | DONE（PR #29；mock 先行，等 BE-014 联调） |
-| FE-017 | 响应式/移动端 | 霹雳马桶 | P1 | FE-013/014 | 375/768/1366 三档；核心三页可用 | DOING（四核心屏 + 练习/统计 + 图片录入已适配 375/1366；768/键盘细节待） |
+| FE-016 | 图片录入（电脑粘贴/拖入 + 手机相册/拍照）+ 裁剪 + 多题文本提取 | 霹雳马桶 | P0 | FE-007/BE-014 | 电脑粘贴/拖入；手机相册/拍照；上传前裁剪/重置；提取 1..N 道题按 ① ②… 条目展示；逐条编辑/删除/确认；当前阶段只提取文本；失败重试/退回文本；HTTPS 提示 | DONE（PR #29；BE-014 已合，FE-032 图片上传 201 + from-image 4 条实测） |
+| FE-017 | 响应式/移动端 | 霹雳马桶 | P1 | FE-013/014 | 375/768/1366 三档；核心三页可用 | DONE（2026-11-12：375/768/1366/1366×768 截图验收，真实后端 + 种子数据；`<768` 移动壳、768+ 桌面壳无溢出；补录入页 Ctrl/⌘+Enter。键盘未单独立项，发现问题另开 issue） |
 | FE-018 | 体验/可访问性打磨 | 霹雳马桶 | P1 | FE-013/014 | 对比度、焦点、键盘、文案、loading 不跳动 | DONE（PR #30；草稿双写 + focus/aria/错误聚焦；退出三选项弹窗未做） |
-| FE-019 | 任务中心 + 草稿 UI | 霹雳马桶 | P0 | FE-009/BE-018/BE-019 | 录入记录列表、队列/生成状态、失败重试、草稿行/继续编辑；不做复杂筛选/通知 | DONE（PR #19；草稿行已接 GET，保存/恢复归 FE-018） |
+| FE-019 | 任务中心 + 草稿 UI | 霹雳马桶 | P0 | FE-009/BE-018/BE-019 | 录入记录列表、队列/生成状态、失败重试、草稿行/继续编辑；不做复杂筛选/通知 | DONE（PR #19；草稿真接口 FE-032 已联调，保存/恢复归 FE-018） |
 | FE-020 | 三种题型编辑器 + 工具栏 | 霹雳马桶 | P0 | FE-007/FE-010 | 选择/填空/解答；选项/空位/答案；LaTeX/编号/表格/插图按时间降级；KaTeX 错误不丢内容 | DONE（PR #25；工具栏增强可后续） |
-| FE-021 | 多题识别结果条目 + 选择生成 | 霹雳马桶 | P0 | FE-016/FE-008 | 1..N 条目 ① ②…；逐条编辑/删除/确认；每道显示答案/解析；选中高亮；选择 1–3 道生成；超限提示 | DONE（PR #29；mock 先行） |
+| FE-021 | 多题识别结果条目 + 选择生成 | 霹雳马桶 | P0 | FE-016/FE-008 | 1..N 条目 ① ②…；逐条编辑/删除/确认；每道显示答案/解析；选中高亮；选择 1–3 道生成；超限提示 | DONE（PR #29；BE-014 已合，FE-032 识图实测） |
 | FE-023 | 三段并发生成 UI 适配 | 霹雳马桶 | P0 | BE-006/007（三段）、FE-009/019 | `POST /generate` 返回 `tasks[]`；3 张卡独立状态/难度徽章/单段重试；任务中心折叠「生题 2/3」+ 展开；取消改 P1 | DONE（PR #28；`target_index`/`difficulty` 独立；1–3 段；2026-11-10 已修） |
 | SH-009 | 用户走查 + 反馈取舍 | 两人 | P0 | M2 功能 | 3–5 人；问题分级；接受/延期/拒绝有记录 | TODO |
 | OPS-006 | MySQL 生产验证 | 人机 | P0 | M1 部署 | 迁移、备份、恢复演练；数据不丢 | TODO |
 | OPS-007 | 监控/备份 | 人机 | P1 | OPS-005 | 日志可查；每日备份；磁盘/额度告警 | TODO |
 
 ## 4. M3：稳定与答辩（11.22–11.29）
+
+> 11.22 功能冻结；SH-014 录屏/截图由前端主责，SH-012 演示脚本两人共担。
 
 | ID | 任务 | 负责人 | 优先级 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|
@@ -220,7 +229,7 @@ ID:
 
 > 有阻塞就写在这里，格式：`[日期] 任务 ID — 阻塞原因 — 需要谁/什么 — 下一步`。
 
-- 暂无。
+- [2026-11-15] OPS-005 — 11.14 已过仍无 staging 地址；`deploy/` 只有 README — 人机 — 11.16 出 URL（推荐 SQLite + WAL），前端当天真机走查。
 
 ## 6. 已完成
 
@@ -237,14 +246,16 @@ ID:
 | 2026-11-05 | SH-003 | CI #10 已合；frontend job 待 FE-001 后改为真实命令 |
 | 2026-11-06 | FE-009/019 | AI 进度轮询、任务中心、失败重试、草稿行完成；PR #19 CI 绿，待合并 |
 | 2026-11-06 | FE-022 | Calm Academic 全量视觉覆写：AppShell/四核心屏/登录/占位/404；lint/typecheck/build/format + Playwright 1366/375 通过；PR #21 stacked，待合并 |
+| 2026-11-13 | BE-024 / FE-032~035 | #67 两步识图 + #71 识图缓存已合；前端真接口联调收口（#68） |
+| 2026-11-15 | 文档同步 | 00/03/04/05/09/11/README/frontend/backend 按 `main @ 7ab9cf9` 统一；FE-017/SH-008 账本修正 |
 
-## 7. 本周分工建议（11.4–11.7）
+## 7. 本周分工建议（11.15–11.21）
 
 | 人 | 主责 | 必须交付 |
 |---|---|---|
-| 霹雳马桶 | FE-013/014/016/018/020/021/023 已完成（#23/#24/#25/#28/#29/#30）、DS-006 收尾 | FE-017 768/键盘细节；可用性测试记录；03-page-specs 补齐；真接口联调 |
-| 人机 | BE-004~BE-007、BE-012、BE-019、OPS-001~OPS-003 | 已合 #6/#5/#9；下一步 ADR-006 三段并发、BE-014 图片、BE-018 草稿、BE-013 统计；#8 docs 收尾 |
-| 两人 | SH-001、SH-002、SH-006、SH-007 | API 契约、仓库骨架、M0 验收、风险评审 |
+| 霹雳马桶 | 前端收口与演示兜底 | 文档账本已同步、FE-017 已收口；staging 真机走查（手机 HTTPS 拍照/相册 + 375/768/1366）；生产模式与 100+ 数据回归；SH-014 录屏/截图；退出三选项弹窗 |
+| 人机 | 部署与后端剩余 | 11.16 出 staging URL（SQLite + WAL）；种子生成题题型按父题派生；真实 DeepSeek 分析/生成/识图在 staging 验证；BE-008 演示数据；BE-016 必需项；BE-020/BE-011 可延后 |
+| 两人 | SH-009/SH-012/SH-013/SH-015 | 用户走查；3 分钟演示脚本连续 3 次成功；PPT 初稿；最终部署/安全检查 |
 | 我想抓住风的影子 | DS-007 | 设计走查、体验意见、风险同步（不参与开发） |
 
-> 如果 11.7 前只能完成一半：优先保 **API 契约 + 可运行骨架 + 登录/录入/列表的静态页**；高保真原型和完整 PRD 可以延后到 11.8。
+> 如果 11.21 前只能完成一半：优先保 **staging 真机走查 + 演示闭环 + 录屏兜底**；`03-page-specs`、可用性测试、BYOK/admin 都可以延后。

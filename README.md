@@ -2,7 +2,7 @@
 
 把一道错题变成三道同类题，并追踪掌握度的 AI 错题巩固平台。
 
-> 当前阶段：M0（产品设计 + 技术选型 + 仓库搭建）
+> 当前阶段：M2（功能完整 + staging 真机走查；11.22 功能冻结）
 > 目标用户：大学理科生（高数 / 线代 / 概率论 / 大学物理）
 > 演示截止：11.29
 
@@ -19,9 +19,9 @@
 ## 仓库结构
 
 ```text
-frontend/                 # Vue 3 学生端（Calm Academic，FE-001~024 页面已完成）
+frontend/                 # Vue 3 学生端（Calm Academic，FE-001~035 已完成）
 admin/                    # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
-backend/                  # FastAPI 后端（BE-001/002/003 + follow-up 已合）
+backend/                  # FastAPI 后端（核心闭环 + 草稿/统计/识图/偏好/OpenAPI 已合）
 contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
 scripts/                  # 跨前后端的开发脚本
@@ -43,21 +43,22 @@ Resource/                 # 本地只读参考资料（不上传仓库）
 - 设计手册：`docs/agent/08-design-playbook.md`
 - 风险：`docs/agent/09-risks.md`
 
-## 当前进度（2026-11-06）
+## 当前进度（2026-11-15）
 
-- `origin/main @ 7ee6029`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013~024 页面（#23~#25/#28~#30/#34/#35）已合并
-- 后端待处理：BE-014 图片文本提取、BE-018 草稿、BE-013 统计、BE-020 用户 AI Key、BE-008 种子、BE-009 OpenAPI、OPS；docs #8 收尾
-- 前端：FE-001~024 全部页面已合（含首页/个人设置）；剩余 FE-017 768/键盘细节与真接口联调
+- `origin/main @ 7ab9cf9`：认证/错题/分析/生成/任务/练习/图片识图/草稿/统计/生成偏好/OpenAPI 快照/识图两步与缓存已合；前端 FE-001~035 已合
+- 后端：pytest 223 passed；#67 两步识图、#71 识图缓存、#58/#62/#63/#64/#65 已合；待处理 BE-020 BYOK、BE-011 MySQL、BE-016 必需加固、OPS
+- 前端：FE-001~035 页面完成，Vitest 9 files / 35 tests，`frontend/dist/` 可构建；没有新的 P0 功能任务，下一步是 staging 真机走查、生产模式/100+ 数据回归与 SH-014 录屏/截图
+- **staging：截至 2026-11-15 仍无 URL**；11.14 已过，R-009 已触发；`deploy/` 只有 README
 - 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - 图片录入 v2（正式决策）：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题
 - 范围 / 交互 / 验收以 `docs/product/01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 
 ## 本地启动
 
-> 后端已可运行（BE-001/002/003）；前端脚手架待 FE-001。
+> 前后端均可本地运行；前端开发模式默认 mock，切真实后端用 `VITE_USE_MOCK=false`。
 
 ```bash
-# 前端（脚手架完成后）
+# 前端
 cd frontend && pnpm install && pnpm dev
 
 # 后端（已可用；需要 uv 和 JWT_SECRET）

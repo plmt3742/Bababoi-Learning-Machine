@@ -2,7 +2,7 @@
 owner: 霹雳马桶
 last_updated: 2026-11-05
 status: active
-read_when: 后端合并审查、CI 设立、M0 收尾、PR 复盘
+read_when: 后端合并审查、CI 设立、PR 复盘（历史快照）
 ---
 
 # 13 · 后端合并审查与 CI 方案

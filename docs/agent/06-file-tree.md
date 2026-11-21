@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-07
+last_updated: 2026-11-15
 status: active
 read_when: 新建文件/目录前；review 目录结构时；agent 不确定文件该放哪时
 ---
@@ -9,7 +9,7 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
-> 2026-11-07 更新：`frontend/` 已完成 FE-001~026；FE-027 新增题目编辑（复用 `views/QuestionCreateView.vue` 的 `/questions/:id/edit`）、设置页生成偏好、图片 `incomplete` 拦截、`vitest.config.ts` 与 `tests/*.test.ts`。`components/` 新增 `home/`、`practice/`、`stats/`、`ai/GenerationSegments`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。新增 `admin/` 占位（ADR-005，P1）；BYOK 见 ADR-007（P1）；题型一致性开关见 ADR-008。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
+> 2026-11-15 更新：`frontend/` 已完成 FE-001~035；新增 `utils/time.ts`（统一 UTC naive/带 Z 解析）、`tests/*.test.ts`（9 files / 35 tests）；`components/` 含 `home/`、`practice/`、`stats/`、`ai/`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。`backend/` 新增 `models/cache.py`、`vision_extract_cache` 迁移与识图缓存测试。`admin/` 仍为 P1 占位（ADR-005）；BYOK 见 ADR-007（P1）；题型一致性开关见 ADR-008。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
 >
 > 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
 
@@ -33,7 +33,7 @@ BababoiLearningMachine/
 │   └── e2e/
 ├── admin/                         # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
 │   └── README.md                  # 规划与范围；业务代码待 ADM-002+
-├── backend/                       # 按 2026-11-07 实际结构（BE-001~021 落地后）
+├── backend/                       # 按 2026-11-15 实际结构（BE-001~026 + BE-024 缓存落地后）
 │   ├── README.md                  # 状态与待办
 │   ├── pyproject.toml             # uv + ruff + pytest；BE-014 起含 pillow / python-multipart
 │   ├── uv.lock
@@ -162,8 +162,8 @@ BababoiLearningMachine/
 │   │   ├── types/
 │   │   ├── utils/                 # markdown/sanitize/format/error
 │   │   └── views/                 # 页面
-│   ├── tests/                     # Vitest 单测
-│   └── e2e/                       # Playwright
+│   ├── tests/                     # Vitest 单测（9 files / 35 tests）
+│   └── e2e/                       # Playwright（目标结构，当前未接入）
 ├── admin/                         # P1 内部运维台（独立 Vue 3 + Vite + TS + Arco）
 │   ├── package.json
 │   ├── vite.config.ts             # base: '/admin/'；dev 5174；代理 /api

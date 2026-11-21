@@ -1,6 +1,6 @@
 # 07 · 页面草稿设计（线框级）
 
-> owner: 霹雳马桶 · last_updated: 2026-11-05 · read_when: 前端页面设计、交互地图、组件拆分前
+> owner: 霹雳马桶 · last_updated: 2026-11-15 · read_when: 前端页面设计、交互地图、组件拆分前
 > 说明：**只做结构规划，不做视觉风格**。以下线框为单色、区块级，不代表最终颜色、字体、间距、品牌。
 > 关联：`02-ia-and-flows.md`、`03-page-specs.md`、`05-architecture.md`、`08-interaction-map.md`、`drafts/prototype.html`（可点击页面原型）。
 
@@ -365,7 +365,7 @@
 ```
 
 **关键组件**：`StatCard`、`WeakPointList`、`TrendChart`（ECharts，P1）、`EmptyState`。
-**数据流入**：`GET /stats/overview`、`GET /stats/weak-points?limit=5`、`GET /stats/trends?days=30`。
+**数据流入**：`GET /stats/overview`（`recent_trend` + `weak_knowledge_points`，不再有单独 trends/weak-points 端点）。
 **数据流出**：点击知识点 → QLIST-01（按 tag 筛选）或 PRACTICE-01。
 **状态**：loading / empty（无练习）/ error。
 **跳转**：薄弱点 → QLIST-01 / PRACTICE-01；返回 → HOME-01。

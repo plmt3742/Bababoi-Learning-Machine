@@ -8,7 +8,7 @@
 
 - 仓库：https://github.com/plmt3742/Bababoi-Learning-Machine
 - 产品定位：学生录入错题 → AI 分析知识点/错误原因 → 生成 3 道相似题 → 练习 → 统计薄弱点
-- 当前阶段：M0 收尾；FE-001~024 页面已合入 main（含首页/个人设置）；后端核心闭环已合，剩余 BE-014/BE-018/BE-013/BE-020/ADR-006；`admin/` 为 P1 内部运维台（ADR-005），BYOK 见 ADR-007，均不进入 11.29 演示关键路径；截止 11.7 24:00
+- 当前阶段：M2（11.15–11.21）；FE-001~035 页面与测试已合入 main；后端核心闭环 + 草稿/统计/识图两步与缓存/生成偏好/OpenAPI 已合，剩余 BE-020 BYOK、BE-011 MySQL、BE-016 必需加固、OPS staging；`admin/` 为 P1 内部运维台（ADR-005），BYOK 见 ADR-007，均不进入 11.29 演示关键路径；11.22 功能冻结
 - 详细上下文：`docs/agent/00-context.md`
 
 ## 团队与分工
@@ -38,7 +38,7 @@
 | 第一次进入项目 | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [03-roadmap](docs/agent/03-roadmap.md) → [04-todos](docs/agent/04-todos.md) |
 | 写前端 | [00-context](docs/agent/00-context.md) → [05-architecture](docs/agent/05-architecture.md) → [06-file-tree](docs/agent/06-file-tree.md) → [07-workflow](docs/agent/07-workflow.md) |
 | 写后端 | [00-context](docs/agent/00-context.md) → [05-architecture](docs/agent/05-architecture.md) → [06-file-tree](docs/agent/06-file-tree.md) → [07-workflow](docs/agent/07-workflow.md) |
-| 后端对接 / M0 契约确认 | [00-context](docs/agent/00-context.md) → [12-backend-alignment](docs/agent/12-backend-alignment.md) → [05-architecture](docs/agent/05-architecture.md) |
+| 后端对接 / 契约确认 | [00-context](docs/agent/00-context.md) → [23-backend-handoff](docs/agent/23-backend-handoff-20261113.md) → [05-architecture](docs/agent/05-architecture.md) |
 | 做产品/原型设计 | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [08-design-playbook](docs/agent/08-design-playbook.md) → [docs/product](docs/product/README.md) |
 | 修 bug / 排查风险 | [00-context](docs/agent/00-context.md) → [09-risks](docs/agent/09-risks.md) → [05-architecture](docs/agent/05-architecture.md) |
 | 准备答辩/PPT | [00-context](docs/agent/00-context.md) → [01-project](docs/agent/01-project.md) → [09-risks](docs/agent/09-risks.md) → [08-design-playbook](docs/agent/08-design-playbook.md) |
@@ -76,7 +76,7 @@
 ```bash
 # 前端（PowerShell 用 cd "路径"，不要用 cd /d）
 cd frontend && pnpm install && pnpm dev
-cd frontend && pnpm lint && pnpm typecheck && pnpm build
+cd frontend && pnpm lint && pnpm typecheck && pnpm test && pnpm build
 
 # 后端
 cd backend && uv sync
@@ -84,12 +84,13 @@ cp .env.example .env   # 填 JWT_SECRET（>=32 字节）、LLM_MOCK=true
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 cd backend && uv run ruff check app tests && uv run pytest
+cd backend && uv run python scripts/export_openapi.py --check
 
-# 一键起本地依赖（MySQL 等；尚未实现）
+# 一键起本地依赖（MySQL 等；OPS-001 仍 TODO）
 docker compose -f deploy/docker-compose.dev.yml up -d
 ```
 
-> 前端开发模式默认 mock（`VITE_USE_MOCK !== 'false'`）；演示账号 `student01 / password123`。真实后端目前只有认证/错题/分析/生成/任务/练习；图片/草稿/统计/BYOK 仍待后端实现。不要从仓库根目录执行 `pnpm dev`。
+> 前端开发模式默认 mock（`VITE_USE_MOCK !== 'false'`）；演示账号 `student01`，口令由后端 `DEMO_PASSWORD` 注入（本地未设置时 `password123`）。真实后端已覆盖认证/错题/分析/生成/任务/练习/图片识图/草稿/统计/生成偏好；BYOK 仍是 P1 未实现，前端设置页 404 时自动降级。不要从仓库根目录执行 `pnpm dev`。
 
 ## 共享边界
 

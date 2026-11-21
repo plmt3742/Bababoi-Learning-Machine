@@ -1,13 +1,13 @@
 ---
 owner: 人机 / 霹雳马桶
-last_updated: 2026-11-12
-status: draft
+last_updated: 2026-11-15
+status: active
 read_when: 写前后端代码前；改 API/数据模型前；联调前
 ---
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.15 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.6.16（2026-11-15 文档同步）**。契约以 `contracts/openapi/openapi.json` 快照 + CI `--check` 为准；新增接口只加不改，改接口先改本文档并重导快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -1225,6 +1225,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-15 | v0.6.16 | 文档同步：BE-024 两步识图（#67）与缓存（#71）已在 main；`from-image` 契约为 `{image_path, subject?, force_refresh?}` → `{image_path, questions[], warnings, cached, extracted_at}`；契约状态由 draft 转 active，以 OpenAPI 快照 + CI `--check` 为准 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
