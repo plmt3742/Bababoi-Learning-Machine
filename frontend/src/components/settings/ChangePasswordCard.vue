@@ -105,13 +105,13 @@ async function handleSubmit(): Promise<void> {
 <template>
   <section class="panel" aria-labelledby="change-password-title">
     <header class="panel__head">
-      <h2 id="change-password-title">账号安全</h2>
+      <h2 id="change-password-title">重置密码</h2>
       <span class="panel__head-hint">Security</span>
     </header>
 
     <div class="panel__body change-password">
       <p class="hint change-password__intro">
-        修改成功后当前登录会退出，请用新密码重新登录。当前版本不提供找回密码；忘记密码请联系项目管理员。
+        输入当前密码即可重置为新密码。重置成功后当前登录会退出，请用新密码重新登录。忘记当前密码请联系项目管理员授权重置。
       </p>
 
       <div v-if="unavailable" class="change-password__alert" role="status">
@@ -212,7 +212,7 @@ async function handleSubmit(): Promise<void> {
             :disabled="saving || unavailable"
             :aria-busy="saving"
           >
-            {{ saving ? '保存中…' : '保存新密码' }}
+            {{ saving ? '重置中…' : '重置密码' }}
           </button>
         </div>
       </form>
