@@ -6,13 +6,14 @@
 """
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 
 from pydantic import BaseModel, ValidationError
 
 from app.ai import parser
 from app.ai.client import LLMClient, LLMResponse
-from app.ai.errors import AIInvalidOutputError, AITruncatedError
+from app.ai.errors import AIInvalidOutputError, AITimeoutError, AITruncatedError
 
 
 class PipelineResult:
@@ -34,6 +35,8 @@ def run[T: BaseModel](
     *,
     max_tokens: int | None = None,
     thinking: str | None = None,
+    deadline: float | None = None,
+    call_timeout_s: float | None = None,
 ) -> PipelineResult:
     """parse 传 Pydantic 模型类，或 custom_validate 传函数（raw -> 校验后的值）。
 
@@ -45,8 +48,9 @@ def run[T: BaseModel](
     last_error: Exception | None = None
     last_raw: str | None = None
     for attempt in range(1, retry_limit + 2):
+        timeout_s = _attempt_timeout(deadline, call_timeout_s)
         usage = client.complete(
-            operation, messages, max_tokens=max_tokens, thinking=thinking
+            operation, messages, max_tokens=max_tokens, thinking=thinking, timeout_s=timeout_s
         )
         last_raw = usage.text  # 坏输出也要把原文带出去，否则没法定位 prompt
         if usage.finish_reason == "length":
@@ -70,3 +74,19 @@ def run[T: BaseModel](
 
     detail = last_error.errors()[0]["msg"] if isinstance(last_error, ValidationError) else str(last_error)
     raise AIInvalidOutputError(f"生成结果未通过校验：{detail}", raw_text=last_raw)
+
+
+def _attempt_timeout(deadline: float | None, call_timeout_s: float | None) -> float | None:
+    """本次调用可用的超时：整单 deadline 剩下的时间与单次上限取小。
+
+    deadline 用 `time.monotonic()`；剩余不足 5 秒就不再发起调用——Python 杀不掉
+    阻塞在 socket 上的线程，只能靠"不再发起"把整单耗时卡住。
+    """
+    if deadline is None:
+        return call_timeout_s
+    remaining = deadline - time.monotonic()
+    if remaining <= 5:
+        raise AITimeoutError("识图超时，请重试")
+    if call_timeout_s is None:
+        return remaining - 5
+    return min(call_timeout_s, remaining - 5)

@@ -229,28 +229,28 @@ def _cache_store(
             session.rollback()
 
 
-def extract_from_image(
+def _cache_decision(
     session_factory: sessionmaker,
     user_id: int,
     image_path: str,
+    subject: str | None,
+    force_refresh: bool,
     *,
-    subject: str | None = None,
-    force_refresh: bool = False,
-) -> dict:
-    """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str],
-    "cached": bool, "extracted_at": datetime}`。
+    force_slot_taken: bool = False,
+) -> tuple[_CacheKey | None, dict | None]:
+    """归属校验 + 强刷冷却 + 缓存读，一处实现两种入口共用（同步端点 / 任务提交）。
 
-    两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
-    （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
-    `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）；
-    连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`，额度在调用模型前占用，失败也计），
-    否则一次重跑 17–90s 就是成本放大器。
+    返回 `(缓存键, 命中结果)`；未命中时结果为 None。强刷在**提交/调用前**占用冷却额度，
+    失败也计（现状口径）；任务化路径在提交时占一次，worker 里用 `force_slot_taken=True`
+    跳过第二次占用，否则会被自己刚占的 60s 冷却挡住。
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
     key = _cache_key(session_factory, user_id, image_path, subject)
-    if key is not None:
-        if force_refresh:
+    if key is None:
+        return None, None
+    if force_refresh:
+        if not force_slot_taken:
             try:
                 wait_s = _acquire_force_slot(session_factory, key)
             except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
@@ -262,22 +262,67 @@ def extract_from_image(
                     f"刚重新识别过，请 {wait_s} 秒后再试",
                     429,
                 )
-        else:
-            try:
-                cached = _cache_load(session_factory, key)
-            except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
-                # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
-                logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
-                cached = None
-            if cached is not None:
-                logger.info(
-                    "识图缓存命中（user=%s sha=%s subject=%r）",
-                    user_id,
-                    key.image_sha,
-                    key.subject_key,
-                )
-                cached["image_path"] = image_path
-                return cached
+        return key, None
+    try:
+        cached = _cache_load(session_factory, key)
+    except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
+        # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
+        logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
+        cached = None
+    if cached is not None:
+        logger.info(
+            "识图缓存命中（user=%s sha=%s subject=%r）",
+            user_id,
+            key.image_sha,
+            key.subject_key,
+        )
+        cached["image_path"] = image_path
+    return key, cached
+
+
+def prepare_submission(
+    session_factory: sessionmaker,
+    user_id: int,
+    image_path: str,
+    *,
+    subject: str | None = None,
+    force_refresh: bool = False,
+) -> dict | None:
+    """任务化提交的快路径：命中缓存直接返回 payload；未命中返回 None（交给入队）。"""
+    _, cached = _cache_decision(session_factory, user_id, image_path, subject, force_refresh)
+    return cached
+
+
+def extract_from_image(
+    session_factory: sessionmaker,
+    user_id: int,
+    image_path: str,
+    *,
+    subject: str | None = None,
+    force_refresh: bool = False,
+    deadline: float | None = None,
+    call_timeout_s: float | None = None,
+    force_slot_taken: bool = False,
+) -> dict:
+    """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str],
+    "cached": bool, "extracted_at": datetime}`。
+
+    两跳（BE-024 / 05 §6.8）：第 1 跳只转录（图 → 文本 + chapter），第 2 跳只结构化
+    （文本 → 现有 ExtractedQuestion 形状）。对外仍是同一个端点、同一次 HTTP。
+    `force_refresh=True` 跳过缓存读，成功后覆盖写回（给"重新识别"一个出口）；
+    连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`，额度在调用模型前占用，失败也计），
+    否则一次重跑 17–90s 就是成本放大器。
+    """
+    key, cached = _cache_decision(
+        session_factory,
+        user_id,
+        image_path,
+        subject,
+        force_refresh,
+        force_slot_taken=force_slot_taken,
+    )
+    if cached is not None:
+        return cached
 
     extracted_at = datetime.now(UTC)
     data_url = image_service.data_url_for_llm(user_id, image_path)
@@ -294,6 +339,8 @@ def extract_from_image(
         max_tokens=24000,
         thinking="adaptive",
         validate=validator.validate_transcript,
+        deadline=deadline,
+        call_timeout_s=call_timeout_s,
     )
     if not transcript["questions"]:
         # 图里没题是正常结果，不再白花第二跳；只留一条转录日志。
@@ -321,6 +368,8 @@ def extract_from_image(
         validate=lambda raw: validator.validate_extraction(
             validator.normalize_blank_markers(raw)
         ),
+        deadline=deadline,
+        call_timeout_s=call_timeout_s,
     )
 
     chapter = transcript["chapter"]
@@ -362,6 +411,8 @@ def _hop(
     max_tokens: int,
     thinking: str,
     validate,
+    deadline: float | None = None,
+    call_timeout_s: float | None = None,
 ):
     """跑一跳：调用、校验、失败写一行日志（prompt_version 按跳分开）。"""
     try:
@@ -373,6 +424,8 @@ def _hop(
             retry_limit=1,
             max_tokens=max_tokens,
             thinking=thinking,
+            deadline=deadline,
+            call_timeout_s=call_timeout_s,
         )
     except AITruncatedError as exc:
         # 实测一张真实教材照片 4 道题就吃掉 6776 输出 token；一页更密的题确实会顶到。

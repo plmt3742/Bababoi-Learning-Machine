@@ -75,6 +75,7 @@ class LLMClient(Protocol):
         *,
         max_tokens: int | None = None,
         thinking: str | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         """发一次对话；网络/超时/供应商错误抛 AIError 子类。
 
@@ -103,6 +104,7 @@ class MockLLMClient:
         *,
         max_tokens: int | None = None,
         thinking: str | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         if operation == OPERATION_QUIZ:
             text = _mock_quiz_text(messages)
@@ -172,6 +174,7 @@ class DeepSeekClient:
         *,
         max_tokens: int | None = None,
         thinking: str | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         start = time.monotonic()
         sampling = dict(SAMPLING.get(operation, {}))
@@ -183,7 +186,9 @@ class DeepSeekClient:
             # 没指定时默认关思考（抄题不需要推理，思考 token 会顶满上限变成截断）
             extra["thinking"] = {"type": thinking or "disabled"}
         try:
-            resp = self._client.with_options(timeout=_timeout_for(operation)).chat.completions.create(
+            # 任务化 worker 会按整单 deadline 传更小的 timeout_s；同步路径仍按操作分档
+            timeout = _timeout_for(operation) if timeout_s is None else timeout_s
+            resp = self._client.with_options(timeout=timeout).chat.completions.create(
                 model=self.model,
                 messages=messages,
                 response_format={"type": "json_object"},  # 实测 deepseek-flash 支持（与图片同用也可）
