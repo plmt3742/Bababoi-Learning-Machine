@@ -62,8 +62,8 @@ const metaText = computed(() => {
   const task = props.task
   if (!task) return props.requested ? '正在提交任务' : '尚未生成'
 
-  const retry = task.retry_index > 0 ? ` · 第 ${task.retry_index + 1} 次尝试` : ''
-  return `任务 #${task.id}${retry}`
+  const retry = task.retry_index > 0 ? `第 ${task.retry_index + 1} 次尝试` : ''
+  return retry
 })
 
 function handleRetry(): void {
@@ -100,7 +100,7 @@ function handleRegenerate(): void {
     </p>
 
     <div class="segment__foot">
-      <span class="segment__meta">{{ metaText }}</span>
+      <span v-if="metaText" class="segment__meta">{{ metaText }}</span>
       <button
         v-if="status === 'failed'"
         class="btn btn--quiet btn--sm segment__retry"

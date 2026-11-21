@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { IconArrowRight, IconRefresh } from '@arco-design/web-vue/es/icon'
@@ -8,9 +8,10 @@ import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
+import MarkdownRenderer from '../components/common/MarkdownRenderer.vue'
 import SegmentCard from '../components/ai/SegmentCard.vue'
 import { getDraft } from '../api/drafts'
-import { generateQuestions } from '../api/questions'
+import { generateQuestions, getQuestion } from '../api/questions'
 import { cancelTask, retryTask } from '../api/tasks'
 import { normalizeApiError } from '../api/errors'
 import type { Draft, GenerationTargetIndex, Task, TaskStatus } from '../api/types'
@@ -63,6 +64,41 @@ const retryingTaskId = ref<number | null>(null)
 const cancelingTaskId = ref<number | null>(null)
 const manualRefreshing = ref(false)
 const expandedGroups = ref<Set<number>>(new Set())
+const questionSummaries = ref<Record<number, string>>({})
+const loadingQuestionIds = new Set<number>()
+const failedQuestionIds = new Set<number>()
+
+function collectQuestionIds(): number[] {
+  const ids = new Set<number>()
+
+  for (const task of tasks.value) ids.add(task.question_id)
+  for (const group of groupQuizSegmentTasks(tasks.value)) ids.add(group.questionId)
+
+  return [...ids]
+}
+
+async function hydrateQuestionSummaries(): Promise<void> {
+  const pending = collectQuestionIds().filter(
+    (id) =>
+      !questionSummaries.value[id] && !loadingQuestionIds.has(id) && !failedQuestionIds.has(id),
+  )
+
+  await Promise.all(
+    pending.map(async (id) => {
+      loadingQuestionIds.add(id)
+      try {
+        const detail = await getQuestion(id)
+        questionSummaries.value[id] = detail.content_md
+      } catch {
+        failedQuestionIds.add(id)
+      } finally {
+        loadingQuestionIds.delete(id)
+      }
+    }),
+  )
+}
+
+watch(tasks, () => void hydrateQuestionSummaries(), { immediate: true })
 
 const taskRows = computed<TaskRow[]>(() => {
   const rows: TaskRow[] = []
@@ -337,7 +373,7 @@ async function handleRetry(taskId: number): Promise<void> {
 
   try {
     await retryTask(taskId)
-    Message.success(`任务 #${taskId} 已重新提交`)
+    Message.success('已重新提交任务')
     startTaskPolling()
   } catch (cause) {
     Message.error(normalizeApiError(cause).message)
@@ -502,7 +538,7 @@ onMounted(() => {
 
       <section v-else class="task-panel" aria-label="任务列表">
         <div class="task-head">
-          <span>任务 / 题目</span>
+          <span>任务 / 题目内容</span>
           <span>阶段</span>
           <span>状态</span>
           <span>时间</span>
@@ -522,9 +558,14 @@ onMounted(() => {
           >
             <template v-if="row.kind === 'task'">
               <div class="task-row__main">
-                <span class="task-row__id">#{{ row.task.id }}</span>
                 <RouterLink class="task-row__link" :to="`/questions/${row.task.question_id}`">
-                  题目 #{{ row.task.question_id }}
+                  <MarkdownRenderer
+                    v-if="questionSummaries[row.task.question_id]"
+                    class="task-row__question"
+                    :content="questionSummaries[row.task.question_id]"
+                    compact
+                  />
+                  <span v-else class="task-row__question-placeholder">查看题目</span>
                   <IconArrowRight aria-hidden="true" />
                 </RouterLink>
               </div>
@@ -582,9 +623,15 @@ onMounted(() => {
 
             <template v-else>
               <div class="task-row__main">
-                <span class="task-row__group-tag">3 段</span>
+                <span class="task-row__group-tag">相似题生成任务</span>
                 <RouterLink class="task-row__link" :to="`/questions/${row.group.questionId}`">
-                  题目 #{{ row.group.questionId }}
+                  <MarkdownRenderer
+                    v-if="questionSummaries[row.group.questionId]"
+                    class="task-row__question"
+                    :content="questionSummaries[row.group.questionId]"
+                    compact
+                  />
+                  <span v-else class="task-row__question-placeholder">查看题目</span>
                   <IconArrowRight aria-hidden="true" />
                 </RouterLink>
               </div>
@@ -1004,6 +1051,30 @@ onMounted(() => {
   height: 14px;
   flex: none;
   color: var(--color-text-3);
+}
+
+.task-row__question {
+  min-width: 0;
+  max-height: 6.2em;
+  overflow: hidden;
+  color: var(--color-text-1);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.task-row__question :deep(p) {
+  margin: 0;
+}
+
+.task-row__question :deep(.katex-display) {
+  margin: 0.15em 0;
+}
+
+.task-row__question-placeholder {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
 }
 
 .task-row__stage {

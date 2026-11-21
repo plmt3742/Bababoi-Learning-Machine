@@ -117,6 +117,9 @@ onBeforeUnmount(() => {
       description="看清错题规模、练习正确率与薄弱知识点，把复习精力放在最需要的地方。"
     >
       <template #actions>
+        <button class="btn btn--outline" type="button" @click="router.push('/')">
+          返回首页
+        </button>
         <button
           class="btn btn--outline stats-refresh"
           type="button"

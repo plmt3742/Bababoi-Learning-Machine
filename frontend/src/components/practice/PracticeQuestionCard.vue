@@ -82,7 +82,6 @@ watch(() => props.question.id, resetAnswer)
           <span class="tag">{{ typeLabel }}</span>
           <span v-if="difficultyText" class="tag tag--point">{{ difficultyText }}</span>
         </div>
-        <span class="practice-card__id">#{{ question.id }}</span>
       </div>
 
       <div class="practice-card__body">
@@ -269,13 +268,6 @@ watch(() => props.question.id, resetAnswer)
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.practice-card__id {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
 }
 
 .practice-card__body {

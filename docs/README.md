@@ -52,6 +52,7 @@
 | [agent/24-staging-handoff-20261117.md](agent/24-staging-handoff-20261117.md) | Staging 更新与真接口回归对接单：现状、备份、后端镜像、前端 dist、15 步回归、BYOK 核对、回滚与排障 | staging 更新 / 演示前真接口回归 / 部署排障 |
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
 | [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
+| [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
 
 ### 产品设计
 

@@ -414,10 +414,12 @@ async function handleSave(): Promise<void> {
     saveNotice.value =
       failed > 0 ? `已保存 ${success} 道，${failed} 道失败；失败条目已保留，可修改后重试。` : ''
     await nextTick()
-    document.getElementById('image-saved-panel')?.scrollIntoView({
+    const savedPanel = document.getElementById('image-saved-panel')
+    savedPanel?.scrollIntoView({
       behavior: 'smooth',
       block: 'start',
     })
+    savedPanel?.focus({ preventScroll: true })
   }
 
   if (failed > 0) {
@@ -505,9 +507,7 @@ onBeforeUnmount(() => {
                 {{ formatFileSize(preparedImage.file.size) }} · {{ preparedImage.width }} ×
                 {{ preparedImage.height }} px
               </p>
-              <p class="prepared__hint">
-                已按最长边 2000px、目标 5MB 压缩；识别前可重新裁剪或换图。
-              </p>
+              <p class="prepared__hint">识别前可重新裁剪或换图。</p>
               <div class="prepared__actions">
                 <button
                   class="btn btn--outline btn--sm"
@@ -690,7 +690,7 @@ onBeforeUnmount(() => {
         </div>
 
         <p class="hint">
-          识别后 AI 会自动判断学科、章节、题型和难度；未手选学科时会用 AI 结果预填，保存前请核对。
+          识别后 AI 会自动判断学科、题型和难度；未手选学科时会用 AI 结果预填，保存前请核对。
         </p>
       </section>
 
@@ -698,7 +698,7 @@ onBeforeUnmount(() => {
         <h2 id="image-rules-heading" class="panel__title">图片要求</h2>
         <ul class="rules">
           <li>支持 JPEG / PNG / WebP，原图不超过 20MB。</li>
-          <li>上传前会压缩到最长边 2000px、目标 5MB。</li>
+          <li>上传前会自动压缩图片；识别前可重新裁剪或换图。</li>
           <li>电脑可粘贴截图；手机可拍照或从相册选择。</li>
           <li>当前阶段只提取文字和公式；含图题会标记提醒。</li>
         </ul>

@@ -70,10 +70,6 @@ function handleContent(value: unknown): void {
   patch({ content_md: value })
 }
 
-function handleChapter(value: unknown): void {
-  patch({ chapter: typeof value === 'string' ? value : '' })
-}
-
 function handleSelected(value: unknown): void {
   patch({ selected: value === true })
 }
@@ -203,18 +199,6 @@ watch(
       <div class="item-field">
         <p class="field-label">题型</p>
         <QuestionTypeSelector :model-value="item.question_type" @update:model-value="changeType" />
-      </div>
-
-      <div class="item-field">
-        <label class="field-label" :for="`image-chapter-${item.key}`">章节（可选）</label>
-        <a-input
-          :model-value="item.chapter"
-          :max-length="64"
-          :input-attrs="{ id: `image-chapter-${item.key}` }"
-          placeholder="AI 初判章节，可修改"
-          allow-clear
-          @update:model-value="handleChapter"
-        />
       </div>
 
       <ChoiceEditor
