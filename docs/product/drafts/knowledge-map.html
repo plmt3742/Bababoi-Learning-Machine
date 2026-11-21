@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>知识脉络 · 掌握地图（设计稿）</title>
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --paper: #ffffff;
+        --paper-soft: #fbfbfc;
+        --ink: #1b1f24;
+        --ink-2: #4b5563;
+        --ink-3: #6b7280;
+        --line: #e4e6ea;
+        --line-strong: #cfd3da;
+        --blue: #165dff;
+        --blue-soft: #eef3ff;
+        --green: #1b6e43;
+        --green-soft: #eef6f0;
+        --amber: #8a5a00;
+        --amber-soft: #fbf5e6;
+        --red: #b42318;
+        --red-soft: #fcf2f1;
+        --radius: 10px;
+        --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.04);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+          "Microsoft YaHei", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .shell {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 18px 28px 40px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        min-height: 56px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--paper);
+        box-shadow: var(--shadow);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .brand-mark {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background:
+          linear-gradient(90deg, var(--blue) 0 45%, transparent 45% 55%, #1b1f24 55%),
+          linear-gradient(0deg, #1b1f24 0 45%, transparent 45% 55%, var(--blue) 55%);
+      }
+
+      .brand-sub {
+        color: var(--ink-3);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .nav {
+        display: flex;
+        gap: 4px;
+        margin-left: auto;
+      }
+
+      .nav a {
+        padding: 7px 10px;
+        border-radius: 7px;
+        color: var(--ink-3);
+        font-size: 13px;
+      }
+
+      .nav a:hover {
+        background: var(--paper-soft);
+        color: var(--ink);
+      }
+
+      .nav a.is-active {
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-weight: 600;
+      }
+
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .page-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin: 34px 2px 22px;
+      }
+
+      .kicker {
+        margin: 0 0 8px;
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+      }
+
+      .lede {
+        max-width: 620px;
+        margin: 8px 0 0;
+        color: var(--ink-2);
+        font-size: 14px;
+        line-height: 1.65;
+        text-wrap: pretty;
+      }
+
+      .head-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 0 13px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: var(--paper);
+        color: var(--ink-2);
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        border-color: var(--blue);
+        color: var(--blue);
+      }
+
+      .btn--primary {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .btn--primary:hover {
+        background: #0e42d2;
+        color: #fff;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+
+      .stat {
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--paper);
+      }
+
+      .stat__label {
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .stat__value {
+        margin-top: 4px;
+        font-size: 26px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat__hint {
+        margin-top: 2px;
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .stat--good .stat__value {
+        color: var(--green);
+      }
+
+      .stat--warn .stat__value {
+        color: var(--amber);
+      }
+
+      .stat--bad .stat__value {
+        color: var(--red);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 330px;
+        align-items: start;
+        gap: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--paper);
+      }
+
+      .panel__head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel__head h2 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .panel__hint {
+        margin-left: auto;
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .canvas-panel {
+        overflow: hidden;
+      }
+
+      .canvas-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .segmented {
+        display: inline-flex;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper-soft);
+      }
+
+      .segmented span {
+        padding: 5px 10px;
+        border-radius: 6px;
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .segmented span.is-on {
+        background: var(--paper);
+        color: var(--ink);
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        padding: 5px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .canvas {
+        position: relative;
+        min-height: 560px;
+        background-color: #fdfdfd;
+        background-image: radial-gradient(#e9ebef 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+
+      .canvas svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .edge {
+        fill: none;
+        stroke: var(--line-strong);
+        stroke-width: 1.4;
+      }
+
+      .edge--weak {
+        stroke: #e6b7b2;
+        stroke-dasharray: 4 4;
+      }
+
+      .node {
+        cursor: pointer;
+        outline: none;
+      }
+
+      .node rect.node__box {
+        fill: #fff;
+        stroke: var(--line-strong);
+        stroke-width: 1;
+        rx: 10;
+        transition: filter 0.15s ease;
+      }
+
+      .node--mastered rect.node__box {
+        fill: var(--green-soft);
+        stroke: #b9d8c5;
+      }
+
+      .node--reviewing rect.node__box {
+        fill: var(--amber-soft);
+        stroke: #e4cfa4;
+      }
+
+      .node--weak rect.node__box {
+        fill: var(--red-soft);
+        stroke: #e8bcb7;
+      }
+
+      .node--untouched rect.node__box {
+        fill: #fff;
+        stroke-dasharray: 5 4;
+      }
+
+      .node text.node__name {
+        fill: var(--ink);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .node text.node__meta {
+        fill: var(--ink-3);
+        font-size: 10px;
+      }
+
+      .node .node__badge {
+        fill: #fff;
+        stroke: var(--line-strong);
+      }
+
+      .node text.node__count {
+        fill: var(--ink-2);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .node--weak text.node__count {
+        fill: var(--red);
+      }
+
+      .node:hover rect.node__box,
+      .node:focus-visible rect.node__box {
+        filter: drop-shadow(0 2px 5px rgba(16, 24, 40, 0.12));
+      }
+
+      .node.is-active rect.node__box {
+        stroke: var(--blue);
+        stroke-width: 2;
+      }
+
+      .node.is-active rect.node__ring {
+        fill: none;
+        stroke: var(--blue);
+        stroke-width: 1;
+        stroke-dasharray: 3 4;
+      }
+
+      .node rect.node__ring {
+        display: none;
+      }
+
+      .node.is-active rect.node__ring {
+        display: block;
+      }
+
+      .canvas-detail {
+        padding: 16px;
+      }
+
+      .canvas-detail__kicker {
+        color: var(--blue);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+      }
+
+      .canvas-detail h3 {
+        margin: 5px 0 4px;
+        font-size: 17px;
+        letter-spacing: -0.01em;
+      }
+
+      .canvas-detail p {
+        margin: 0;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .canvas-detail__link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 10px;
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--line);
+        color: var(--ink-3);
+        font-size: 12px;
+      }
+
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .dot--mastered {
+        background: var(--green);
+      }
+
+      .dot--reviewing {
+        background: #c08a1e;
+      }
+
+      .dot--weak {
+        background: var(--red);
+      }
+
+      .dot--untouched {
+        border: 1px solid var(--line-strong);
+        background: #fff;
+      }
+
+      .side {
+        display: grid;
+        gap: 14px;
+      }
+
+      .path {
+        padding: 16px;
+      }
+
+      .path__lead {
+        margin: 0 0 12px;
+        color: var(--ink-3);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        border-top: 1px dashed var(--line);
+      }
+
+      .step:first-of-type {
+        border-top: 0;
+      }
+
+      .step__no {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        color: var(--ink-3);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .step.is-current .step__no {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .step__name {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .step__meta {
+        margin-top: 1px;
+        color: var(--ink-3);
+        font-size: 11px;
+      }
+
+      .step__state {
+        font-size: 11px;
+      }
+
+      .step__state--good {
+        color: var(--green);
+      }
+
+      .step__state--warn {
+        color: var(--amber);
+      }
+
+      .step__state--bad {
+        color: var(--red);
+      }
+
+      .path__cta {
+        width: 100%;
+        margin-top: 12px;
+      }
+
+      .weak-list {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .weak {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 34px;
+        gap: 8px;
+        padding: 10px 16px;
+        border-top: 1px solid var(--line);
+      }
+
+      .weak:first-child {
+        border-top: 0;
+      }
+
+      .weak__top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .weak__name {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .weak__count {
+        color: var(--red);
+        font-size: 12px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .weak__bar {
+        grid-column: 1 / -1;
+        height: 4px;
+        border-radius: 99px;
+        background: #f0f1f4;
+        overflow: hidden;
+      }
+
+      .weak__bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #e6b7b2, var(--red));
+      }
+
+      .weak__hint {
+        grid-column: 1 / -1;
+        margin-top: -2px;
+        color: var(--ink-3);
+        font-size: 11px;
+      }
+
+      .note {
+        padding: 14px 16px;
+        color: var(--ink-3);
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .note strong {
+        color: var(--ink-2);
+      }
+
+      .foot {
+        margin-top: 18px;
+        color: var(--ink-3);
+        font-size: 11px;
+        text-align: center;
+      }
+
+      @media (max-width: 1060px) {
+        .summary {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .side {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 700px) {
+        .shell {
+          padding: 12px 12px 28px;
+        }
+
+        .nav {
+          display: none;
+        }
+
+        .page-head {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 24px;
+        }
+
+        .head-actions {
+          width: 100%;
+        }
+
+        .head-actions .btn {
+          flex: 1;
+        }
+
+        .summary {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .side {
+          grid-template-columns: 1fr;
+        }
+
+        .canvas {
+          min-height: 430px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="#">
+          <span class="brand-mark" aria-hidden="true"></span>
+          Bababoi
+          <span class="brand-sub">错题学习机</span>
+        </a>
+        <nav class="nav" aria-label="主要导航">
+          <a href="#">首页</a>
+          <a href="#">错题本</a>
+          <a href="#">录入错题</a>
+          <a href="#">任务中心</a>
+          <a class="is-active" href="#" aria-current="page">知识脉络</a>
+        </nav>
+        <span class="avatar" aria-hidden="true">S</span>
+      </header>
+
+      <section class="page-head">
+        <div>
+          <p class="kicker">KNOWLEDGE MAP</p>
+          <h1>知识脉络</h1>
+          <p class="lede">
+            把错题里的知识点连成一张图：先补前置，再攻薄弱点。点节点看掌握度，右侧直接给出下一步复习顺序。
+          </p>
+        </div>
+        <div class="head-actions">
+          <button class="btn" type="button">列表视图</button>
+          <button class="btn btn--primary" type="button">开始复习</button>
+        </div>
+      </section>
+
+      <section class="summary" aria-label="知识点概况">
+        <div class="stat">
+          <p class="stat__label">覆盖知识点</p>
+          <p class="stat__value">16</p>
+          <p class="stat__hint">来自 30 道错题的知识点标签</p>
+        </div>
+        <div class="stat stat--good">
+          <p class="stat__label">已掌握</p>
+          <p class="stat__value">4</p>
+          <p class="stat__hint">连续答对 ≥ 3 次</p>
+        </div>
+        <div class="stat stat--warn">
+          <p class="stat__label">复习中</p>
+          <p class="stat__value">5</p>
+          <p class="stat__hint">有练习但还不稳定</p>
+        </div>
+        <div class="stat stat--bad">
+          <p class="stat__label">未掌握</p>
+          <p class="stat__value">5</p>
+          <p class="stat__hint">未接触 2 · 错误 ≥ 2 次优先处理</p>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section class="panel canvas-panel" aria-labelledby="map-title">
+          <div class="panel__head">
+            <h2 id="map-title">掌握地图</h2>
+            <span class="panel__hint">按照「前置 → 当前」方向连线</span>
+          </div>
+
+          <div class="canvas-toolbar">
+            <div class="segmented" role="group" aria-label="视图切换">
+              <span class="is-on">掌握</span>
+              <span>脉络</span>
+            </div>
+            <span class="chip">全部学科</span>
+            <span class="chip">只看薄弱</span>
+          </div>
+
+          <div class="canvas">
+            <svg viewBox="0 0 920 560" role="img" aria-labelledby="map-svg-title map-svg-desc">
+              <title id="map-svg-title">知识点掌握地图示意</title>
+              <desc id="map-svg-desc">
+                节点表示知识点，颜色表示掌握状态，连线表示前置关系；极值为当前选中的薄弱知识点。
+              </desc>
+
+              <defs>
+                <marker
+                  id="arrow"
+                  markerWidth="7"
+                  markerHeight="7"
+                  refX="6"
+                  refY="3.5"
+                  orient="auto"
+                >
+                  <path d="M0,0 L7,3.5 L0,7 Z" fill="#cfd3da" />
+                </marker>
+              </defs>
+
+              <!-- 前置关系 -->
+              <path class="edge" d="M140 144 C 180 136, 210 122, 248 116" marker-end="url(#arrow)" />
+              <path class="edge" d="M390 114 C 396 120, 396 138, 400 142" marker-end="url(#arrow)" />
+              <path class="edge" d="M540 144 C 548 130, 550 116, 558 111" marker-end="url(#arrow)" />
+              <path class="edge edge--weak" d="M635 133 C 650 160, 670 182, 692 203" marker-end="url(#arrow)" />
+              <path class="edge" d="M770 229 C 780 210, 776 182, 772 166" marker-end="url(#arrow)" />
+              <path class="edge" d="M470 168 C 466 200, 462 226, 460 248" marker-end="url(#arrow)" />
+              <path class="edge" d="M520 168 C 520 220, 518 260, 518 298" marker-end="url(#arrow)" />
+              <path class="edge" d="M660 324 C 664 334, 666 346, 668 352" marker-end="url(#arrow)" />
+              <path class="edge" d="M150 414 C 180 404, 210 386, 248 376" marker-end="url(#arrow)" />
+              <path class="edge" d="M390 374 C 396 390, 396 410, 390 422" marker-end="url(#arrow)" />
+              <path class="edge edge--weak" d="M530 424 C 534 432, 534 438, 532 442" marker-end="url(#arrow)" />
+              <path class="edge" d="M190 534 C 220 532, 250 528, 298 526" marker-end="url(#arrow)" />
+              <path class="edge" d="M440 524 C 446 530, 450 534, 458 537" marker-end="url(#arrow)" />
+
+              <!-- 极限 -->
+              <g class="node node--mastered" tabindex="0" role="button" data-name="极限"
+                transform="translate(0 120)"
+                data-meta="已掌握 · 2 道错题 · 前置：无"
+                data-hint="基础稳定，可以继续往后学。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">极限</text>
+                <text class="node__meta" x="14" y="36">已掌握 · 2 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">2</text>
+              </g>
+
+              <!-- 连续 -->
+              <g class="node node--mastered" tabindex="0" role="button" data-name="连续"
+                transform="translate(250 90)"
+                data-meta="已掌握 · 1 道错题 · 前置：极限"
+                data-hint="可以跳到导数，不用在这里停。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">连续</text>
+                <text class="node__meta" x="14" y="36">已掌握 · 1 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">1</text>
+              </g>
+
+              <!-- 导数 -->
+              <g class="node node--reviewing" tabindex="0" role="button" data-name="导数"
+                transform="translate(400 120)"
+                data-meta="复习中 · 4 道错题 · 前置：连续"
+                data-hint="和极值、单调性强相关，建议先巩固。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">导数</text>
+                <text class="node__meta" x="14" y="36">复习中 · 4 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">4</text>
+              </g>
+
+              <!-- 单调性 -->
+              <g class="node node--reviewing" tabindex="0" role="button" data-name="单调性"
+                transform="translate(560 85)"
+                data-meta="复习中 · 5 道错题 · 前置：导数"
+                data-hint="判断符号时容易漏区间，建议专项练 5 题。">
+                <rect class="node__box" x="0" y="0" width="150" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">单调性</text>
+                <text class="node__meta" x="14" y="36">复习中 · 5 道错题</text>
+                <circle class="node__badge" cx="128" cy="24" r="12" />
+                <text class="node__count" x="128" y="27" text-anchor="middle">5</text>
+              </g>
+
+              <!-- 极值（当前选中） -->
+              <g class="node node--weak is-active" tabindex="0" role="button" data-name="极值"
+                transform="translate(620 205)"
+                data-meta="未掌握 · 8 道错题 · 前置：单调性、导数"
+                data-hint="最该补的一块：先回顾单调性，再练极值判定。">
+                <rect class="node__ring" x="-5" y="-5" width="160" height="58" rx="14" />
+                <rect class="node__box" x="0" y="0" width="150" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">极值</text>
+                <text class="node__meta" x="14" y="36">未掌握 · 8 道错题</text>
+                <circle class="node__badge" cx="128" cy="24" r="12" />
+                <text class="node__count" x="128" y="27" text-anchor="middle">8</text>
+              </g>
+
+              <!-- 最值 -->
+              <g class="node node--untouched" tabindex="0" role="button" data-name="最值"
+                transform="translate(770 140)"
+                data-meta="未接触 · 前置：极值"
+                data-hint="等极值稳定后再进入，避免同时学两个概念。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">最值</text>
+                <text class="node__meta" x="14" y="36">未接触</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">0</text>
+              </g>
+
+              <!-- 微分 -->
+              <g class="node node--untouched" tabindex="0" role="button" data-name="微分"
+                transform="translate(390 250)"
+                data-meta="未接触 · 前置：导数"
+                data-hint="概念题为主，可以在极值之后补。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">微分</text>
+                <text class="node__meta" x="14" y="36">未接触</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">0</text>
+              </g>
+
+              <!-- 积分 -->
+              <g class="node node--reviewing" tabindex="0" role="button" data-name="积分"
+                transform="translate(520 300)"
+                data-meta="复习中 · 3 道错题 · 前置：导数"
+                data-hint="定积分计算不稳定，先补基本公式。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">积分</text>
+                <text class="node__meta" x="14" y="36">复习中 · 3 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">3</text>
+              </g>
+
+              <!-- 定积分 -->
+              <g class="node node--weak" tabindex="0" role="button" data-name="定积分"
+                transform="translate(670 330)"
+                data-meta="未掌握 · 2 道错题 · 前置：积分"
+                data-hint="先练换元与分部积分，再回到应用题。">
+                <rect class="node__box" x="0" y="0" width="150" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">定积分</text>
+                <text class="node__meta" x="14" y="36">未掌握 · 2 道错题</text>
+                <circle class="node__badge" cx="128" cy="24" r="12" />
+                <text class="node__count" x="128" y="27" text-anchor="middle">2</text>
+              </g>
+
+              <!-- 随机变量 -->
+              <g class="node node--mastered" tabindex="0" role="button" data-name="随机变量"
+                transform="translate(0 390)"
+                data-meta="已掌握 · 1 道错题 · 前置：无"
+                data-hint="概率模块的起点，保持即可。">
+                <rect class="node__box" x="0" y="0" width="150" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">随机变量</text>
+                <text class="node__meta" x="14" y="36">已掌握 · 1 道错题</text>
+                <circle class="node__badge" cx="128" cy="24" r="12" />
+                <text class="node__count" x="128" y="27" text-anchor="middle">1</text>
+              </g>
+
+              <!-- 分布 -->
+              <g class="node node--reviewing" tabindex="0" role="button" data-name="分布"
+                transform="translate(250 350)"
+                data-meta="复习中 · 4 道错题 · 前置：随机变量"
+                data-hint="正态与卡方分布容易混，建议对比记忆。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">分布</text>
+                <text class="node__meta" x="14" y="36">复习中 · 4 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">4</text>
+              </g>
+
+              <!-- 期望 -->
+              <g class="node node--reviewing" tabindex="0" role="button" data-name="期望"
+                transform="translate(390 400)"
+                data-meta="复习中 · 3 道错题 · 前置：分布"
+                data-hint="性质题要写清线性运算步骤。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">期望</text>
+                <text class="node__meta" x="14" y="36">复习中 · 3 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">3</text>
+              </g>
+
+              <!-- 方差 -->
+              <g class="node node--weak" tabindex="0" role="button" data-name="方差"
+                transform="translate(530 420)"
+                data-meta="未掌握 · 3 道错题 · 前置：期望"
+                data-hint="先记 D(X)=E(X²)-E(X)²，再练线性变换。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">方差</text>
+                <text class="node__meta" x="14" y="36">未掌握 · 3 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">3</text>
+              </g>
+
+              <!-- 矩阵 -->
+              <g class="node node--mastered" tabindex="0" role="button" data-name="矩阵"
+                transform="translate(50 510)"
+                data-meta="已掌握 · 1 道错题 · 前置：无"
+                data-hint="计算稳定，可以进入特征值。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">矩阵</text>
+                <text class="node__meta" x="14" y="36">已掌握 · 1 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">1</text>
+              </g>
+
+              <!-- 特征值 -->
+              <g class="node node--weak" tabindex="0" role="button" data-name="特征值"
+                transform="translate(300 500)"
+                data-meta="未掌握 · 3 道错题 · 前置：矩阵"
+                data-hint="先练 2×2 的特征多项式，再上 3×3。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">特征值</text>
+                <text class="node__meta" x="14" y="36">未掌握 · 3 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">3</text>
+              </g>
+
+              <!-- 二次型 -->
+              <g class="node node--weak" tabindex="0" role="button" data-name="二次型"
+                transform="translate(460 515)"
+                data-meta="未掌握 · 1 道错题 · 前置：特征值"
+                data-hint="特征值稳定后再做正定性判断。">
+                <rect class="node__box" x="0" y="0" width="140" height="48" rx="10" />
+                <text class="node__name" x="14" y="21">二次型</text>
+                <text class="node__meta" x="14" y="36">未掌握 · 1 道错题</text>
+                <circle class="node__badge" cx="118" cy="24" r="12" />
+                <text class="node__count" x="118" y="27" text-anchor="middle">1</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="legend" aria-label="掌握度图例">
+            <span><i class="dot dot--mastered"></i>已掌握</span>
+            <span><i class="dot dot--reviewing"></i>复习中</span>
+            <span><i class="dot dot--weak"></i>未掌握</span>
+            <span><i class="dot dot--untouched"></i>未接触</span>
+            <span style="margin-left: auto">数字 = 该知识点相关错题数</span>
+          </div>
+        </section>
+
+        <aside class="side">
+          <section class="panel canvas-detail" aria-live="polite">
+            <p class="canvas-detail__kicker">CURRENT FOCUS</p>
+            <h3 id="detail-name">极值</h3>
+            <p id="detail-meta">未掌握 · 8 道错题 · 前置：单调性、导数</p>
+            <p id="detail-hint" style="margin-top: 6px">
+              最该补的一块：先回顾单调性，再练极值判定。
+            </p>
+            <a class="canvas-detail__link" href="#">去练这一块 →</a>
+          </section>
+
+          <section class="panel path" aria-labelledby="path-title">
+            <div class="panel__head" style="padding: 0 0 10px; border: 0">
+              <h2 id="path-title">建议复习路径</h2>
+              <span class="panel__hint">按前置关系</span>
+            </div>
+            <p class="path__lead">从已掌握但久未练习的「极限」开始，沿着导数把极值补齐。</p>
+
+            <div class="step">
+              <span class="step__no">1</span>
+              <div>
+                <p class="step__name">极限</p>
+                <p class="step__meta">2 道错题 · 基础</p>
+              </div>
+              <span class="step__state step__state--good">已掌握</span>
+            </div>
+            <div class="step">
+              <span class="step__no">2</span>
+              <div>
+                <p class="step__name">导数</p>
+                <p class="step__meta">4 道错题 · 前置稳固</p>
+              </div>
+              <span class="step__state step__state--warn">复习中</span>
+            </div>
+            <div class="step">
+              <span class="step__no">3</span>
+              <div>
+                <p class="step__name">单调性</p>
+                <p class="step__meta">5 道错题 · 与极值强相关</p>
+              </div>
+              <span class="step__state step__state--warn">复习中</span>
+            </div>
+            <div class="step is-current">
+              <span class="step__no">4</span>
+              <div>
+                <p class="step__name">极值</p>
+                <p class="step__meta">8 道错题 · 当前最薄弱</p>
+              </div>
+              <span class="step__state step__state--bad">未掌握</span>
+            </div>
+
+            <button class="btn btn--primary path__cta" type="button">从「极值」开始复习</button>
+          </section>
+
+          <section class="panel" aria-labelledby="weak-title">
+            <div class="panel__head">
+              <h2 id="weak-title">最需要补的 3 个点</h2>
+            </div>
+            <ul class="weak-list">
+              <li class="weak">
+                <div class="weak__top">
+                  <span class="weak__name">极值</span>
+                  <span class="weak__count">8 错</span>
+                </div>
+                <div class="weak__bar"><span style="width: 100%"></span></div>
+                <p class="weak__hint">建议先复习单调性，再练极值判定</p>
+              </li>
+              <li class="weak">
+                <div class="weak__top">
+                  <span class="weak__name">单调性</span>
+                  <span class="weak__count">5 错</span>
+                </div>
+                <div class="weak__bar"><span style="width: 62%"></span></div>
+                <p class="weak__hint">导数符号与区间端点容易漏</p>
+              </li>
+              <li class="weak">
+                <div class="weak__top">
+                  <span class="weak__name">方差</span>
+                  <span class="weak__count">3 错</span>
+                </div>
+                <div class="weak__bar"><span style="width: 38%"></span></div>
+                <p class="weak__hint">先记公式，再练线性变换</p>
+              </li>
+            </ul>
+          </section>
+
+          <section class="panel note">
+            <strong>怎么生成这张图</strong><br />
+            节点来自错题的知识点标签，颜色来自练习与自评结果，连线来自内置的学科前置关系表。
+            数据不足时自动退化为「薄弱知识点列表」，不展示空图。
+          </section>
+        </aside>
+      </div>
+
+      <p class="foot">设计稿 · 数据为示例 · 入口：首页学习概览 → 知识脉络</p>
+    </div>
+
+    <script>
+      const detailName = document.getElementById("detail-name");
+      const detailMeta = document.getElementById("detail-meta");
+      const detailHint = document.getElementById("detail-hint");
+      const nodes = Array.from(document.querySelectorAll(".node"));
+
+      function activate(node) {
+        nodes.forEach((item) => item.classList.remove("is-active"));
+        node.classList.add("is-active");
+        detailName.textContent = node.dataset.name || "";
+        detailMeta.textContent = node.dataset.meta || "";
+        detailHint.textContent = node.dataset.hint || "";
+      }
+
+      nodes.forEach((node) => {
+        node.addEventListener("click", () => activate(node));
+        node.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activate(node);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

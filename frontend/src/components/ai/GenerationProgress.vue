@@ -11,7 +11,7 @@ import {
   IconRefresh,
 } from '@arco-design/web-vue/es/icon'
 import type { Task } from '../../api/types'
-import { hasActiveTasks, latestTask, taskErrorMessage, taskStageLabel } from '../../utils/task'
+import { hasActiveTasks, latestTask, taskErrorMessage } from '../../utils/task'
 
 type StepState = 'waiting' | 'queued' | 'running' | 'done' | 'failed' | 'canceled'
 
@@ -402,7 +402,7 @@ function handleRetry(taskId: number): void {
 
     <div v-for="task in blockingFailedTasks" :key="task.id" class="progress-error" role="alert">
       <p class="progress-error__title">
-        {{ taskStageLabel(task.stage) }}任务 #{{ task.id }} 失败
+        {{ task.stage === 'analysis' ? 'AI 分析失败' : '相似题生成失败' }}
         <span v-if="task.error_code" class="progress-error__code">{{ task.error_code }}</span>
       </p>
       <p class="progress-error__text">{{ taskErrorMessage(task.error_code) }}</p>

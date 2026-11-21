@@ -176,7 +176,6 @@ export function toImageQuestionPayload(
 ): QuestionCreate {
   const payload: QuestionCreate = {
     subject: subject.trim(),
-    chapter: item.chapter.trim() || null,
     source_type: 'image',
     question_type: item.question_type,
     content_md: item.content_md.trim(),

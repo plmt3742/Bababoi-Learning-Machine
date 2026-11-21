@@ -69,7 +69,6 @@ const editLoadErrorCode = ref('')
 const FIELD_FOCUS_ORDER = [
   'subject',
   'content_md',
-  'chapter',
   'tags',
   'answer_md',
   'explanation_md',
@@ -387,7 +386,6 @@ watch(
 
 const rules: Record<string, FieldRule[]> = {
   subject: [{ required: true, message: '请选择学科' }],
-  chapter: [{ maxLength: 64, message: '章节不能超过 64 个字符' }],
   content_md: [
     {
       validator: (value, callback) => {
@@ -472,7 +470,6 @@ async function handleSubmit(): Promise<void> {
   try {
     const base = {
       subject: form.subject,
-      chapter: form.chapter.trim() || null,
       content_md: form.content_md.trim(),
       answer_md: form.answer_md.trim() || null,
       explanation_md: form.explanation_md.trim() || null,
@@ -896,7 +893,7 @@ onBeforeUnmount(() => {
             <div class="panel__body">
               <QuestionTypeSelector v-model="form.question_type" />
               <p class="hint structure-hint">
-                切换题型会保留题干、答案、解析、章节和标签；选择题选项与填空题空位分别保留，切回时恢复。
+                切换题型会保留题干、答案、解析和标签；选择题选项与填空题空位分别保留，切回时恢复。
               </p>
 
               <ChoiceEditor
@@ -945,23 +942,6 @@ onBeforeUnmount(() => {
                   aria-required="true"
                   :aria-invalid="fieldHasError('subject') ? 'true' : undefined"
                   :aria-describedby="fieldAria('subject')"
-                />
-              </a-form-item>
-            </div>
-
-            <div class="field">
-              <label class="field-label" for="chapter-input">章节</label>
-              <a-form-item field="chapter" hide-label>
-                <a-input
-                  v-model="form.chapter"
-                  placeholder="例如：导数与极值"
-                  :max-length="64"
-                  :input-attrs="{
-                    id: 'chapter-input',
-                    'aria-invalid': fieldHasError('chapter') ? 'true' : undefined,
-                    'aria-describedby': fieldAria('chapter'),
-                  }"
-                  allow-clear
                 />
               </a-form-item>
             </div>

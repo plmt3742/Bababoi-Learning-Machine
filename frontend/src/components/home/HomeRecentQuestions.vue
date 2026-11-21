@@ -65,16 +65,10 @@ const MASTERY_TAG_CLASSES: Record<MasteryStatus, string> = {
         <RouterLink
           class="recent__link"
           :to="`/questions/${question.id}`"
-          :aria-label="`查看错题 ${question.id}：${question.excerpt}`"
+          :aria-label="`查看错题：${question.excerpt}`"
         >
           <div class="recent__top">
-            <p class="recent__subject">
-              {{ question.subject
-              }}<span v-if="question.chapter" class="recent__chapter">
-                <span class="recent__sep" aria-hidden="true">·</span>
-                {{ question.chapter }}</span
-              >
-            </p>
+            <p class="recent__subject">{{ question.subject }}</p>
             <span class="tag" :class="MASTERY_TAG_CLASSES[question.mastery_status]">
               <span class="dot" aria-hidden="true" />
               {{ masteryStatusLabel(question.mastery_status) }}
