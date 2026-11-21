@@ -116,3 +116,21 @@ def test_non_integer_ver_is_rejected(client) -> None:
     resp = _me(client, bad)
     assert resp.status_code == 401
     assert resp.json()["detail"]["code"] == str(ErrorCode.AUTH_INVALID_CREDENTIALS)
+
+
+def test_bump_token_version_reads_value_inside_transaction(client, db) -> None:
+    """版本必须在同一事务里读回；提交后再读会被并发登录推高（前端 review 指出的竞态）。"""
+    from app.models import User
+    from app.services import auth_service
+
+    user_id = register_user(client)["user"]["id"]
+    with db() as first:
+        v1 = auth_service._bump_token_version(first, user_id)
+        first.commit()
+    with db() as second:
+        v2 = auth_service._bump_token_version(second, user_id)
+        second.commit()
+
+    assert (v1, v2) == (1, 2)
+    with db() as session:
+        assert session.get(User, user_id).token_version == 2
