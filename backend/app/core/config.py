@@ -44,8 +44,17 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-flash"
     llm_mock: bool = True  # CI 与本地默认不调真实模型（12号 §6.1）
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
-    # BE-024 两跳：转录开思考 + 结构化，实测墙钟 17–60s；前端等待上限必须同步 ≥180
-    recognize_client_timeout_s: int = 180  # 前端等待上限
+    # 旧同步端点（POST /questions/from-image）的单次调用上限。
+    # 注意它是「每次 LLM 调用」而不是整单——识图两跳，整单最坏是两个它。
+    recognize_client_timeout_s: int = 180
+    # 识图任务化（B 档，05 §6.8）：提交拿单号 → 轮询取结果。
+    # 用户最长等待 180s = 排队上限 60 + 运行 deadline 120（2026-11-21 拍板）。
+    # 单次 120：实测密页转录跳 90.2s，90 会打平；整单 deadline 才是真正的硬截止。
+    vision_call_timeout_s: int = 120
+    vision_run_deadline_s: int = 120
+    vision_queue_wait_max_s: int = 60
+    vision_max_concurrency: int = 8
+    vision_queue_max_depth: int = 200
     # force_refresh 的冷却：每次强刷都是一次 17–90s 的两跳调用，不设冷却等于成本放大器。
     # 只按"上一次强刷"计时——首次重新识别不受影响，挡的是连点/脚本刷
     vision_force_refresh_cooldown_s: int = 60
