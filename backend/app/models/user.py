@@ -31,9 +31,10 @@ class User(Base, TimestampMixin):
         DateTime, nullable=True, default=utcnow
     )
     # BE-028：token 版本号，JWT 的 `ver` 声明必须与它一致才放行。
-    # 登录 / 登出 / 改密都会 +1——同一账号同一时刻只有一个会话（新登录挤掉旧的），
-    # 也给了「token 被盗/共用账号」一个服务端可撤销的开关。
-    # 老 token 没有 `ver` 声明，按 0 处理：部署后旧 token 在用户下次登录前仍然有效。
+    # 只在"全踢"动作时 +1：改密（BE-029）、未来的管理员强制下线。
+    # 登录、登出都**不**动它——学生手机拍题 + 电脑做题，登录就 +1 会互相踢下线
+    # （定案单 2026-11-21 §3）；登出只清前端 token。
+    # 老 token 没有 `ver` 声明，按 0 处理：部署后旧 token 在用户改密前仍然有效。
     token_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
