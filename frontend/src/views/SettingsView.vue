@@ -391,6 +391,7 @@ onBeforeUnmount(() => {
     </section>
 
     <div class="settings-grid">
+      <div class="settings-column">
       <section class="panel account-panel" aria-labelledby="account-title">
         <header class="panel__head">
           <h2 id="account-title">账号信息</h2>
@@ -444,6 +445,9 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </section>
+
+      <ChangePasswordCard />
+      </div>
 
       <section class="panel ai-panel" aria-labelledby="ai-title">
         <header class="panel__head">
@@ -726,8 +730,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
-
-    <ChangePasswordCard />
   </div>
 </template>
 
@@ -781,9 +783,16 @@ onBeforeUnmount(() => {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
+}
+
+.settings-column {
+  display: grid;
+  gap: var(--space-5);
+  align-content: start;
+  min-width: 0;
 }
 
 .settings-grid > * {
