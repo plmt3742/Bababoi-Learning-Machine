@@ -31,10 +31,26 @@ DEFAULT_AVG_SECONDS = 25.0
 RETRY_AFTER_HEADERS = {"Retry-After": "30"}
 
 
-def _queue_depth(session: Session) -> int:
+def _queued_count(session: Session) -> int:
     return (
         session.scalar(
             select(func.count()).select_from(VisionJob).where(VisionJob.status == "queued")
+        )
+        or 0
+    )
+
+
+def _ahead_count(session: Session) -> int:
+    """新任务前面还有多少个：排队 + **正在跑的**。
+
+    少了 running 那 8 个，估算会少一整批——准入放行后实际等着更久，
+    到认领时又被排队上限判死（"干等 75 秒然后失败"）。
+    """
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(VisionJob)
+            .where(VisionJob.status.in_(VISION_JOB_ACTIVE_STATUSES))
         )
         or 0
     )
@@ -59,9 +75,9 @@ def _avg_runtime_seconds(session: Session) -> float:
     return sum(durations) / len(durations) if durations else DEFAULT_AVG_SECONDS
 
 
-def _estimate_wait_s(session: Session, depth: int) -> int:
+def _estimate_wait_s(session: Session, ahead: int) -> int:
     workers = max(1, settings.vision_max_concurrency)
-    return max(1, math.ceil(depth / workers * _avg_runtime_seconds(session)))
+    return max(1, math.ceil(ahead / workers * _avg_runtime_seconds(session)))
 
 
 def _same_params(job: VisionJob, image_path: str, subject: str | None, force_refresh: bool) -> bool:
@@ -142,8 +158,10 @@ def submit(
             429,
         )
 
-    depth = _queue_depth(session)
-    wait_s = _estimate_wait_s(session, depth)
+    # 准入按"前面还有多少"估（排队 + running），队列入队上限只看 queued
+    depth = _queued_count(session)
+    ahead = _ahead_count(session)
+    wait_s = _estimate_wait_s(session, ahead)
     if depth >= settings.vision_queue_max_depth or wait_s > settings.vision_queue_wait_max_s:
         raise ApiError(
             ErrorCode.VISION_QUEUE_FULL,
@@ -179,7 +197,7 @@ def submit(
         ) from None
     session.refresh(job)
     return _submit_out(
-        job, reused=False, queue_position=depth + 1, estimated_wait_s=wait_s
+        job, reused=False, queue_position=ahead + 1, estimated_wait_s=wait_s
     )
 
 

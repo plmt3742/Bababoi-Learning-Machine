@@ -270,3 +270,27 @@ def test_cleanup_only_removes_expired_terminal(client, db) -> None:
     with db() as session:
         statuses = [job.status for job in session.scalars(select(VisionJob)).all()]
         assert statuses == ["queued"], "queued 的即使过期也不能删"
+
+
+def test_admission_estimate_counts_running_jobs(client, db, monkeypatch) -> None:
+    """准入估算要把正在跑的 worker 算进去，否则会放进来再被判排队超时。"""
+    monkeypatch.setattr(settings, "vision_max_concurrency", 1)
+    token, _ = _user(client)
+    other_id = register_user(client, "识图_97")["user"]["id"]
+    image_path = _upload(client, token)
+    with db() as session:
+        now = utcnow()
+        session.add(
+            VisionJob(
+                user_id=other_id, image_path=image_path, status="running", attempts=1,
+                active_slot=other_id, created_at=now, started_at=now,
+                deadline_at=now + timedelta(seconds=140),
+                expires_at=now + timedelta(hours=24),
+            )
+        )
+        session.commit()
+
+    resp = _submit(client, token, image_path, force_refresh=True)
+    assert resp.status_code == 202, resp.text
+    # 默认均值 25s、1 个 worker、前面 1 个 running → 估算 25s（旧算法会算成 1）
+    assert resp.json()["estimated_wait_s"] == 25
