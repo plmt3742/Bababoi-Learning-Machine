@@ -1,4 +1,4 @@
-"""注册/登录业务（05 §6.3）：查重、验密、失败限流、更新 last_login_at。
+"""注册/登录/改密业务（05 §6.3）：查重、验密、失败限流、会话版本吊销。
 
 限流用进程内存计数——单实例部署（12号 §3.3 明确不引入 Redis）够用；
 多实例部署时这里要换成 DB 计数，05 §6.3 也留了这个口子。
@@ -9,7 +9,7 @@ import threading
 from collections import deque
 from time import monotonic
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -28,9 +28,12 @@ class LoginRateLimiter:
     比引入定时器简单，也不用担心线程生命周期。
     """
 
-    def __init__(self, limit: int, window_s: int) -> None:
+    def __init__(
+        self, limit: int, window_s: int, *, message: str = "登录失败次数过多，请一分钟后再试"
+    ) -> None:
         self.limit = limit
         self.window_s = window_s
+        self.message = message
         self._failures: dict[str, deque[float]] = {}
         # 同步端点跑在线程池里（05 §9.2），dict 读写要加锁
         self._lock = threading.Lock()
@@ -50,11 +53,7 @@ class LoginRateLimiter:
                 return
             self._prune(failures, monotonic())
             if len(failures) >= self.limit:
-                raise ApiError(
-                    ErrorCode.AUTH_RATE_LIMITED,
-                    "登录失败次数过多，请一分钟后再试",
-                    429,
-                )
+                raise ApiError(ErrorCode.AUTH_RATE_LIMITED, self.message, 429)
 
     def record_failure(self, ip: str) -> None:
         with self._lock:
@@ -74,6 +73,10 @@ class LoginRateLimiter:
 
 # 模块级实例：进程内共享；测试里直接清空 _failures 即可复位
 login_limiter = LoginRateLimiter(settings.login_rate_limit, settings.login_rate_window_s)
+# 改密按账号限流（不需要 IP：请求已经带登录态）；只数失败，成功会清零
+change_password_limiter = LoginRateLimiter(
+    5, 60, message="改密尝试次数过多，请一分钟后再试"
+)
 
 
 def register(session: Session, data: RegisterRequest) -> User:
@@ -105,6 +108,43 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
 
     login_limiter.reset(ip)
     user.last_login_at = utcnow()
+    # 登录**不动** token_version：手机拍题 + 电脑做题是学生的真实形态，
+    # 登录就 +1 会让两台设备互相踢下线（定案单 2026-11-21 §3）。
     session.commit()
-    session.refresh(user)
     return user
+
+
+def _bump_token_version(session: Session, user_id: int) -> int:
+    """把版本 +1 并返回新值（BE-028），调用方负责 commit。
+
+    必须用 `FOR UPDATE`（当前读）：MySQL RR 隔离级别下，本事务在 `login()` /
+    `get_current_user()` 里已经建立了一致性快照，普通 SELECT 会读回**旧版本**，
+    于是签出去的 token 版本落后、下一次请求立刻 401；SQLite 会忽略该子句（本来就有写锁）。
+
+    现在只有"全踢"动作（改密、未来的管理员强制下线）调用它——登录/登出都不能 +1。
+    """
+    current = session.scalar(
+        select(User.token_version).where(User.id == user_id).with_for_update()
+    )
+    new = (current or 0) + 1
+    session.execute(update(User).where(User.id == user_id).values(token_version=new))
+    return new
+
+
+def change_password(
+    session: Session, user: User, current_password: str, new_password: str
+) -> None:
+    """改密（BE-029）：验旧密码 → 写新散列 → 版本 +1 让所有设备重新登录。"""
+    key = f"user:{user.id}"
+    change_password_limiter.check(key)
+
+    if not verify_password(current_password, user.password_hash):
+        change_password_limiter.record_failure(key)
+        raise ApiError(ErrorCode.AUTH_INVALID_CREDENTIALS, "当前密码不正确", 401)
+    if current_password == new_password:
+        raise ApiError(ErrorCode.VALIDATION_ERROR, "新密码不能与当前密码相同", 400)
+
+    user.password_hash = hash_password(new_password)
+    user.token_version = _bump_token_version(session, user.id)
+    session.commit()
+    change_password_limiter.reset(key)

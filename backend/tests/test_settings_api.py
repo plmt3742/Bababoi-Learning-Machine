@@ -209,6 +209,8 @@ def test_preferences_updated_at_ignores_login(client, db, fake_llm, monkeypatch)
         "username": data["user"]["username"], "password": "p@ssw0rd9",
     })
     assert resp.status_code == 200, resp.text
+    # 多设备共存（BE-028）：登录不吊销旧 token，这里只是用新 token 再验证一次
+    token = resp.json()["access_token"]
     assert _get_prefs(client, token)["updated_at"] == before
 
     fixed = datetime(2030, 1, 2, 3, 4, 5, 123456)

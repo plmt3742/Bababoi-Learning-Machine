@@ -51,6 +51,21 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    """BE-029：登录态下凭旧密码改密；新旧相同由 service 判 400（不占字节上限）。"""
+
+    current_password: str
+    new_password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def password_byte_limit(cls, value: str) -> str:
+        # 与注册同一口径：bcrypt 只取前 72 字节，见 core/security.py
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("密码过长（最多 72 字节）")
+        return value
+
+
 class UserResponse(BaseModel):
     """/auth/me 与登录响应里嵌的用户信息。密码散列绝不进这里。"""
 

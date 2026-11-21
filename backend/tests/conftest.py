@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
-from app.services.auth_service import login_limiter
+from app.services.auth_service import change_password_limiter, login_limiter
 
 TEST_SECRET = "unit-test-secret-0123456789abcdef0123456789abcdef"
 
@@ -52,6 +52,7 @@ def client(db, tmp_path, monkeypatch):
     # 上传的图落到临时目录：不隔离的话测试会往仓库 backend/uploads/ 里写真文件
     monkeypatch.setattr(settings, "upload_dir", (tmp_path / "uploads").as_posix())
     login_limiter.clear()
+    change_password_limiter.clear()
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
