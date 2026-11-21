@@ -14,6 +14,7 @@ const auth = useAuthStore()
 
 const formRef = ref<FormInstance>()
 const activeKey = ref<AuthMode>('login')
+const passwordChanged = ref(route.query.password_changed === '1')
 const form = reactive({
   username: '',
   password: '',
@@ -46,6 +47,7 @@ function resolveRedirect(value: unknown): string {
 
 function handleTabChange(key: string | number): void {
   activeKey.value = key === 'register' ? 'register' : 'login'
+  passwordChanged.value = false
   auth.clearError()
   formRef.value?.clearValidate()
 }
@@ -95,6 +97,11 @@ async function handleSubmit(): Promise<void> {
           }}
         </p>
       </header>
+
+      <div v-if="passwordChanged" class="login-view__notice" role="status">
+        <span class="login-view__notice-mark" aria-hidden="true"></span>
+        <span>密码已更新，请用新密码重新登录。</span>
+      </div>
 
       <div class="login-view__switch" role="group" aria-label="登录或注册">
         <button
@@ -244,6 +251,28 @@ async function handleSubmit(): Promise<void> {
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
   text-wrap: pretty;
+}
+
+.login-view__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: 10px var(--space-3);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.login-view__notice-mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 8px;
+  background: currentColor;
 }
 
 .login-view__switch {
