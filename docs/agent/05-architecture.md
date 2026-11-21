@@ -180,7 +180,7 @@ erDiagram
 | password_hash | VARCHAR(255) | bcrypt/argon2 |
 | created_at / updated_at | DATETIME | UTC |
 | last_login_at | DATETIME NULL | 可选 |
-| token_version | INT NOT NULL DEFAULT 0 | BE-028：会话版本号；登录/登出/改密 +1，JWT 的 `ver` 不一致即 401（单会话） |
+| token_version | INT NOT NULL DEFAULT 0 | BE-028：会话版本号；**改密/强制下线** +1，JWT 的 `ver` 不一致即 401（登录、登出不动，多设备共存） |
 
 #### questions
 
@@ -368,7 +368,7 @@ erDiagram
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | 参数校验失败 |
 | 401 | `AUTH_INVALID_CREDENTIALS` | 用户名/密码错误 |
-| 401 | `AUTH_TOKEN_EXPIRED` | JWT 过期，或会话已被吊销（BE-028：登录/登出/改密后 `ver` 不一致） |
+| 401 | `AUTH_TOKEN_EXPIRED` | JWT 过期，或会话已被吊销（BE-028：改密/强制下线后 `ver` 不一致） |
 | 403 | `QUESTION_FORBIDDEN` | 访问他人错题 |
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
@@ -380,7 +380,7 @@ erDiagram
 | 404 | `TASK_NOT_FOUND` | 任务不存在 |
 | 413 | `UPLOAD_TOO_LARGE` | 图片超限 |
 | 415 | `UPLOAD_UNSUPPORTED_TYPE` | 图片格式不支持 |
-| 429 | `AUTH_RATE_LIMITED` | 登录失败过于频繁（5 次/分钟/IP；BE-003 新增） |
+| 429 | `AUTH_RATE_LIMITED` | 登录失败过于频繁（5 次/分钟/IP），或改密失败过于频繁（5 次/分钟/账号；BE-003 / BE-029） |
 | 429 | `AI_RATE_LIMITED` | AI 调用过于频繁 |
 | 429 | `VISION_REFRESH_COOLDOWN` | 识图「重新识别」冷却中（`force_refresh` 默认 60s 一次；BE-024） |
 | 502 | `AI_PROVIDER_ERROR` | LLM 供应商错误 |
@@ -397,15 +397,14 @@ erDiagram
 |---|---|---|---|
 | POST | `/auth/register` | `{username, password, email?}` | `{access_token, token_type, user}` |
 | POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user}` |
-| POST | `/auth/logout` | — | `204`；吊销当前会话 |
+| POST | `/auth/logout` | — | `204`；**只清前端**，服务端不吊销（多设备共存） |
+| POST | `/auth/change-password` | 已登录；`{current_password, new_password}` | `204`；旧密码错 401 `AUTH_INVALID_CREDENTIALS`；新旧相同/长度不合规 400 `VALIDATION_ERROR`；频繁 429 `AUTH_RATE_LIMITED`；新密码至少 8 位且 ≤72 字节（BE-029） |
 | GET | `/auth/me` | — | `{id, username, email, created_at}` |
-| POST | `/auth/change-password` | 已登录；`{current_password, new_password}` | 204；旧密码错误 401 `AUTH_INVALID_CREDENTIALS`；新密码 8–72 字节且不得与旧密码相同 |
 
-- 密码最少 8 位；用户名 3–32 位，字母/数字/下划线/中文。
-- 改密成功后应吊销旧 token（建议随 BE-028 token_version 一起做）；前端在成功后清会话并回登录页。当前后端未实现（BE-029），前端已按 mock 接通，404/405 时表单降级为“后端未启用”。
+- 密码最少 8 位（按 UTF-8 字节不超过 72，bcrypt 上限）；用户名 3–32 位，字母/数字/下划线/中文。
 - 不做邮箱自助找回；忘记密码由管理员授权重置（管理端 P1，BE-030；当前人工处理）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
 - JWT `sub=user_id`、`ver=token_version`，`exp=7d`；MVP 不做 refresh token。
-- **单会话（BE-028）**：`users.token_version` 是服务端可吊销的会话版本。登录成功、`POST /auth/logout` 都会 +1，`get_current_user` 发现 `ver` 与库里的值不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。因此同一账号同一时刻只有一个有效会话——**新登录会让其他设备下线**；登出也走同一机制（改密接口另单，接上后同样 +1）。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户下次登录后旧 token 才失效。多设备并存（手机+电脑）需要 per-session 表，属后续项。
+- **多设备共存（BE-028，2026-11-21 定案单 §3）**：`users.token_version` 只在**全踢**动作时 +1——改密（BE-029）、未来的管理员强制下线。**登录不 +1**（手机拍题 + 电脑做题互不打扰），**登出也不 +1**（否则手机上退出会把电脑踢下线）。`get_current_user` 发现 `ver` 与库里不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。改密成功后**所有设备（含当前）都要重新登录**，这正是"密码被同学知道后自救"的机制。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户第一次改密后旧 token 才失效。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。标识符带**业务命名空间**（`login` / `register` 前缀）：两个限流器即使配成同一额度，共享存储下也不会共用一个桶。
 - **注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。默认取 30 而不是 3：实验室考核全班通常共用一个 NAT 出口，3/小时会把正常注册挡在外面；公开部署想收紧再调小。**30 是硬上限**：全班同一出口时第 31 个成功注册会 429，需等窗口滑过或临时调高；重名 409 不扣额度（额度在重名检查之后扣），所以"打错用户名重试"不会吃掉名额。
 - 两个限流的额度字符串在**启动期解析**（`validate_rate_limit_config`），配置写错不会拖到第一个请求才炸；额度/窗口 **≤0 直接拒绝**（`limits.parse` 会把 `5/0 seconds` 静默当成 1 秒窗口、`0/3600 seconds` 变成永远 429）。
@@ -1271,6 +1270,7 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-21 | v0.6.28 | **会话策略改多设备共存 + 改密接口**。按定案单 §3：登录/登出**不再** +1（手机+电脑互不踢；登出只清前端），只有改密/强制下线才 +1；新增 `POST /auth/change-password`（BE-029：验旧密码、8 位且 ≤72 字节、新旧不得相同、失败 5 次/分钟/账号限流）；`_bump_token_version` 改 `FOR UPDATE` 当前读（MySQL RR 下普通 SELECT 会读快照旧值，签出落后版本的 token 导致登录即 401）；logout 端点保留但服务端不吊销。会话测试按新口径重写 + 改密 6 条；OpenAPI 重导 | 人机 |
 | 2026-11-21 | v0.6.27 | **限流复核修复**：`TRUSTED_PROXIES` 支持 CIDR（Docker 下按网桥网段填，容器重建不失效；写错只忽略并在日志告警，不放行代理头）；注册额度改为**重名检查之后**扣（同 NAT 下打错用户名不占全班名额）；`clear()` 注明只在测试用（redis 下删 `LIMITS:*` 前缀，非整库 flush）；限流标识符加业务命名空间（同额度不串桶）、启动期拒绝 ≤0 额度/窗口；文档写清 30 是硬上限。5 条新测试 | 人机 |
 | 2026-11-20 | v0.6.24 | **限流引擎换 `limits`（MovingWindow）+ 注册限流**。`core/rate_limit.py` 薄壳：`hit`（记账并抛 429）/`check`（只看不记账）/`record`/`reset`，存储 `RATE_LIMIT_STORAGE_URL` 默认 `memory://`、多实例换 `redis://`（`limits[redis]`）；登录限流的行为不变（失败才记账、5 次/分钟/IP）；新增**注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT`/`REGISTER_RATE_WINDOW_S`；实验室共用 NAT 出口，3 会挡正常注册）；额度字符串在启动期 `validate_rate_limit_config()` 解析。选 MovingWindow 而非固定窗口：固定窗口边界两秒可放行 2×额度。新增依赖 `limits>=5.8`；257 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-19 | v0.6.20 | **BE-028 会话吊销 + 单会话**。`users.token_version`（前向迁移 `b3c7d9e1f204`，NOT NULL DEFAULT 0，历史行迁移即得 0）；JWT 加 `ver` 声明，`get_current_user` 与库里比对不一致 → 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端无需改分支）；登录成功 / 新增 `POST /auth/logout` 都把版本 +1（SQL 自增且在同事务内读回版本，并发登录也只会留下最后一个有效 token），因此同一账号同一时刻只有一个有效会话；**没有 `ver` 的老 token 按 0 处理**，部署本身不踢人，用户下次登录后旧 token 失效。改密接口尚未做，但走同一机制即可。7 条会话测试 + 1 条迁移回填测试；OpenAPI 快照重导 | 人机 |
