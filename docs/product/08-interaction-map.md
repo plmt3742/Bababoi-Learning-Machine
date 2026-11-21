@@ -1,6 +1,6 @@
 # 08 · 页面交互地图与数据流
 
-> owner: 霹雳马桶 · last_updated: 2026-11-05 · read_when: 前端路由、页面联调、交互评审前
+> owner: 霹雳马桶 · last_updated: 2026-11-15 · read_when: 前端路由、页面联调、交互评审前
 > 配套：`07-page-drafts.md`（线框）、`drafts/prototype.html`（可点击的页面原型）、`drafts/interaction-map.html`（可打开的页面地图，点击页面框可打开原型）。
 > 说明：本文只描述**页面/状态/数据流**，不含视觉风格。
 
@@ -83,7 +83,7 @@ flowchart TD
 | TASK-01 | `tasks`、`draft` | `retry`、`question_id`、`draft.content` | `GET /tasks`（P0 轮询）、`POST /tasks/{id}/retry`、`GET /drafts/me` | queued / running / done / failed |
 | QDETAIL-01 | `question`、`analysis`、`answer/explanation`、`generated_questions`、`tasks` | `analysis` 更新、`regenerate`、`practice` | `GET /questions/{id}?include=generated`、`PATCH /questions/{id}`、`POST /generated-questions/{id}/regenerate` | loading / analysis pending / generated / partial / error |
 | PRACTICE-01 | `generated_questions`、`question_id` | `practice_records` | `GET /questions/{id}?include=generated`、`POST /practice-records` | unanswered / answered / revealed / submit failed / result |
-| STATS-01 | `overview`、`weak-points`、`trends` | `tag` 筛选 | `GET /stats/overview`、`GET /stats/weak-points`、`GET /stats/trends` | loading / empty / error |
+| STATS-01 | `overview`（含 `recent_trend`、`weak_knowledge_points`） | `tag` 筛选 | `GET /stats/overview` | loading / empty / error |
 
 ## 4. 状态机
 

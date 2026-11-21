@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-06
+last_updated: 2026-11-15
 status: active
 read_when: 切换会话、换 agent、让新 agent 接手任务时
 ---
@@ -9,48 +9,47 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 > 目标：让一个新 agent 在 **3 分钟内**知道“项目是什么、现在到哪、我要做什么、不能做什么”，而不是把 `docs/` 全读一遍。
 
-## 0. 当前交接状态（2026-11-06，origin/main @ 7ee6029）
+## 0. 当前交接状态（2026-11-15，origin/main @ 7ab9cf9）
 
-- **`main`**：`7ee6029`（M0 收尾；前端页面全部完成；后端核心闭环已合）
-- **已合后端**：BE-001/002/003 + follow-up（#14）、BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）
-- **后端 open PR**：仅 **#8 docs**（基于旧 main，状态很可能已被 #26/#31/#36 覆盖；建议关闭或缩成 `backend/README.md`）
-- **后端 open issue**：
-  - **#13 BE-014 图片录入 v2**：`/uploads/images` + `/questions/from-image` 尚未实现，是图片识别真联调的唯一阻塞
-  - **#32 BE-020 用户自带 AI Key**：`GET/PUT/DELETE /settings/ai` + 加密存储 + SSRF 白名单
-  - **#11 BE-001~003 follow-up**：主体已由 #14 修复；剩 docs/README、ruff format、MySQL 实跑
-- **前端已合**：FE-001~024 全部页面（#16~#21/#23~#25/#28~#30/#34/#35），含：
-  - 首页 `HomeView`（#34）
-  - 个人设置 + AI API Key（BYOK，mock；#35，ADR-007）
-  - 图片录入 + 多题条目（#29，mock；等 BE-014）
-  - 三段并发 UI（#28，兼容旧 `task_id`；等 ADR-006）
-  - 草稿双写 + 可访问性（#30，mock；等 BE-018）
-  - 练习（#23）、统计（#24，mock；等 BE-013）、三题型编辑器（#25）
-- **前端剩余**：FE-017 的 768px 宽度与完整键盘细节；真接口联调
+- **`main`**：`7ab9cf9`（#71 识图缓存已合；前端 FE-001~035；后端核心闭环 + 草稿/统计/偏好/OpenAPI/种子/识图已合）
+- **已合后端**：认证、错题 CRUD、分析、生成（ADR-006 三段并发）、任务队列、练习、图片上传/识图（#42/#67/#71）、草稿（#64）、统计（#62）、生成偏好（#58）、OpenAPI 快照（#65）、种子（#60/#63）
+- **后端待办**：
+  - **BE-020 BYOK**：`GET/PUT/DELETE /settings/ai` + 加密存储 + SSRF 白名单（P1，不阻塞演示）
+  - **BE-011 MySQL 兼容**：迁移/JSON/datetime/索引；staging 时间紧先用 SQLite + WAL
+  - **BE-016 性能/安全加固**：演示前只做分页上限、上传校验、CORS 等必需项
+  - **OPS-001/002/005**：compose/staging；11.14 已过仍无 URL，R-009 已触发
+- **前端已合**：FE-001~035 全部页面与测试（#16~#21/#23~#25/#28~#30/#34/#35/#49/#51/#68 等），含：
+  - 首页 `HomeView`、个人设置 + AI Key 降级、生成偏好开关
+  - 图片录入 + 多题条目、三段并发 UI、草稿双写、任务中心
+  - 练习、统计、三题型编辑器、编辑页
+  - 时间解析统一、生产构建、Vitest 9 files / 35 tests
+- **前端剩余**：没有 P0 功能任务；待做 staging 真机走查、生产模式/100+ 数据回归、退出三选项弹窗、SH-014 录屏/截图；FE-017 账本已按 2026-11-12 截图证据收口为 DONE
 - **管理端**：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
 - **范围/交互/验收**：以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 - **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题；见 ADR-004 / issue #13
+- **识图两步 + 缓存**：`POST /questions/from-image` 对外字段不变；一次 HTTP 内部两跳；请求可带 `force_refresh`，出参含 `cached`/`extracted_at`；超时 180s
 - **BYOK（ADR-007）**：Key 只提交后端加密存储；前端不落 localStorage/Pinia、不回显完整值；P1，不进入 11.29 演示关键路径
 - **下一步顺序**：
-  1. 后端 **BE-014 图片识别**（最高优先；前端 FE-016/021 已就绪）
-  2. 后端 **BE-018 草稿 / BE-013 统计 / BE-020 BYOK**
-  3. 后端 **ADR-006 三段并发**（新 PR，base=main）
-  4. 前端 **FE-017** 768/键盘收尾 + 真接口联调
-  5. M0 验收、部署 staging
+  1. **OPS-005 staging**（最高优先；11.16 出 URL，推荐 SQLite + WAL）
+  2. **前端真机走查**：手机 HTTPS 拍照/相册、裁剪、多题条目、提交、练习；375/768/1366
+  3. **演示数据/真实 AI**：种子生成题题型按父题派生；真实 DeepSeek 在 staging 跑分析/生成/识图
+  4. **前端收口**：生产模式与 100+ 数据回归；退出三选项弹窗；SH-014 录屏/截图
+  5. **用户走查与文档**：SH-009、`03-page-specs`、DS-006/007
 - **本地启动**：
   - 前端：`cd "G:\AIworkspace\opencode\BababoiLearningMachine\frontend"` → `pnpm dev`（PowerShell 不要用 `cd /d`）
-  - 开发模式默认 mock；演示账号 `student01 / password123`
+  - 开发模式默认 mock；演示账号 `student01`，口令由后端 `DEMO_PASSWORD` 注入（本地未设置时 `password123`）
   - 后端：`cd backend` → `uv sync` → 配置 `.env`（`JWT_SECRET` ≥32 字节、`LLM_MOCK=true`）→ `uv run alembic upgrade head` → `uv run uvicorn app.main:app --reload`
   - 父目录 `G:\AIworkspace\opencode\pnpm-workspace.yaml` 已改名为 `.bak-20261106`，避免 pnpm 把父项目当 workspace 根；不要恢复，除非处理父项目
-- **不要做**：不要 revert 已合后端；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题；不要在前端存 AI Key；不要直接合 main
+- **不要做**：不要 revert 已合后端；不要绕过 PR review/CI；不要恢复 bbox/框题；不要在前端存 AI Key；不要直接合 main；11.22 后不要加新功能
 - **分支规则**：所有开发（含前端/文档）从 `main` 开短分支 + PR；合并前等用户确认。
 
 ### 0.1 下一个会话建议直接接的任务
 
-1. **后端 BE-014（最高优先）**：实现 `POST /uploads/images` + `POST /questions/from-image`；契约见 `docs/agent/15-backend-sync-20261106.md` §3 和 issue #13。
-2. **后端 BE-018 / BE-013 / BE-020**：草稿、统计、用户 AI Key；前端对应页面已按 mock 完成。
-3. **后端 ADR-006 三段并发**：新 PR base=main；前端 FE-023 已兼容旧 `task_id`。
-4. **前端 FE-017**：768px + 完整键盘细节；之后把 `VITE_USE_MOCK=false` 做真接口联调。
-5. **M0 收尾**：`03-page-specs.md`、`05` 冻结、`deploy/docker-compose.dev.yml`、M0 验收、产品评审同步。
+1. **OPS-005 staging（最高优先）**：11.16 出可访问 URL；前端当天手机真机走查。
+2. **演示数据/真实 AI**：修 `seed_demo.py` 生成题题型；staging 注入真实 Key 跑分析/生成/一张多题图。
+3. **前端收口**：补退出三选项弹窗；生产模式 + 100+ 数据回归；确认 SH-014 录屏/截图。
+4. **演示兜底**：SH-014 3 分钟录屏 + 截图；SH-012 脚本连续 3 次成功。
+5. **产品/文档**：SH-009 用户走查；`03-page-specs.md` 8 页；DS-007 评审记录。
 
 ## 1. 最小启动提示词（复制即用）
 
@@ -87,13 +86,13 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
 不要直接 push/merge `main`；完成后开 PR，等用户确认后再合并。
-当前状态：FE-001~024 页面已完成；优先 FE-017（768/键盘）与真接口联调。图片/统计/草稿/BYOK 页面当前走 mock，等 BE-014/BE-013/BE-018/BE-020 后再切真实接口。
-页面结构/交互参照 `07-page-drafts.md` / `08-interaction-map.md`；**视觉唯一基准是 `calm-academic/index.html`**（顶部 appbar + 1140px 纸面 frame，无侧边栏）。图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
+当前状态：FE-001~035 页面已完成，Vitest 9 files / 35 tests；没有新的 P0 功能任务。优先 staging 真机走查、生产模式/100+ 数据回归、退出三选项弹窗与 SH-014 录屏/截图。BYOK 仍等 BE-020，后端 404 时已降级；不要为它加新前端逻辑。
+页面结构/交互参照 `07-page-drafts.md` / `08-interaction-map.md`；**视觉唯一基准是 `calm-academic/index.html`**（顶部 appbar + 1140px 纸面 frame，无侧边栏）。图片 v2 与原型冲突时以 ADR-004 / 05 v0.6.16 + OpenAPI 为准。
 视觉语言以 `04-design-system.md` 的第一/第二原则 + §1.2 Calm 定稿为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
 图片录入按 v2：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题。
 必须覆盖 cropping/uploading/extracting/confirming_items/editing/saving/error 等状态；AI 页面加 partial/retry。
-完成后跑 pnpm lint / pnpm typecheck / pnpm build，并在 PR 里贴结果。
+完成后跑 pnpm lint / pnpm typecheck / pnpm test / pnpm build，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。
 ```
 
@@ -107,7 +106,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 只改 backend/ 下与任务相关的文件；数据库 schema 最终由人机确认，不要擅自改字段/迁移。
 AI 调用必须服务端；LLM 测试用 mock，不花真实额度。
 接口/字段/错误码必须与 05 一致；改了就先更新 05 和 OpenAPI。
-当前最高优先：**BE-014 图片文本提取**（issue #13，契约见 `15-backend-sync-20261106.md` §3）；之后 BE-018 草稿、BE-013 统计、BE-020 BYOK、ADR-006 三段并发。
+当前最高优先：**OPS-005 staging**（11.16 出 URL，推荐 SQLite + WAL）；随后是种子生成题题型、真实 DeepSeek 在 staging 验证。BE-020 BYOK、BE-011 MySQL、BE-016 必需加固按剩余时间做。
 图片录入按 v2：`from-image` 返回 `questions[]`（1..N），不做 bbox/candidates；用户裁剪后上传；确认后逐条 `POST /questions`。
 完成后跑 uv run ruff check / uv run pytest，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。

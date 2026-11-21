@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-05
+last_updated: 2026-11-15
 status: active
 read_when: 需要判断需求该不该做、范围是否扩大、与 docx 冲突时
 ---
@@ -123,11 +123,11 @@ read_when: 需要判断需求该不该做、范围是否扩大、与 docx 冲突
 | Q-002 | 登录范围 | 完整账号体系 / 最小 JWT / 不做 | 最小 JWT；不做找回密码、邮箱验证 | 11.5 | ACCEPTED |
 | Q-003 | 图片录入方式 | 独立 OCR / 多模态文本提取 / 不做 | 不做独立 OCR；DeepSeek `deepseek-flash` 多模态提取题目文本（公式 LaTeX）；结果可编辑；P0 增强 | 11.5 | ACCEPTED |
 | Q-004 | 任务进度方式 | token 级 / 阶段级 SSE / `/tasks` 轮询 | P0 用 `GET /tasks` 轮询；阶段级 SSE 为 P1；token 级不做 | 11.5 | ACCEPTED |
-| Q-005 | 演示数据库 | MySQL / SQLite | 部署用 MySQL；若 11.14 前部署未稳定，演示可退回 SQLite + WAL；schema 由人机定 | 11.14 | OPEN |
+| Q-005 | 演示数据库 | MySQL / SQLite | 部署用 MySQL；若 11.14 前部署未稳定，演示可退回 SQLite + WAL；schema 由人机定。**2026-11-15：staging 推荐 SQLite + WAL；MySQL 兼容 BE-011 仍 TODO，演示前不切库** | 11.14 | OPEN（已过截止，按 SQLite + WAL 执行） |
 | Q-006 | LLM 供应商 | DeepSeek / Qwen / GLM / 其他 | DeepSeek `deepseek-flash`（文本+图像）；`deepseek-v4-pro` 不支持图片 | 11.5 | ACCEPTED |
-| Q-007 | 演示环境 HTTPS | 有域名+HTTPS / IP+HTTP | 手机拍照需要安全上下文；没有 HTTPS 时手机端用相册/文本 | 11.12 | OPEN |
+| Q-007 | 演示环境 HTTPS | 有域名+HTTPS / IP+HTTP | 手机拍照需要安全上下文；没有 HTTPS 时手机端用相册/文本。**2026-11-15：staging 必须 HTTPS；URL 仍未出** | 11.12 | OPEN（staging 出 URL 时确认） |
 | Q-008 | 答辩分工 | 一人主讲 / 两人分段 | 前端讲产品与交互，后端讲架构与 AI；两人都出镜 | 11.26 | OPEN |
-| Q-009 | 数据库 schema 谁定 | 人机 / 两人 | 人机负责；霹雳马桶提字段/查询需求，05 只是草案 | 11.5 | ACCEPTED |
+| Q-009 | 数据库 schema 谁定 | 人机 / 两人 | 人机负责；霹雳马桶提字段/查询需求。**2026-11-15：05 已 active，是契约；改字段同步 OpenAPI 快照与前端类型** | 11.5 | ACCEPTED |
 | Q-010 | 终端形态 | 纯桌面 / 响应式 Web | 网页端；桌面图片上传；手机拍照/相册 | 11.5 | ACCEPTED |
 | Q-012 | 图片框题 | AI 框题 + 移动/缩放 / 不做 | 原方案已被 Q-013 取代；不再做 bbox/candidates | 11.5 | SUPERSEDED |
 | Q-013 | 图片录入 v2 | 单题 / 多题条目 / 整图 | 用户裁剪 → 文本提取（LaTeX）→ 多题条目 ①②… → 确认 → 分析/答案/解析 → 选择题目生成相似题；多选不设上限（2026-11-15 调整：原 P0 上限 3 道取消，改为按并发排队、排队可取消）；当前阶段不提取附图 | 11.5 | ACCEPTED |

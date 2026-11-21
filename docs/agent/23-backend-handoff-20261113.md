@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-13
+last_updated: 2026-11-15
 status: active
 read_when: 后端继续开发、部署前对齐、前后端联调复核
 ---
@@ -8,8 +8,8 @@ read_when: 后端继续开发、部署前对齐、前后端联调复核
 # 23 · 后端对接单（2026-11-13）
 
 > 对象：人机（后端）
-> 基线：`main @ d0fc52b`（#58 / #62 / #63 / #64 / #65 已合；前端 PR #68 / #69 已合）
-> 一句话：**前端已经全部用真接口验过，当前没有阻塞项。** 后端只剩 BYOK 一个接口、识图两步入 staging 的确认，以及部署本身（11.14 硬截止）。
+> 基线：`main @ d0fc52b`；**2026-11-15 更新：`main @ 7ab9cf9`，PR #67（两步识图）与 #71（识图缓存）已合；staging 仍未出 URL，BYOK 仍未实现。**
+> 一句话：**前端已经全部用真接口验过，当前没有阻塞项。** 后端只剩 BYOK 一个接口、识图两步/缓存的 staging 实拍确认，以及部署本身（11.14 已过，R-009 已触发）。
 
 ## 0. 已合并、不用再处理
 
@@ -21,6 +21,7 @@ read_when: 后端继续开发、部署前对齐、前后端联调复核
 | 文档收口 | 已合 `d0fc52b`；FE-032 标 DONE |
 
 CI 在 PR 与 main 上都是绿的；本地 `export_openapi.py --check` 与 pytest 均通过（见 §7）。
+> 2026-11-15 注：本次未复查 GitHub Actions 运行状态；本地 pytest 223 passed、OpenAPI 快照一致。
 
 ## 1. 前端已实测通过的接口（不用重复确认）
 
@@ -93,7 +94,7 @@ CI 在 PR 与 main 上都是绿的；本地 `export_openapi.py --check` 与 pyte
 **偏好**
 
 - `GET/PUT /settings/preferences` 整份覆盖；请求体是 `StrictBool`，非法值 400。
-- 前端 404 时降级为“后端未启用”，所以旧环境不会崩，但演示环境请确保已迁移到 `c8e1b6a4d902`。
+- 前端 404 时降级为“后端未启用”，所以旧环境不会崩，但演示环境请确保 `alembic upgrade head`（含偏好 `c8e1b6a4d902` 与识图缓存 `c4e8a1d62f37`）。
 
 ## 3. 唯一还需要写的接口：BYOK（BE-020）
 
@@ -119,6 +120,8 @@ DELETE /api/v1/settings/ai
 
 ## 4. 识图两步（PR #67）的对接点
 
+> 2026-11-15 状态：两步识图（#67）与缓存（#71）均已合入 main；对外仍是同一个端点、同一组字段，前端不需要改代码。以下确认项转为 staging 实拍验证。
+
 对外仍是同一个端点、同一组字段，前端不需要改代码。合并/部署后请确认：
 
 1. staging 实拍一张多题图：末题至少返回一次、残缺条目 `incomplete=true`；
@@ -126,6 +129,8 @@ DELETE /api/v1/settings/ai
 3. 一次识图写两行 `ai_call_logs`（按跳），前端不读这张表，只用于排查。
 
 ## 5. 演示数据的一个小问题（建议演示前处理）
+
+> 2026-11-15 状态：仍未处理；演示前需按父题 `question_type` 派生并 `--reset`。
 
 种子脚本的 3 道生成题题型统一是 `solve`，而父题里有 `choice`/`blank`，且 strict 默认开启。新生成的题不受影响（strict 在生成时生效），但演示账号里已有的 3 张卡看起来会“原题是选择题，相似题是解答题”。
 
@@ -136,6 +141,8 @@ DELETE /api/v1/settings/ai
 3. 接受现状（不影响功能，只是观感）。
 
 ## 6. 部署（11.14 硬截止）—— 前端需要的确认
+
+> 2026-11-15 状态：11.14 已过，仍无 staging URL；R-009 已触发。以下要求仍然有效，最高优先是 11.16 出地址。
 
 | 项 | 要求 |
 |---|---|
@@ -155,7 +162,7 @@ DELETE /api/v1/settings/ai
 ```bash
 cd backend
 uv run ruff check app tests
-uv run pytest                                   # 期望全绿（含 197+ 用例）
+uv run pytest                                   # 期望全绿（2026-11-15：223 passed）
 uv run python scripts/export_openapi.py --check # 期望 “OpenAPI 快照一致”
 uv run alembic upgrade head
 DEMO_PASSWORD=*** uv run python scripts/seed_demo.py
@@ -169,7 +176,7 @@ SSE（BE-010）、单题重生成/质量反馈（BE-015）、同组公式结构�
 
 ## 9. 待拍板（回复一句即可）
 
-1. 时间格式：演示前保持两套口径（推荐），还是统一补 `Z`？
-2. 种子生成题题型：按父题派生（推荐）/ staging 现场重生成 / 接受现状？
-3. BYOK 是否在演示前实现？若实现，按 §3 的字段。
-4. staging 用 SQLite 还是 MySQL（推荐 11.14 前 SQLite + WAL）。
+1. 时间格式：演示前保持两套口径（推荐，前端已按两套解析），还是统一补 `Z`？
+2. 种子生成题题型：按父题派生（推荐，仍未处理）/ staging 现场重生成 / 接受现状？
+3. BYOK 是否在演示前实现？建议不实现（前端已 404 降级）；若实现，按 §3 的字段。
+4. staging 用 SQLite 还是 MySQL（11.14 已过；建议 11.16 前 SQLite + WAL，演示前不切库）。
