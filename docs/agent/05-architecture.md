@@ -737,10 +737,10 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 - 端点：
   - `POST /questions/from-image/jobs` → **200** 命中缓存（`job_id=null` + `result`，不建行不排队）或 **202** `{job_id, status, queue_position, estimated_wait_s, reused}`；
-  - `GET /questions/from-image/jobs/{job_id}` → `{job_id, status, result?, error?}`；越权/不存在一律 404 `VISION_JOB_NOT_FOUND`（不承认存在性）。
+  - `GET /questions/from-image/jobs/{job_id}` → `{job_id, status, queue_position?, estimated_wait_s?, result?, error?}`；`queued` 时带排队位置/预估（刷新页面后仍能显示"前面还有几个"）；越权/不存在一律 404 `VISION_JOB_NOT_FOUND`（不承认存在性）。
 - **幂等键 = `user + image_path + subject + force_refresh` 全等**；同参数复用单号，不同参数 429 `VISION_PREVIOUS_PENDING`。
 - **名额三层**：同时跑 `VISION_MAX_CONCURRENCY=8`；全局排队 `VISION_QUEUE_MAX_DEPTH=200`，且预估等待（按 **排队 + 正在跑** 估算）> `VISION_QUEUE_WAIT_MAX_S=40` 时**提交即 429**（`VISION_QUEUE_FULL` + `Retry-After: 30`，不做先收单再判死）；每人同时 1 个未完成（`active_slot` 唯一约束兜多标签页竞态）。
-- **缓存快路径在提交时做**：命中直接 200；强刷冷却也在提交时判（429 `VISION_REFRESH_COOLDOWN`），不排队。
+- **缓存快路径在提交时做**：命中直接 200；强刷冷却先在提交时**只读判断**（429 `VISION_REFRESH_COOLDOWN`），**准入通过、真正入队前才扣额度**——被队列/上一单拒掉的人不消耗 60s 冷却，按 `Retry-After` 重试不会连吃两个 429。
 - **时间预算**：排队上限 `VISION_QUEUE_WAIT_MAX_S=40` + 认领后整单 `VISION_RUN_DEADLINE_S=140` → 用户最长等 **180s**。排队时间确定、LLM 方差大，预算给后者（密页转录实测 90.2s，加结构化仍有余量）；`VISION_CALL_TIMEOUT_S=140` 只是单次兜底，真正生效的是整单 deadline。deadline 是协作式的：pipeline 每次调用前按剩余时间收紧 timeout，剩余 ≤5s 不再发起（Python 杀不掉阻塞线程）。
 - **排队超时**：首次认领（`attempts=0`）且已等 >60s → `failed` `VISION_QUEUE_TIMEOUT`；崩溃重排过的任务跳过这个判断（`created_at` 是原始提交时间）。
 - **worker**：独立线程组（复用 `TASK_WORKERS_ENABLED` 开关），与生题 worker 分开，避免互相饿死；启动自愈把卡住的 running 放回队列（`attempts>=2` → `failed` `AI_TIMEOUT`）；终态任务 24h 后清理，**只删终态**。
@@ -1185,7 +1185,7 @@ RECOGNIZE_CLIENT_TIMEOUT_S=180 # 旧同步端点的单次调用上限（不是�
 VISION_CALL_TIMEOUT_S=140      # 单次 LLM 调用上限（兜底，deadline 先生效）
 VISION_RUN_DEADLINE_S=140      # 认领后整单硬截止（协作式）
 VISION_QUEUE_WAIT_MAX_S=40     # 排队上限（按排队+running 估算）；超它直接 429
-VISION_MAX_CONCURRENCY=8       # 识图 worker 数（2C2G soak 后再定 8/12/15）
+VISION_MAX_CONCURRENCY=8       # 识图 worker 数；8 并发 soak 19.3s/张、上游无 429，保持 8
 VISION_QUEUE_MAX_DEPTH=200
 TASK_WORKERS_ENABLED=true     # API 测试里关掉
 
@@ -1283,4 +1283,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-21 | v0.6.26 | **识图任务化复核修复**：强刷冷却改为"提交只读判断 + 准入通过后才扣额度"（被队列拒掉不再吃 `VISION_REFRESH_COOLDOWN`）；准入均值加 20s 下限（8 并发实测 19.3s，避免小图拉低后"排了队再判死"）；轮询 `queued` 补 `queue_position`/`estimated_wait_s`；OpenAPI 补齐 202/404/429；`.env.example` 删掉"提到 12"的误导注释并拆开行内注释。3 条新测试 | 人机 |
 | 2026-11-21 | v0.6.25 | **识图任务化（B 档）**：新增 `vision_job` 表（迁移 `d6b8c2e4f901`）与 `POST /questions/from-image/jobs` + `GET …/jobs/{job_id}`，旧同步端点保留标 deprecated；提交命中缓存直接 200、否则 202 排队号；幂等键含 subject/force_refresh；每人 1 个 active（`active_slot` 唯一）；同时跑 8 / 全队 200 / 排队 40s（估算含 running）且预估超限提交即 429 + `Retry-After`；整单 deadline 140s（pipeline 协作式收紧，单次兜底 140s）；独立 vision worker + 启动自愈 + 终态 24h 清理；新增 4 个错误码；267 passed；OpenAPI 已重导 | 人机 |

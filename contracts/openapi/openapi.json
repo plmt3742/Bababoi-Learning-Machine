@@ -2044,7 +2044,7 @@
         "type": "object"
       },
       "VisionJobOut": {
-        "description": "轮询响应：status=done 才带 result，failed 才带 error。",
+        "description": "轮询响应：status=done 才带 result，failed 才带 error。\n\n`queued` 时带上排队信息——刷新页面后还能显示\"前面还有几个\"，\n否则重新轮询就只剩一个转圈。",
         "properties": {
           "error": {
             "anyOf": [
@@ -2056,9 +2056,31 @@
               }
             ]
           },
+          "estimated_wait_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Wait S"
+          },
           "job_id": {
             "title": "Job Id",
             "type": "integer"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
           },
           "result": {
             "anyOf": [
@@ -2769,6 +2791,19 @@
             },
             "description": "Successful Response"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionJobSubmitOut"
+                }
+              }
+            },
+            "description": "已入队（未命中缓存）"
+          },
+          "404": {
+            "description": "图片不存在或不属于本人"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2778,6 +2813,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "VISION_QUEUE_FULL / VISION_PREVIOUS_PENDING / VISION_REFRESH_COOLDOWN；QUEUE_FULL 带 Retry-After"
           }
         },
         "security": [
@@ -2816,6 +2854,9 @@
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "description": "任务不存在或不属于本人（VISION_JOB_NOT_FOUND）"
           },
           "422": {
             "content": {

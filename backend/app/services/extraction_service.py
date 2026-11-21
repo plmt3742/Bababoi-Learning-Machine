@@ -123,6 +123,22 @@ def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
         return payload
 
 
+def _force_slot_remaining(session_factory: sessionmaker, key: _CacheKey) -> int:
+    """只读：冷却还剩多少秒（0 = 可以强刷）。**不占额度、不写库**。
+
+    提交路径先用它做判断，等准入通过后再调 `take_force_slot()` 真正占用——
+    否则被队列/上一单拒掉的人白丢一次额度，按 `Retry-After` 重试还会撞冷却。
+    """
+    with session_factory() as session:
+        last = session.scalar(
+            select(VisionExtractCache.last_forced_at).where(*_cache_where(key))
+        )
+    if last is None:
+        return 0
+    remaining = settings.vision_force_refresh_cooldown_s - (utcnow() - last).total_seconds()
+    return max(1, math.ceil(remaining)) if remaining > 0 else 0
+
+
 def _acquire_force_slot(session_factory: sessionmaker, key: _CacheKey) -> int:
     """占用一次强刷额度：0 = 占到了，>0 = 冷却剩余秒数。
 
@@ -236,13 +252,15 @@ def _cache_decision(
     subject: str | None,
     force_refresh: bool,
     *,
-    force_slot_taken: bool = False,
+    force_slot: str = "take",
 ) -> tuple[_CacheKey | None, dict | None]:
     """归属校验 + 强刷冷却 + 缓存读，一处实现两种入口共用（同步端点 / 任务提交）。
 
-    返回 `(缓存键, 命中结果)`；未命中时结果为 None。强刷在**提交/调用前**占用冷却额度，
-    失败也计（现状口径）；任务化路径在提交时占一次，worker 里用 `force_slot_taken=True`
-    跳过第二次占用，否则会被自己刚占的 60s 冷却挡住。
+    返回 `(缓存键, 命中结果)`；未命中时结果为 None。`force_slot` 决定冷却额度怎么处理：
+
+    - `take`（同步端点）：当场占用，失败也计——一次重跑 17–90s，不能靠失败绕过；
+    - `peek`（任务提交）：只读判断，准入通过后再由 `take_force_slot()` 占用；
+    - `skip`（worker）：提交时已经占过，执行时不能再占，否则被自己的冷却挡住。
     """
     # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
     image_service.resolve_user_file(user_id, image_path)
@@ -250,9 +268,13 @@ def _cache_decision(
     if key is None:
         return None, None
     if force_refresh:
-        if not force_slot_taken:
+        if force_slot != "skip":
             try:
-                wait_s = _acquire_force_slot(session_factory, key)
+                wait_s = (
+                    _acquire_force_slot(session_factory, key)
+                    if force_slot == "take"
+                    else _force_slot_remaining(session_factory, key)
+                )
             except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
                 logger.warning("识图缓存冷却检查失败（user=%s）：%s", user_id, exc)
                 wait_s = 0
@@ -287,10 +309,34 @@ def prepare_submission(
     *,
     subject: str | None = None,
     force_refresh: bool = False,
-) -> dict | None:
-    """任务化提交的快路径：命中缓存直接返回 payload；未命中返回 None（交给入队）。"""
-    _, cached = _cache_decision(session_factory, user_id, image_path, subject, force_refresh)
-    return cached
+) -> tuple[_CacheKey | None, dict | None]:
+    """任务化提交的只读快路：归属校验 + 缓存读 + 强刷冷却判断，**不占额度**。
+
+    返回 `(缓存键, 命中结果)`；命中缓存时结果为 payload，否则 None（交给入队）。
+    """
+    return _cache_decision(
+        session_factory, user_id, image_path, subject, force_refresh, force_slot="peek"
+    )
+
+
+def take_force_slot(session_factory: sessionmaker, key: _CacheKey | None) -> None:
+    """准入通过、入队之前占用强刷额度；冷却中抛 429。
+
+    与 `prepare_submission` 的 peek 分开，是为了让"被队列拒掉"的请求不消耗额度。
+    """
+    if key is None:
+        return
+    try:
+        wait_s = _acquire_force_slot(session_factory, key)
+    except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
+        logger.warning("识图强刷额度占用失败（user=%s）：%s", key.user_id, exc)
+        return
+    if wait_s > 0:
+        raise ApiError(
+            ErrorCode.VISION_REFRESH_COOLDOWN,
+            f"刚重新识别过，请 {wait_s} 秒后再试",
+            429,
+        )
 
 
 def extract_from_image(
@@ -319,7 +365,7 @@ def extract_from_image(
         image_path,
         subject,
         force_refresh,
-        force_slot_taken=force_slot_taken,
+        force_slot="skip" if force_slot_taken else "take",
     )
     if cached is not None:
         return cached

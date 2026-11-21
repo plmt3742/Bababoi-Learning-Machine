@@ -108,7 +108,20 @@ def extract_from_image(
     return ImageExtractionOut.model_validate(result)
 
 
-@router.post("/questions/from-image/jobs", response_model=VisionJobSubmitOut)
+@router.post(
+    "/questions/from-image/jobs",
+    response_model=VisionJobSubmitOut,
+    responses={
+        202: {"model": VisionJobSubmitOut, "description": "已入队（未命中缓存）"},
+        404: {"description": "图片不存在或不属于本人"},
+        429: {
+            "description": (
+                "VISION_QUEUE_FULL / VISION_PREVIOUS_PENDING / "
+                "VISION_REFRESH_COOLDOWN；QUEUE_FULL 带 Retry-After"
+            )
+        },
+    },
+)
 def submit_from_image_job(
     body: FromImageRequest,
     response: Response,
@@ -129,7 +142,11 @@ def submit_from_image_job(
     return VisionJobSubmitOut.model_validate(result)
 
 
-@router.get("/questions/from-image/jobs/{job_id}", response_model=VisionJobOut)
+@router.get(
+    "/questions/from-image/jobs/{job_id}",
+    response_model=VisionJobOut,
+    responses={404: {"description": "任务不存在或不属于本人（VISION_JOB_NOT_FOUND）"}},
+)
 def get_image_job(
     job_id: int,
     user: User = Depends(get_current_user),

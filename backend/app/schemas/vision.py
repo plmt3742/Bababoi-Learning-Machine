@@ -12,10 +12,16 @@ class VisionJobErrorOut(BaseModel):
 
 
 class VisionJobOut(BaseModel):
-    """轮询响应：status=done 才带 result，failed 才带 error。"""
+    """轮询响应：status=done 才带 result，failed 才带 error。
+
+    `queued` 时带上排队信息——刷新页面后还能显示"前面还有几个"，
+    否则重新轮询就只剩一个转圈。
+    """
 
     job_id: int
     status: str
+    queue_position: int | None = None
+    estimated_wait_s: int | None = None
     result: ImageExtractionOut | None = None
     error: VisionJobErrorOut | None = None
 

@@ -11,7 +11,7 @@ from app.ai.errors import AITimeoutError
 from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.db.base import utcnow
-from app.models import VisionJob
+from app.models import VisionExtractCache, VisionJob
 from app.services import extraction_service, vision_job_service, vision_worker
 from tests.conftest import auth_headers, register_user
 
@@ -122,6 +122,26 @@ def test_queue_full_has_retry_after(client, db, monkeypatch) -> None:
     assert resp.status_code == 429, resp.text
     assert resp.json()["detail"]["code"] == str(ErrorCode.VISION_QUEUE_FULL)
     assert resp.headers.get("Retry-After") == "30"
+
+
+def test_rejected_force_submit_does_not_consume_cooldown(client, db, monkeypatch) -> None:
+    """准入拒绝发生在扣额度之前：否则按 Retry-After 重试会连吃两个 429。"""
+    token, _ = _user(client)
+    image_path = _upload(client, token)
+    # 先同步识别一次，落一行缓存——强刷冷却只对已有缓存行生效
+    assert _extract_sync(client, token, image_path).status_code == 200
+    with db() as session:
+        assert session.scalar(select(VisionExtractCache)).last_forced_at is None
+
+    monkeypatch.setattr(settings, "vision_queue_max_depth", 0)
+    blocked = _submit(client, token, image_path, force_refresh=True)
+    assert blocked.status_code == 429, blocked.text
+    assert blocked.json()["detail"]["code"] == str(ErrorCode.VISION_QUEUE_FULL)
+
+    with db() as session:
+        assert session.scalar(select(VisionExtractCache)).last_forced_at is None, (
+            "被队列拒掉的请求不能消耗强刷冷却"
+        )
 
 
 def _make_queued(db, user_id: int, image_path: str, *, created_offset_s: int = 0) -> int:
@@ -294,3 +314,46 @@ def test_admission_estimate_counts_running_jobs(client, db, monkeypatch) -> None
     assert resp.status_code == 202, resp.text
     # 默认均值 25s、1 个 worker、前面 1 个 running → 估算 25s（旧算法会算成 1）
     assert resp.json()["estimated_wait_s"] == 25
+
+
+def test_admission_runtime_average_has_floor(client, db) -> None:
+    """均值会被小图拉低：准入宁可保守，不能按 12s 放人进来再判排队超时。"""
+    token, user_id = _user(client)
+    image_path = _upload(client, token)
+    with db() as session:
+        now = utcnow()
+        for _ in range(3):
+            session.add(
+                VisionJob(
+                    user_id=user_id,
+                    image_path=image_path,
+                    status="done",
+                    started_at=now - timedelta(seconds=12),
+                    finished_at=now,
+                    created_at=now - timedelta(seconds=12),
+                    expires_at=now + timedelta(hours=24),
+                )
+            )
+        session.commit()
+        assert vision_job_service._avg_runtime_seconds(session) == 20.0
+
+
+def test_polling_queued_job_reports_position(client, db) -> None:
+    """刷新页面后重新轮询也要能显示"前面还有几个"。"""
+    token, _ = _user(client)
+    other_id = register_user(client, "识图_96")["user"]["id"]
+    image_path = _upload(client, token)
+    _make_queued(db, other_id, image_path)
+
+    resp = _submit(client, token, image_path, force_refresh=True)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["job_id"]
+
+    poll = client.get(
+        f"/api/v1/questions/from-image/jobs/{job_id}", headers=auth_headers(token)
+    )
+    assert poll.status_code == 200
+    body = poll.json()
+    assert body["status"] == "queued"
+    assert body["queue_position"] == 2
+    assert body["estimated_wait_s"] is not None and body["estimated_wait_s"] >= 1

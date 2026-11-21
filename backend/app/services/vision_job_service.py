@@ -28,6 +28,9 @@ from app.services import extraction_service
 
 JOB_TTL = timedelta(hours=24)
 DEFAULT_AVG_SECONDS = 25.0
+# 准入闸要保守：均值会被最近几张快图拉低，低估的代价是"排了队再被判死"。
+# 20 是 8 并发真图 soak 的单张实测（19.3s）取整；宁可多拒几个人 30 秒后重试。
+MIN_AVG_SECONDS = 20.0
 RETRY_AFTER_HEADERS = {"Retry-After": "30"}
 
 
@@ -72,7 +75,9 @@ def _avg_runtime_seconds(session: Session) -> float:
         for row in rows
         if row.started_at is not None and row.finished_at is not None
     ]
-    return sum(durations) / len(durations) if durations else DEFAULT_AVG_SECONDS
+    if not durations:
+        return DEFAULT_AVG_SECONDS
+    return max(sum(durations) / len(durations), MIN_AVG_SECONDS)
 
 
 def _estimate_wait_s(session: Session, ahead: int) -> int:
@@ -131,7 +136,7 @@ def submit(
     - 队列深度/预估等待超限 → 429 + Retry-After（准入闸，不先收单再判死）。
     """
     subject = subject.strip() if subject and subject.strip() else None
-    cached = extraction_service.prepare_submission(
+    key, cached = extraction_service.prepare_submission(
         session_factory,
         user_id,
         image_path,
@@ -169,6 +174,10 @@ def submit(
             429,
             headers=RETRY_AFTER_HEADERS,
         )
+
+    # 到这里才真正扣强刷额度：被上面 any 一步拒掉的人不该丢一次冷却
+    if force_refresh:
+        extraction_service.take_force_slot(session_factory, key)
 
     now = utcnow()
     job = VisionJob(
@@ -210,9 +219,22 @@ def get_for_user(session: Session, user_id: int, job_id: int) -> dict:
     error = None
     if job.error_code:
         error = {"code": job.error_code, "message": job.error_message or "识图失败"}
+    queue_position = None
+    estimated_wait_s = None
+    if job.status == "queued":
+        # 刷新页面后还能显示"前面还有几个"：只数排在它前面的活动任务（id 单调）
+        ahead = session.scalar(
+            select(func.count())
+            .select_from(VisionJob)
+            .where(VisionJob.status.in_(VISION_JOB_ACTIVE_STATUSES), VisionJob.id < job.id)
+        ) or 0
+        queue_position = ahead + 1
+        estimated_wait_s = _estimate_wait_s(session, ahead)
     return {
         "job_id": job.id,
         "status": job.status,
+        "queue_position": queue_position,
+        "estimated_wait_s": estimated_wait_s,
         "result": result,
         "error": error,
     }
