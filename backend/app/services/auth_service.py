@@ -105,21 +105,28 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
 
     login_limiter.reset(ip)
     user.last_login_at = utcnow()
-    # BE-028：单会话策略——版本号 +1 后，其他设备手里的旧 token 立刻失效。
-    # 用 SQL 表达式自增而不是"读出来 +1 再写回"：两个并发登录也能各自拿到新版本，
-    # 结果稳定是"最后一次登录生效"，不会出现两个 token 同时有效。
-    session.execute(
-        update(User).where(User.id == user.id).values(token_version=User.token_version + 1)
-    )
+    user.token_version = _bump_token_version(session, user.id)
     session.commit()
-    session.refresh(user)
     return user
+
+
+def _bump_token_version(session: Session, user_id: int) -> int:
+    """把版本 +1 并在**同一事务内**读回新值（BE-028）。
+
+    不能"提交后再 refresh"：提交之后另一个并发登录可能已经又 +1，
+    两个 token 会拿到同一个更大版本、同时有效（前端 review 指出）。
+    UPDATE 与 SELECT 在同一事务里，并发事务被行锁串行化，各自读到的都是自己那份。
+    """
+    session.execute(
+        update(User).where(User.id == user_id).values(token_version=User.token_version + 1)
+    )
+    return session.scalar(select(User.token_version).where(User.id == user_id))
 
 
 def logout(session: Session, user_id: int) -> None:
     """吊销该账号当前的会话（BE-028）：版本号 +1，手里的 token 下一次请求即 401。
 
-    幂等：重复调用只是多 +1，没有副作用。
+    重复请求不会再次 +1：旧 token 在鉴权处就因版本不一致被 401 了。
     """
     session.execute(
         update(User).where(User.id == user_id).values(token_version=User.token_version + 1)
