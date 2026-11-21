@@ -445,7 +445,7 @@ onBeforeUnmount(() => {
       <section class="panel ai-panel" aria-labelledby="ai-title">
         <header class="panel__head">
           <h2 id="ai-title">AI API 设置</h2>
-          <span class="panel__head-hint">BYOK · P1</span>
+          <span class="panel__head-hint">BYOK</span>
         </header>
 
         <div class="panel__body ai">
@@ -498,7 +498,7 @@ onBeforeUnmount(() => {
 
           <div v-else-if="byokUnavailable" class="settings-alert" role="status">
             <span class="settings-alert__mark" aria-hidden="true"></span>
-            <span>BYOK 属于 P1，后端接口尚未上线；上线后可在此保存个人 API Key。生成暂用系统默认 Key。</span>
+            <span>个人 Key 功能暂未开放；当前使用系统默认 Key。</span>
           </div>
 
           <template v-else>
@@ -712,10 +712,6 @@ onBeforeUnmount(() => {
                 <p class="ai-note__text">
                   服务端加密保存；保存成功后输入框会自动清空，页面只显示脱敏结果。请勿在公共设备保存个人
                   Key。
-                </p>
-                <p class="ai-note__text">
-                  BYOK 属于 P1 能力，不在 11.29 演示主路径上；待后端接入后，AI 生成才会实际使用个人
-                  Key，当前保存仅登记配置。
                 </p>
               </div>
             </div>

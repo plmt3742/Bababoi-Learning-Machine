@@ -91,7 +91,6 @@ const hasQa = computed(
         </svg>
         可开始练习
       </span>
-      <span class="gen-card__id">#{{ question.id }}</span>
     </div>
   </article>
 </template>
@@ -249,12 +248,6 @@ const hasQa = computed(
   width: 14px;
   height: 14px;
   flex: none;
-}
-
-.gen-card__id {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
 }
 
 @media (max-width: 767px) {

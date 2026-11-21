@@ -15,7 +15,7 @@ const MASTERY_TAG_CLASSES: Record<MasteryStatus, string> = {
 
 const detailPath = computed(() => `/questions/${props.question.id}`)
 const createdAt = computed(() => formatCardDate(props.question.created_at))
-const ariaLabel = computed(() => `查看错题 ${props.question.id}：${props.question.excerpt}`)
+const ariaLabel = computed(() => `查看错题：${props.question.excerpt}`)
 const masteryTagClass = computed(() => MASTERY_TAG_CLASSES[props.question.mastery_status])
 
 function formatCardDate(value: string): string {
@@ -31,13 +31,7 @@ function formatCardDate(value: string): string {
   <RouterLink :to="detailPath" class="question-card" :aria-label="ariaLabel">
     <article class="qcard">
       <div class="qcard__head">
-        <span class="qcard__id">#{{ question.id }}</span>
-        <p class="qcard__subject">
-          {{ question.subject
-          }}<span v-if="question.chapter" class="qcard__chapter">
-            <span class="sep">·</span>{{ question.chapter }}</span
-          >
-        </p>
+        <p class="qcard__subject">{{ question.subject }}</p>
         <div class="qcard__badges">
           <span class="tag qcard__type">{{ questionTypeLabel(question.question_type) }}</span>
           <span class="tag" :class="masteryTagClass">
@@ -103,14 +97,6 @@ function formatCardDate(value: string): string {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.qcard__id {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
-  letter-spacing: 0.02em;
 }
 
 .qcard__subject {

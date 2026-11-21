@@ -71,9 +71,9 @@ function statusTagClass(status: TaskStatus): string {
           <RouterLink
             class="task-row__link"
             :to="`/questions/${task.question_id}`"
-            :aria-label="`查看题目 ${task.question_id} 的任务`"
+            aria-label="查看题目任务"
           >
-            <span class="task-row__title">题目 #{{ task.question_id }}</span>
+            <span class="task-row__title">查看题目</span>
             <span class="task-row__stage">{{ taskStageLabel(task.stage) }}</span>
           </RouterLink>
 
@@ -84,8 +84,6 @@ function statusTagClass(status: TaskStatus): string {
         </div>
 
         <p class="task-row__meta">
-          <span>任务 #{{ task.id }}</span>
-          <span class="task-row__sep" aria-hidden="true">·</span>
           <time :datetime="task.created_at">{{ formatStatsTime(task.created_at) }}</time>
           <template v-if="typeof task.target_index === 'number'">
             <span class="task-row__sep" aria-hidden="true">·</span>

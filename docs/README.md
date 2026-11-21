@@ -51,6 +51,7 @@
 | [agent/23-backend-handoff-20261113.md](agent/23-backend-handoff-20261113.md) | 合并后的后端对接单：前端已实测清单、必须保持的契约（时间/错误码/各接口）、BYOK 接口形状、识图两步、种子题型、部署确认、待拍板 | 后端继续开发 / 部署前对齐 / 演示准备 |
 | [agent/24-staging-handoff-20261117.md](agent/24-staging-handoff-20261117.md) | Staging 更新与真接口回归对接单：现状、备份、后端镜像、前端 dist、15 步回归、BYOK 核对、回滚与排障 | staging 更新 / 演示前真接口回归 / 部署排障 |
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
+| [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
 
 ### 产品设计
 
@@ -66,8 +67,10 @@
 | [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
 | [product/07-page-drafts.md](product/07-page-drafts.md) | 8 个关键页面的线框级设计 | 已定稿（待按图片 v2 更新） |
 | [product/08-interaction-map.md](product/08-interaction-map.md) | 页面交互地图、跳转关系、数据流、状态机 | 已定稿（待按图片 v2 更新） |
+| [product/09-knowledge-map.md](product/09-knowledge-map.md) | 知识点脉络/掌握地图：页面结构、交互、数据与 API 提案 | 设计稿（未开发） |
 | [product/drafts/prototype.html](product/drafts/prototype.html) | 可本地打开的页面原型（8 页线框） | 旧框题版；待更新 |
 | [product/drafts/interaction-map.html](product/drafts/interaction-map.html) | 可本地打开的页面地图（HTML，点击页面框打开原型） | 旧框题版；待更新 |
+| [product/drafts/knowledge-map.html](product/drafts/knowledge-map.html) | 可本地打开的知识脉络/掌握地图视觉稿 | 设计稿 |
 
 ### 架构决策
 

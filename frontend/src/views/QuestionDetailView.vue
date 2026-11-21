@@ -81,7 +81,6 @@ const detailSubtitle = computed(() => {
   if (!current) return ''
 
   const parts = [current.subject]
-  if (current.chapter) parts.push(current.chapter)
   if (createdAt.value) parts.push(`录入于 ${createdAt.value}`)
   return parts.join(' · ')
 })
@@ -141,7 +140,7 @@ const analysisTaskLabel = computed(() => {
   if (!task) return ''
 
   const date = parseApiTime(task.started_at ?? task.created_at)
-  if (Number.isNaN(date.getTime())) return `任务 #${task.id}`
+  if (Number.isNaN(date.getTime())) return '分析任务'
 
   const time = new Intl.DateTimeFormat('zh-CN', {
     hour: '2-digit',
@@ -149,7 +148,7 @@ const analysisTaskLabel = computed(() => {
     second: '2-digit',
     hour12: false,
   }).format(date)
-  return `任务 #${task.id} · ${time}`
+  return `分析任务 · ${time}`
 })
 
 const generatedEmptyHint = computed(() => {
@@ -309,7 +308,7 @@ async function handleRetryTask(taskId: number): Promise<void> {
 
   try {
     await retryTask(taskId)
-    Message.success(`任务 #${taskId} 已重新提交`)
+    Message.success('已重新提交任务')
     startTaskPolling()
   } catch (cause) {
     actionError.value = normalizeApiError(cause).message
@@ -473,10 +472,7 @@ onBeforeUnmount(() => {
             <IconArrowLeft class="icon" />
             返回错题本
           </a>
-          <h1>
-            错题详情
-            <span class="head-id">#{{ question.id }}</span>
-          </h1>
+          <h1>错题详情</h1>
           <p>{{ detailSubtitle }}</p>
         </div>
         <div class="page-head__actions">
@@ -757,14 +753,6 @@ onBeforeUnmount(() => {
   line-height: var(--text-2xl-leading);
   font-weight: 650;
   letter-spacing: -0.012em;
-}
-
-.head-id {
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 400;
-  letter-spacing: 0.02em;
 }
 
 .page-head p {
