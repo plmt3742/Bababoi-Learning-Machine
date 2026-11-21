@@ -9,6 +9,7 @@ import {
   IconPoweroff,
 } from '@arco-design/web-vue/es/icon'
 import PageHeader from '../components/common/PageHeader.vue'
+import ChangePasswordCard from '../components/settings/ChangePasswordCard.vue'
 import {
   deleteAiSettings,
   getAiSettings,
@@ -324,7 +325,7 @@ onBeforeUnmount(() => {
     <PageHeader
       eyebrow="Settings"
       title="个人设置"
-      description="管理账号信息、生成偏好，并登记 AI 服务使用的个人 API Key。个人 Key 只提交到服务端，前端不保存完整值。"
+      description="管理账号信息与密码、生成偏好，并登记 AI 服务使用的个人 API Key。个人 Key 只提交到服务端，前端不保存完整值。"
     />
 
     <section class="panel preference-panel" aria-labelledby="preference-title">
@@ -390,6 +391,7 @@ onBeforeUnmount(() => {
     </section>
 
     <div class="settings-grid">
+      <div class="settings-column">
       <section class="panel account-panel" aria-labelledby="account-title">
         <header class="panel__head">
           <h2 id="account-title">账号信息</h2>
@@ -429,7 +431,9 @@ onBeforeUnmount(() => {
             </div>
           </dl>
 
-          <p class="hint account__note">账号信息由注册时确定，当前页面不支持修改用户名或密码。</p>
+          <p class="hint account__note">
+            账号信息由注册时确定，用户名不可修改；密码可在下方「重置密码」中重置。
+          </p>
 
           <button
             class="btn btn--outline btn--sm account__logout"
@@ -441,6 +445,9 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </section>
+
+      <ChangePasswordCard />
+      </div>
 
       <section class="panel ai-panel" aria-labelledby="ai-title">
         <header class="panel__head">
@@ -772,9 +779,16 @@ onBeforeUnmount(() => {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
+}
+
+.settings-column {
+  display: grid;
+  gap: var(--space-5);
+  align-content: start;
+  min-width: 0;
 }
 
 .settings-grid > * {

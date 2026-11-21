@@ -37,6 +37,12 @@ export interface RegisterPayload {
   email?: string
 }
 
+/** FE-038 / BE-029: authenticated password change. Confirmation is frontend-only. */
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+}
+
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

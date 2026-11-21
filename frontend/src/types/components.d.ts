@@ -29,6 +29,7 @@ declare module 'vue' {
     ATextarea: typeof import('@arco-design/web-vue')['Textarea']
     BlankEditor: typeof import('./../components/question/editor/BlankEditor.vue')['default']
     BrandMark: typeof import('./../components/layout/BrandMark.vue')['default']
+    ChangePasswordCard: typeof import('./../components/settings/ChangePasswordCard.vue')['default']
     ChoiceEditor: typeof import('./../components/question/editor/ChoiceEditor.vue')['default']
     DraftRestoreBar: typeof import('./../components/common/DraftRestoreBar.vue')['default']
     EmptyState: typeof import('./../components/common/EmptyState.vue')['default']

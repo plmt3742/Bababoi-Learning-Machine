@@ -128,11 +128,9 @@ function openFirst(): void {
               </span>
             </div>
 
-            <MarkdownRenderer
-              class="saved-row__content"
-              :content="entry.question.content_md"
-              compact
-            />
+            <div class="saved-row__content">
+              <MarkdownRenderer :content="entry.question.content_md" compact />
+            </div>
 
             <button
               class="btn btn--quiet btn--sm"

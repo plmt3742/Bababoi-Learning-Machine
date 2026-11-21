@@ -66,6 +66,7 @@ const extractResult = ref<ImageExtractionResult | null>(null)
 const items = ref<ImageItemDraft[]>([])
 const pickerError = ref('')
 const flowError = ref('')
+const refreshError = ref('')
 const subjectError = ref('')
 const saveAttempted = ref(false)
 const saving = ref(false)
@@ -141,6 +142,7 @@ function resetSession(): void {
   items.value = []
   pickerError.value = ''
   flowError.value = ''
+  refreshError.value = ''
   subjectError.value = ''
   saveAttempted.value = false
   saveNotice.value = ''
@@ -235,15 +237,17 @@ async function processFile(file: File): Promise<void> {
   await runExtraction()
 }
 
-async function runExtraction(): Promise<void> {
+async function runExtraction(options: { forceRefresh?: boolean } = {}): Promise<void> {
   if (!uploadedPath.value) return
 
+  const forceRefresh = options.forceRefresh === true
   status.value = 'extracting'
   flowError.value = ''
+  refreshError.value = ''
   startExtractPhaseTimer()
 
   try {
-    const result = await extractQuestions(uploadedPath.value, props.subject)
+    const result = await extractQuestions(uploadedPath.value, props.subject, forceRefresh)
     extractResult.value = result
     saveAttempted.value = false
     saveNotice.value = ''
@@ -269,8 +273,15 @@ async function runExtraction(): Promise<void> {
 
     status.value = 'ready'
   } catch (cause) {
-    flowError.value = normalizeApiError(cause).message
-    status.value = 'error'
+    const apiError = normalizeApiError(cause)
+    if (forceRefresh && extractResult.value) {
+      refreshError.value = apiError.message
+      status.value = 'ready'
+      Message.error(apiError.message)
+    } else {
+      flowError.value = apiError.message
+      status.value = 'error'
+    }
   } finally {
     clearExtractPhaseTimer()
   }
@@ -290,7 +301,7 @@ async function retryIntake(): Promise<void> {
   }
 
   if (uploadedPath.value) {
-    await runExtraction()
+    await runExtraction({ forceRefresh: true })
     return
   }
 
@@ -524,6 +535,7 @@ onBeforeUnmount(() => {
                   更换图片
                 </button>
               </div>
+              <p v-if="refreshError" class="refresh-error" role="alert">{{ refreshError }}</p>
             </div>
           </div>
 
@@ -784,6 +796,17 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+.refresh-error {
+  margin-top: var(--space-2);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
 }
 
 .intake-status {
