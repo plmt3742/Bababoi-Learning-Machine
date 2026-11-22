@@ -31,8 +31,9 @@ def get_current_user(
         # token 有效但用户已不存在（如换了数据库）——按凭证无效处理
         raise ApiError(ErrorCode.AUTH_INVALID_CREDENTIALS, "无效的登录凭证", 401)
     if version != user.token_version:
-        # BE-028：登录/登出/改密会把 token_version +1，旧会话在这里失效。
-        # 复用 AUTH_TOKEN_EXPIRED：前端本来就是"401 清 token 回登录页"，不需要新码。
+        # BE-028：只有改密/强制下线会把 token_version +1，旧会话在这里失效；
+        # 登录/登出不动版本（多设备共存）。复用 AUTH_TOKEN_EXPIRED：
+        # 前端本来就是"401 清 token 回登录页"，不需要新码。
         raise ApiError(ErrorCode.AUTH_TOKEN_EXPIRED, "登录已失效，请重新登录", 401)
     return user
 
