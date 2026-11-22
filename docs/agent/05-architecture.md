@@ -35,7 +35,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 | 分组 | 端点 | 用途 |
 |---|---|---|
-| 认证 | `/auth/register`、`/auth/login`、`/auth/me`、`/auth/change-password`（BE-029） | 最小账号体系 |
+| 认证 | `/auth/register`、`/auth/login`、`/auth/logout`、`/auth/me`、`/auth/change-password`（BE-029） | 最小账号体系 |
 | 错题 | `/questions`、`/questions/{id}` | CRUD、筛选、搜索、分析编辑 |
 | AI/任务 | `/questions/{id}/analyze`、`/questions/{id}/generate`、`/questions/{id}/events`、`/tasks` | 入队、进度轮询（SSE P1）、重试 |
 | 图片 | `/uploads/images`、`/questions/from-image` | 用户裁剪上传 + 多题文本提取（结果按 ①②… 条目确认） |

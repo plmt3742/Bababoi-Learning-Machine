@@ -19,7 +19,11 @@ _USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_\u4e00-\u9fff]+$")
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=USERNAME_MIN, max_length=USERNAME_MAX)
-    password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+    password: str = Field(
+        min_length=PASSWORD_MIN,
+        max_length=128,
+        description="UTF-8 最多 72 字节（bcrypt 上限）",
+    )
     email: str | None = Field(default=None, max_length=128)
 
     @field_validator("username")
@@ -54,8 +58,12 @@ class LoginRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     """BE-029：登录态下凭旧密码改密；新旧相同由 service 判 400（不占字节上限）。"""
 
-    current_password: str
-    new_password: str = Field(min_length=PASSWORD_MIN, max_length=128)
+    current_password: str = Field(max_length=128)
+    new_password: str = Field(
+        min_length=PASSWORD_MIN,
+        max_length=128,
+        description="UTF-8 最多 72 字节（bcrypt 上限）",
+    )
 
     @field_validator("new_password")
     @classmethod

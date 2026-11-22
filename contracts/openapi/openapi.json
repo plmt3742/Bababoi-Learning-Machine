@@ -150,10 +150,12 @@
         "description": "BE-029：登录态下凭旧密码改密；新旧相同由 service 判 400（不占字节上限）。",
         "properties": {
           "current_password": {
+            "maxLength": 128,
             "title": "Current Password",
             "type": "string"
           },
           "new_password": {
+            "description": "UTF-8 最多 72 字节（bcrypt 上限）",
             "maxLength": 128,
             "minLength": 8,
             "title": "New Password",
@@ -1666,6 +1668,7 @@
             "title": "Email"
           },
           "password": {
+            "description": "UTF-8 最多 72 字节（bcrypt 上限）",
             "maxLength": 128,
             "minLength": 8,
             "title": "Password",

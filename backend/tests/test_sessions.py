@@ -182,8 +182,9 @@ def test_change_password_does_not_affect_other_users(client) -> None:
     assert _me(client, other).status_code == 200
 
 
-def test_bump_token_version_reads_value_inside_transaction(client, db) -> None:
-    """版本必须在同一事务里用当前读拿回（MySQL RR 下普通 SELECT 会读快照旧值）。"""
+def test_bump_token_version_increments_sequentially(client, db) -> None:
+    """只验证顺序递增；`FOR UPDATE` 的并发当前读在 MySQL 8 才生效（SQLite 忽略该子句），
+    上线前需在 MySQL 做一次并发改密/当前读专项验证。"""
     from app.models import User
     from app.services import auth_service
 
