@@ -24,11 +24,25 @@ def build_storage(url: str | None = None) -> Storage:
 
 
 def validate_rate_limit_config() -> None:
-    """启动期把限流配置解析一遍：写错在启动时就炸，别等第一个请求。
+    """启动期把限流配置校验并解析一遍：写错在启动时就炸，别等第一个请求。
 
     与 `settings.validate_for_startup()` 同一风格；解析规则和运行时共用
     `limits.parse`，不另写一份。
+
+    `limits.parse` 不拒绝 0：实测 `5/0 seconds` 被静默改成 1 秒窗口、
+    `0/3600 seconds` 让 hit 永远 False（全部 429）——这里自己先挡住。
     """
+    pairs = (
+        ("LOGIN_RATE_LIMIT", settings.login_rate_limit, settings.login_rate_window_s),
+        (
+            "REGISTER_RATE_LIMIT",
+            settings.register_rate_limit,
+            settings.register_rate_window_s,
+        ),
+    )
+    for name, limit, window_s in pairs:
+        if limit <= 0 or window_s <= 0:
+            raise ValueError(f"{name} 的额度与窗口必须为正数（当前 {limit}/{window_s} 秒）")
     for rate in (
         f"{settings.login_rate_limit}/{settings.login_rate_window_s} seconds",
         f"{settings.register_rate_limit}/{settings.register_rate_window_s} seconds",
@@ -79,7 +93,7 @@ class SlidingWindowLimiter:
         """清空全部计数；**只给测试复位用**。
 
         红线：生产别调。memory:// 下每个 limiter 有独立存储，互不影响；
-        换成 redis:// 后 `reset()` 是 flushdb，会清掉同一个 DB 里的所有键
-        （包括其他限流桶），不是只清自己这一类。
+        换成 redis:// 后删的是 `<key_prefix>:*`（默认 `LIMITS:*`）——会清掉
+        同一个 DB 里所有限流桶，但不碰其它 key；仍不是"只清自己这一类"。
         """
         self._storage.reset()

@@ -32,13 +32,16 @@ class LoginRateLimiter:
         )
 
     def check(self, ip: str) -> None:
-        self._limiter.check(ip)
+        # 标识符带业务命名空间：`limits` 的 key 只拼 identifiers+额度，两个限流器
+        # 配成同一额度时（如登录放松成 30/3600 或注册收紧成 5/60）没这个前缀
+        # 会在 Redis 多实例下共用同一个桶
+        self._limiter.check("login", ip)
 
     def record_failure(self, ip: str) -> None:
-        self._limiter.record(ip)
+        self._limiter.record("login", ip)
 
     def reset(self, ip: str) -> None:
-        self._limiter.reset(ip)
+        self._limiter.reset("login", ip)
 
     def clear(self) -> None:
         """清空全部计数；测试复位用。"""
@@ -62,7 +65,8 @@ def register(session: Session, data: RegisterRequest, ip: str) -> User:
 
     # 扣额度放在重名检查之后：实验室全班共用一个出口 IP，
     # 一个人把用户名打错重试几次，不该吃掉全班的名额。
-    register_limiter.hit(ip)
+    # 标识符带业务命名空间，别和登录失败共用一个桶（见 LoginRateLimiter）
+    register_limiter.hit("register", ip)
     user = User(
         username=data.username,
         email=data.email,

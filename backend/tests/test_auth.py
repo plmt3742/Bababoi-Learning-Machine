@@ -182,6 +182,50 @@ def test_rate_limit_window_expires() -> None:
     limiter.check("198.51.100.7")  # 窗口滑过，不抛
 
 
+def test_limit_identifiers_have_business_namespace(client, monkeypatch) -> None:
+    """登录/注册的桶要带业务前缀：两个限流器配成同一额度时，
+    Redis 多实例共用存储也不会串桶。"""
+    from app.core.rate_limit import SlidingWindowLimiter
+
+    seen: list[tuple[str, tuple[str, ...]]] = []
+    for method in ("check", "record", "hit"):
+        original = getattr(SlidingWindowLimiter, method)
+
+        def make_spy(name, orig):
+            def spy(self, *identifiers):
+                seen.append((name, identifiers))
+                return orig(self, *identifiers)
+
+            return spy
+
+        monkeypatch.setattr(SlidingWindowLimiter, method, make_spy(method, original))
+
+    _register(client, "namespace_01")
+    client.post(
+        "/api/v1/auth/login", json={"username": "namespace_01", "password": "wrong-pass-1"}
+    )
+
+    namespaced = {(method, identifiers[0]) for method, identifiers in seen if identifiers}
+    assert ("hit", "register") in namespaced, "注册要带 register 前缀"
+    assert ("check", "login") in namespaced, "登录要带 login 前缀"
+    assert ("record", "login") in namespaced, "登录失败计数也要带 login 前缀"
+
+
+def test_rate_limit_config_rejects_non_positive(monkeypatch) -> None:
+    """limits.parse 对 0 静默放过（0 窗口变 1 秒、0 额度永远 429），启动期要自己拒。"""
+    from app.core import rate_limit
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "register_rate_limit", 0)
+    with pytest.raises(ValueError, match="REGISTER_RATE_LIMIT"):
+        rate_limit.validate_rate_limit_config()
+
+    monkeypatch.setattr(settings, "register_rate_limit", 30)
+    monkeypatch.setattr(settings, "login_rate_window_s", 0)
+    with pytest.raises(ValueError, match="LOGIN_RATE_LIMIT"):
+        rate_limit.validate_rate_limit_config()
+
+
 def test_password_is_hashed_not_stored_plaintext(client, db) -> None:
     _register(client, "alice")
     with db() as s:
