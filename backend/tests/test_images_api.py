@@ -422,15 +422,31 @@ def test_from_image_moves_transcript_item_warning_off_the_top_banner(
     assert second["incomplete"] is True
 
 
-class _Hop1NonLocatableWarningClient(MockLLMClient):
-    """第 1 跳顶层带一句点不到题号的整体说明，第 2 跳正常返回。"""
+class _Hop1MixedWarningsClient(MockLLMClient):
+    """第 1 跳 3 题 + 4 条警告（3 条带题号、1 条全局），第 2 跳原样回 3 题。
+
+    警告数（4）≠ 题数（3）正是原 bug 的形态：判据必须是"匹配不匹配得到题号"，
+    不能靠数量相等去猜。
+    """
+
+    _QUESTIONS = [
+        {"index": 1, "content_md": "第 1 题：求 $f(x)=x^2$ 的导数。", "question_type": "solve"},
+        {"index": 2, "content_md": "第 2 题：求 $g(x)=\\ln x$ 的定义域。", "question_type": "solve"},
+        {"index": 3, "content_md": "第 3 题：求 $h(x)=x^3$ 的极小值。", "question_type": "solve"},
+    ]
+    _WARNINGS = [
+        "整页光线偏暗，建议重拍",
+        "第1题公式被图片下边缘截断",
+        "第2题末行被裁掉",
+        "第3题题干模糊",
+    ]
 
     def complete(self, operation, messages, **kwargs):
         response = super().complete(operation, messages, **kwargs)
         system = messages[0]["content"] if messages else ""
-        payload = json.loads(response.text)
-        if isinstance(payload, dict) and VISION_STEP_TEXT in system:
-            payload["warnings"] = ["整页光线偏暗，个别字迹偏淡"]
+        payload = {"questions": self._QUESTIONS, "warnings": []}
+        if VISION_STEP_TEXT in system:
+            payload["warnings"] = self._WARNINGS
         return LLMResponse(
             text=json.dumps(payload, ensure_ascii=False),
             model=response.model,
@@ -441,19 +457,24 @@ class _Hop1NonLocatableWarningClient(MockLLMClient):
         )
 
 
-def test_from_image_keeps_non_locatable_transcript_warning_on_top(
+def test_from_image_sinks_item_warnings_and_keeps_global_one(
     client, db, token_and_user, monkeypatch
 ) -> None:
-    """点不到题号的第 1 跳说明留在顶层：下沉分支不能把整体警告吞掉。"""
+    """4 条警告 vs 3 题：带题号的 3 条下沉到各自卡片，全局 1 条留在顶层。"""
     token, _ = token_and_user
     monkeypatch.setattr(
         extraction_service,
         "_llm_client",
-        lambda *args, **kwargs: _Hop1NonLocatableWarningClient(),
+        lambda *args, **kwargs: _Hop1MixedWarningsClient(),
     )
     image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
 
     body = _extract(client, token, image_path).json()
-    assert "整页光线偏暗，个别字迹偏淡" in body["warnings"], body["warnings"]
-    for question in body["questions"]:
+    assert len(body["questions"]) == 3, body["questions"]
+    assert body["warnings"] == ["整页光线偏暗，建议重拍"], body["warnings"]
+    for index, question in enumerate(body["questions"], start=1):
+        assert any(f"第{index}题" in warning for warning in question["warnings"]), (
+            question["warnings"]
+        )
+        assert question["incomplete"] is True
         assert not any("光线" in warning for warning in question["warnings"])
