@@ -420,3 +420,40 @@ def test_from_image_moves_transcript_item_warning_off_the_top_banner(
     second = body["questions"][1]
     assert any("第 2 题" in warning for warning in second["warnings"]), second["warnings"]
     assert second["incomplete"] is True
+
+
+class _Hop1NonLocatableWarningClient(MockLLMClient):
+    """第 1 跳顶层带一句点不到题号的整体说明，第 2 跳正常返回。"""
+
+    def complete(self, operation, messages, **kwargs):
+        response = super().complete(operation, messages, **kwargs)
+        system = messages[0]["content"] if messages else ""
+        payload = json.loads(response.text)
+        if isinstance(payload, dict) and VISION_STEP_TEXT in system:
+            payload["warnings"] = ["整页光线偏暗，个别字迹偏淡"]
+        return LLMResponse(
+            text=json.dumps(payload, ensure_ascii=False),
+            model=response.model,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            latency_ms=response.latency_ms,
+            finish_reason=response.finish_reason,
+        )
+
+
+def test_from_image_keeps_non_locatable_transcript_warning_on_top(
+    client, db, token_and_user, monkeypatch
+) -> None:
+    """点不到题号的第 1 跳说明留在顶层：下沉分支不能把整体警告吞掉。"""
+    token, _ = token_and_user
+    monkeypatch.setattr(
+        extraction_service,
+        "_llm_client",
+        lambda *args, **kwargs: _Hop1NonLocatableWarningClient(),
+    )
+    image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
+
+    body = _extract(client, token, image_path).json()
+    assert "整页光线偏暗，个别字迹偏淡" in body["warnings"], body["warnings"]
+    for question in body["questions"]:
+        assert not any("光线" in warning for warning in question["warnings"])
