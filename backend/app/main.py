@@ -81,6 +81,14 @@ app.include_router(stats.router, prefix=settings.api_prefix)
 app.include_router(settings_router, prefix=settings.api_prefix)
 
 # 手工测试台（无鉴权，仅本地/开发用）：backend/static/test-console.html
+# 白名单而不是 "!= production"：部署模板是 APP_ENV=staging，黑名单在线上等于没关；
+# 以后新加的环境名（preview 等）也默认不挂（#115）
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-if _STATIC_DIR.is_dir():
+
+
+def _static_console_enabled(app_env: str) -> bool:
+    return app_env in ("development", "local")
+
+
+if _static_console_enabled(settings.app_env) and _STATIC_DIR.is_dir():
     app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")

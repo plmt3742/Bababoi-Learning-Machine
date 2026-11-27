@@ -257,6 +257,8 @@ def _apply_segment(
 
     软删范围限定在同一个 target_index：一段成功就删整组会把另外两段刚写好的题抹掉，
     那是并发 worker 之间最容易互相踩的地方，所以宁可留同一格的历史行也不跨格删。
+    归属也带上：入口的软删已经加了 user_id，#114 之后"按格替换"是常态路径，
+    两处口径要一致（脏数据/历史行不该被别人的任务抹掉）。
     """
     spec = result.value
     with session_factory() as session:
@@ -265,6 +267,7 @@ def _apply_segment(
             update(GeneratedQuestion)
             .where(
                 GeneratedQuestion.parent_question_id == task.question_id,
+                GeneratedQuestion.user_id == task.user_id,
                 GeneratedQuestion.deleted_at.is_(None),
                 GeneratedQuestion.target_index == slot,
             )

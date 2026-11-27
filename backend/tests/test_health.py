@@ -98,6 +98,21 @@ def test_method_not_allowed_is_not_reported_as_validation_error() -> None:
     assert resp.json()["detail"]["code"] == str(ErrorCode.METHOD_NOT_ALLOWED)
 
 
+def test_static_console_only_mounts_in_dev_or_local() -> None:
+    """#115：/static 是无鉴权手工测试台；staging/production 都不能挂。
+
+    部署模板是 APP_ENV=staging，按 "!= production" 判会在线上照样挂出去；
+    白名单只认 development/local，以后新加的环境名也默认关。
+    """
+    from app.main import _static_console_enabled
+
+    assert _static_console_enabled("development")
+    assert _static_console_enabled("local")
+    assert not _static_console_enabled("staging")
+    assert not _static_console_enabled("production")
+    assert not _static_console_enabled("preview")
+
+
 def test_cors_allows_configured_origin() -> None:
     resp = client.get(
         "/api/v1/health", headers={"Origin": "http://localhost:5173"}

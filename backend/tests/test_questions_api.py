@@ -1,6 +1,10 @@
 """错题 CRUD API 测试（BE-004 验收项：创建/列表/详情/更新/软删 + 筛选搜索 + 归属）。"""
 from __future__ import annotations
 
+from sqlalchemy import select, text
+
+from app.models import Question
+from app.services.question_service import list_questions
 from tests.conftest import auth_headers, register_user
 
 
@@ -160,6 +164,22 @@ def test_list_filters_by_subject_tag_mastery_and_keyword(client) -> None:
         == 1
     )
     assert client.get("/api/v1/questions?q=不存在词", headers=headers).json()["total"] == 0
+
+
+def test_search_lowercases_query_under_case_sensitive_like(client, db) -> None:
+    """#115：列侧 lower 了、查询串没 lower，在区分大小写的 LIKE 下会整条漏匹配。"""
+    token = register_user(client)["access_token"]
+    _create(client, token, _choice_payload(content_md="用 Taylor 展开求近似值。", tags=[]))
+
+    with db() as s:
+        user_id = s.scalar(select(Question.user_id))
+        # SQLite 的 LIKE 默认不区分大小写；打开这个 PRAGMA 才有 MySQL _bin 排序规则的语义
+        s.execute(text("PRAGMA case_sensitive_like = ON"))
+        _, total = list_questions(
+            s, user_id, page=1, page_size=20,
+            subject=None, tag=None, mastery_status=None, q="TAYLOR",
+        )
+    assert total == 1
 
 
 def test_patch_updates_fields_tags_and_analysis(client) -> None:

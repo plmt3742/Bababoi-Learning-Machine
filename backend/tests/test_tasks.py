@@ -13,7 +13,7 @@ from sqlalchemy import select
 from app.ai.client import MockLLMClient
 from app.core.config import settings
 from app.db.base import utcnow
-from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question
+from app.models import AiCallLog, GeneratedQuestion, GenerationTask, Question, User
 from app.services import task_worker
 from tests.conftest import auth_headers, register_user
 
@@ -323,6 +323,97 @@ def test_group_regenerate_soft_deletes_old_group_on_enqueue(client, db, fake_llm
     assert _generated_rows(db, qid) == []
     # 软删不物理删：practice_records 的外键还要指回这些行
     assert len(_generated_rows(db, qid, alive_only=False)) == 3
+
+
+def test_group_regenerate_keeps_finished_slots_while_active(client, db, fake_llm) -> None:
+    """#114：部分段还在排队时重复点整组，不能把已完成格先删空。
+
+    已有 active 段时不重复软删，但三格照常返回——前端三张骨架卡才对得齐；
+    第 1 格新任务成功时仍按格替换，不会叠出两道题。
+    """
+    token = register_user(client)["access_token"]
+    qid = _create_question(client, token)["question"]["id"]
+    first = _generate(client, token, qid)
+    task_worker.execute_task(db, first[0]["task_id"])  # 第 1 格完成，2/3 仍在队列
+    assert [row.target_index for row in _generated_rows(db, qid)] == [1]
+
+    again = _generate(client, token, qid)
+    assert [t["target_index"] for t in again] == [1, 2, 3]
+    assert [t["task_id"] for t in again[1:]] == [t["task_id"] for t in first[1:]]
+    assert [row.target_index for row in _generated_rows(db, qid)] == [1]  # 没有被提前删
+
+    task_worker.execute_task(db, again[0]["task_id"])  # 新任务成功：按格替换
+    assert [row.target_index for row in _generated_rows(db, qid)] == [1]
+
+
+def test_generate_on_other_users_question_forbidden_without_side_effects(
+    client, db, fake_llm
+) -> None:
+    """#114：越权请求不能先软删别人的生成题再报 403。"""
+    token_a = register_user(client, "alice")["access_token"]
+    token_b = register_user(client, "bob")["access_token"]
+    qid = _create_question(client, token_a)["question"]["id"]
+    for task in _generate(client, token_a, qid):
+        task_worker.execute_task(db, task["task_id"])
+    assert len(_generated_rows(db, qid)) == 3
+
+    resp = client.post(
+        f"/api/v1/questions/{qid}/generate", headers=auth_headers(token_b)
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"]["code"] == "QUESTION_FORBIDDEN"
+    assert len(_generated_rows(db, qid)) == 3  # 已完成的生成题一行都没被软删
+
+
+def test_dirty_foreign_task_does_not_block_regenerate_or_leak_id(client, db, fake_llm) -> None:
+    """#114 复核：去重与 has_active 都要带 user_id。
+
+    造一条「B 的 active 任务挂在 A 的题上」：A 重生成既不能复用/返回别人的 task_id，
+    也不能因为这条脏行跳过软删。
+    """
+    token_a = register_user(client, "alice")["access_token"]
+    register_user(client, "bob")
+    qid = _create_question(client, token_a)["question"]["id"]
+    for task in _generate(client, token_a, qid):
+        task_worker.execute_task(db, task["task_id"])
+    assert len(_generated_rows(db, qid)) == 3
+
+    with db() as s:
+        uid_b = s.scalar(select(User.id).where(User.username == "bob"))
+        dirty = GenerationTask(
+            question_id=qid, user_id=uid_b, stage="quiz", status="queued",
+            target_index=1, difficulty="easy",
+        )
+        s.add(dirty)
+        s.commit()
+        dirty_id = dirty.id
+
+    tasks = _generate(client, token_a, qid)
+    assert dirty_id not in [t["task_id"] for t in tasks], "把别人的 task_id 返回给了本用户"
+    assert _generated_rows(db, qid) == []  # 脏行没把 has_active 顶成 true
+
+
+def test_slot_replace_keeps_other_users_rows(client, db, fake_llm) -> None:
+    """#114 复核：worker 按格替换的软删也要带 user_id（入口软删已带，口径要一致）。"""
+    token_a = register_user(client, "alice")["access_token"]
+    register_user(client, "bob")
+    qid = _create_question(client, token_a)["question"]["id"]
+
+    with db() as s:
+        uid_b = s.scalar(select(User.id).where(User.username == "bob"))
+        foreign = GeneratedQuestion(
+            parent_question_id=qid, user_id=uid_b, target_index=1, difficulty="easy",
+            content_md="别人的行", answer_md="x", explanation_md="x", model="test",
+        )
+        s.add(foreign)
+        s.commit()
+        foreign_id = foreign.id
+
+    task = _generate(client, token_a, qid, target_index=1, difficulty="easy")[0]
+    task_worker.execute_task(db, task["task_id"])
+
+    with db() as s:
+        assert s.get(GeneratedQuestion, foreign_id).deleted_at is None
 
 
 def test_single_segment_regenerate_keeps_other_slots(client, db, fake_llm) -> None:
