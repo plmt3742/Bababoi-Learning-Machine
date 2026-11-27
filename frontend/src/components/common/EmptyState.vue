@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Mascot3D from './Mascot3D.vue'
+
 withDefaults(
   defineProps<{
     title?: string
@@ -21,12 +23,7 @@ const emit = defineEmits<{ action: [] }>()
   <div class="state-card" :class="{ 'state-card--compact': compact }">
     <div class="state-illustration" aria-hidden="true">
       <slot name="image">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-          <path d="M5 3h9l5 5v13H5z" />
-          <path d="M14 3v5h5" />
-          <circle cx="10.5" cy="14" r="2.5" />
-          <path d="m12.5 16 2 2" />
-        </svg>
+        <Mascot3D :size="32" state="default" />
       </slot>
     </div>
     <h3>{{ title }}</h3>

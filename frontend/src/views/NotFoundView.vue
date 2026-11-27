@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import Mascot3D from '../components/common/Mascot3D.vue'
 </script>
 
 <template>
   <div class="not-found-view">
     <section class="paper not-found-view__card" aria-labelledby="not-found-title">
+      <Mascot3D class="not-found-view__mascot" :size="44" state="curious" />
       <p class="kicker not-found-view__code">404</p>
       <h1 id="not-found-title">页面不存在</h1>
       <p class="not-found-view__description">你访问的地址可能已移动或删除。</p>

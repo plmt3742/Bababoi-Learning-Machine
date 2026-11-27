@@ -45,6 +45,15 @@ const blankFields = computed(() =>
 const answerText = computed(() => props.question.answer_md?.trim() ?? '')
 const explanationText = computed(() => props.question.explanation_md?.trim() ?? '')
 const hasAnswerContent = computed(() => Boolean(answerText.value) || blanks.value.length > 0)
+const hasReference = computed(
+  () => hasAnswerContent.value || Boolean(explanationText.value.trim()),
+)
+const gradeAvailable = computed(() => revealed.value || !hasReference.value)
+const gradeHint = computed(() => {
+  if (!hasReference.value) return '暂无参考答案，可直接自评'
+  if (!revealed.value) return '先查看答案，再自评「会 / 不会」'
+  return '对照答案，诚实自评'
+})
 
 function resetAnswer(): void {
   choiceAnswer.value = ''
@@ -58,7 +67,7 @@ function toggleReveal(): void {
 }
 
 function grade(isCorrect: boolean): void {
-  if (props.submitting) return
+  if (props.submitting || !gradeAvailable.value) return
 
   emit(
     'grade',
@@ -168,14 +177,12 @@ watch(() => props.question.id, resetAnswer)
         </button>
 
         <div class="grade-group">
-          <p class="grade-hint">
-            {{ revealed ? '对照答案，诚实自评' : '完成后自评，提交即记录' }}
-          </p>
+          <p class="grade-hint">{{ gradeHint }}</p>
           <div class="grade-actions">
             <button
               class="btn btn--outline grade-btn"
               type="button"
-              :disabled="submitting"
+              :disabled="submitting || !gradeAvailable"
               @click="grade(false)"
             >
               不会
@@ -183,7 +190,7 @@ watch(() => props.question.id, resetAnswer)
             <button
               class="btn btn--primary grade-btn"
               type="button"
-              :disabled="submitting"
+              :disabled="submitting || !gradeAvailable"
               @click="grade(true)"
             >
               会
