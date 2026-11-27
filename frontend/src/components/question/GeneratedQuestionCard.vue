@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { GeneratedQuestion } from '../../api/types'
 import MarkdownRenderer from '../common/MarkdownRenderer.vue'
-import { difficultyLabel, validationStatusLabel } from '../../utils/question'
+import { difficultyLabel, questionTypeLabel, validationStatusLabel } from '../../utils/question'
 
 const props = defineProps<{
   question: GeneratedQuestion
@@ -10,6 +10,7 @@ const props = defineProps<{
 }>()
 
 const number = computed(() => String(props.index).padStart(2, '0'))
+const typeText = computed(() => questionTypeLabel(props.question.question_type))
 const difficultyText = computed(() => difficultyLabel(props.question.difficulty))
 const validationText = computed(() => validationStatusLabel(props.question.validation_status))
 const validationClass = computed(() => {
@@ -28,6 +29,7 @@ const hasQa = computed(
     <div class="gen-card__head">
       <span class="gen-card__no" aria-hidden="true">{{ number }}</span>
       <div class="gen-card__tags">
+        <span class="tag">{{ typeText }}</span>
         <span class="tag">{{ difficultyText }}</span>
         <span class="tag" :class="validationClass">{{ validationText }}</span>
       </div>

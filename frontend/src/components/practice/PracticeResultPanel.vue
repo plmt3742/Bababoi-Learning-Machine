@@ -32,6 +32,16 @@ const totalDuration = computed(() =>
   props.results.reduce((sum, item) => sum + item.duration_seconds, 0),
 )
 const totalDurationLabel = computed(() => formatPracticeDuration(totalDuration.value))
+const nextStepText = computed(() => {
+  if (total.value === 0) return '本轮没有练习记录。'
+  if (correctCount.value === total.value) {
+    return '全部答对，可以回到错题本继续下一道，或再练一轮加深记忆。'
+  }
+  if (correctCount.value === 0) {
+    return '这一轮全部没把握，建议先回详情页把解析看一遍，再练一次。'
+  }
+  return `答对 ${correctCount.value} 题，答错 ${total.value - correctCount.value} 题；建议回详情页对照解析复盘错题。`
+})
 const masteryText = computed(() =>
   props.masteryStatus ? masteryStatusLabel(props.masteryStatus) : '',
 )
@@ -54,7 +64,7 @@ function questionTypeFor(result: PracticeResultItem): string {
     <div class="result__head">
       <p class="kicker">Practice complete</p>
       <h2 id="practice-result-title">本次练习完成</h2>
-      <p>练习记录已保存，结果会计入后续统计；掌握状态按本轮自评同步。</p>
+      <p>{{ nextStepText }}</p>
     </div>
 
     <dl class="result__stats">

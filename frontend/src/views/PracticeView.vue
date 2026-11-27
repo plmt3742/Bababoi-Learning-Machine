@@ -63,6 +63,8 @@ const currentQuestion = computed<GeneratedQuestion | null>(() => {
   return practiceQuestions.value.at(currentIndex.value) ?? null
 })
 const totalQuestions = computed(() => practiceQuestions.value.length)
+const correctCount = computed(() => results.value.filter((item) => item.is_correct).length)
+const wrongCount = computed(() => results.value.filter((item) => !item.is_correct).length)
 const elapsedLabel = computed(() => formatPracticeClock(elapsedSeconds.value))
 
 function stopTimer(): void {
@@ -338,7 +340,7 @@ onBeforeUnmount(() => {
       <EmptyState
         title="从一道错题开始练习"
         description="练习会依次呈现该错题的相似题。打开错题详情，点击「去练习」即可开始。"
-        action-label="去错题本"
+        action-label="去错题本挑一道"
         @action="goQuestionList"
       />
 
@@ -420,6 +422,10 @@ onBeforeUnmount(() => {
           :class="segmentClass(index)"
         />
       </div>
+
+      <p v-if="results.length > 0" class="progress-caption" aria-live="polite">
+        已答 {{ results.length }} 题 · 答对 {{ correctCount }} · 待复习 {{ wrongCount }}
+      </p>
 
       <PracticeQuestionCard
         :key="currentQuestion.id"
@@ -522,6 +528,13 @@ onBeforeUnmount(() => {
 
 .progress-rail__seg.is-wrong {
   background: var(--color-danger);
+}
+
+.progress-caption {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
 }
 
 .entry-guide {

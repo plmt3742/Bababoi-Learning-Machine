@@ -53,6 +53,7 @@
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
 | [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
 | [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
+| [agent/28-style-safe-ui-handoff-20261128.md](agent/28-style-safe-ui-handoff-20261128.md) | Style-safe UI：原版视觉/logo 约束、小纸资产口径、详情/练习改动、未完成页面与新会话提示词 | 新会话接手 / 继续逐页重构 |
 
 ### 产品设计
 

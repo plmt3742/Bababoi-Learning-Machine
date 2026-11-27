@@ -76,11 +76,23 @@ const {
 })
 
 const createdAt = computed(() => (question.value ? formatDateTime(question.value.created_at) : ''))
+const detailTitle = computed(() => {
+  const current = question.value
+  if (!current) return '错题详情'
+
+  const chapter = current.chapter?.trim()
+  if (chapter) return chapter
+
+  const topic = current.analysis?.topic_type?.trim()
+  if (topic) return topic
+
+  return `${current.subject}错题`
+})
 const detailSubtitle = computed(() => {
   const current = question.value
   if (!current) return ''
 
-  const parts = [current.subject]
+  const parts = [current.subject, questionTypeLabel(current.question_type)]
   if (createdAt.value) parts.push(`录入于 ${createdAt.value}`)
   return parts.join(' · ')
 })
@@ -472,7 +484,7 @@ onBeforeUnmount(() => {
             <IconArrowLeft class="icon" />
             返回错题本
           </a>
-          <h1>错题详情</h1>
+          <h1>{{ detailTitle }}</h1>
           <p>{{ detailSubtitle }}</p>
         </div>
         <div class="page-head__actions">
