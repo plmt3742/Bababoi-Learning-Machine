@@ -1,0 +1,68 @@
+{
+  "name": "小纸 · Bababoi 吉祥物资产包",
+  "version": "1.0.0",
+  "date": "2026-11-28",
+  "concept": "一张被订正过的错题纸：右上折角是唯一的高饱和蓝，腹部三颗点代表一道错题变成三道同类题。",
+  "states": {
+    "default": "svg/mascot-body.svg",
+    "curious": "svg/states/state-curious.svg",
+    "thinking": "svg/states/state-thinking.svg",
+    "happy": "svg/states/state-happy.svg",
+    "error": "svg/states/state-error.svg"
+  },
+  "mark": "svg/mascot-mark.svg",
+  "interactive3d": "3d/index.html",
+  "flatPreview": "preview/flat-states.html",
+  "palette": {
+    "paper": "#FFFFFF",
+    "backSheet": "#F3F4F6",
+    "ink": "#1B1F24",
+    "blue": "#165DFF",
+    "blueDeep": "#0E42D2",
+    "blush": "#E1EEFF",
+    "line": "#D6DDE5",
+    "grey": "#8A95A2"
+  },
+  "sizes": {
+    "flatCanvas": "400 × 400",
+    "markCanvas": "64 × 64",
+    "fullBody": "240px",
+    "stateMinimum": "120px",
+    "markMaximum": "48px"
+  },
+  "motion": {
+    "card": "idle sway, pointer parallax, state pop",
+    "curious": "question mark 360° spin, dot orbit",
+    "thinking": "8-bubble rising stream, shifted right",
+    "happy": "5 staggered stars appear/hold/disappear",
+    "error": "falling droplet loop",
+    "reducedMotion": "disabled under prefers-reduced-motion: reduce"
+  },
+  "licenses": {
+    "three": "MIT",
+    "threeVendor": "3d/vendor/LICENSE"
+  },
+  "usage": [
+    "48px 及以下使用 svg/mascot-mark.svg。",
+    "状态表情建议 ≥ 120px；96px 以下只保留默认表情或标记。",
+    "3D 页需要静态服务器：运行 serve.cmd 后打开 http://127.0.0.1:4173/。",
+    "平面资产透明背景，无外链字体、位图和渐变。",
+    "状态与卡片不使用投影或高光；3D 的层级来自几何、蓝边和粗墨线。"
+  ],
+  "files": [
+    "svg/mascot-body.svg",
+    "svg/mascot-mark.svg",
+    "svg/states/state-curious.svg",
+    "svg/states/state-thinking.svg",
+    "svg/states/state-happy.svg",
+    "svg/states/state-error.svg",
+    "preview/flat-states.html",
+    "3d/index.html",
+    "3d/vendor/three.module.min.js",
+    "3d/vendor/OrbitControls.js",
+    "3d/vendor/LICENSE",
+    "index.html",
+    "manifest.json",
+    "serve.cmd"
+  ]
+}

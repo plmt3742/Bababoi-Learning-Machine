@@ -1,0 +1,923 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小纸 · 三渲二 3D · Bababoi Learning Machine</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --subtle: #f7f8fa;
+    --ink-1: #1b1f24;
+    --ink-2: #414a57;
+    --ink-3: #5f6775;
+    --border: #e4e6ea;
+    --border-strong: #cfd3da;
+    --primary: #165dff;
+    --primary-hover: #0e42d2;
+    --primary-soft: #edf3ff;
+    --radius-frame: 10px;
+    --radius-card: 8px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 40px 24px 64px;
+    background: var(--bg);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    max-width: 1140px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-frame);
+    box-shadow: 0 1px 2px rgba(20, 28, 45, 0.05), 0 14px 40px rgba(20, 28, 45, 0.05);
+    overflow: hidden;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: 56px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+  .dots {
+    display: grid;
+    grid-template-columns: repeat(3, 4px);
+    grid-template-rows: repeat(3, 4px);
+    gap: 3px;
+    flex: none;
+  }
+
+  .dots i { width: 4px; height: 4px; border-radius: 0.6px; background: var(--border-strong); }
+  .dots i:nth-child(1), .dots i:nth-child(5), .dots i:nth-child(9) { background: var(--primary); }
+
+  .lockup b { font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .lockup span { color: var(--ink-3); font-size: 14px; white-space: nowrap; }
+  .bar__meta { color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; white-space: nowrap; }
+
+  .sheet { padding: 0 32px; }
+  section { padding: 40px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: 0; }
+
+  .kicker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 16px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .kicker::before { content: ''; width: 6px; height: 6px; flex: none; background: var(--primary); }
+
+  h1 { margin: 0 0 12px; font-size: 28px; line-height: 36px; font-weight: 650; letter-spacing: -0.01em; }
+  h2 { margin: 0 0 18px; font-size: 18px; line-height: 28px; font-weight: 650; }
+  h3 { margin: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 650; }
+
+  .lead { max-width: 52em; margin: 0 0 10px; color: var(--ink-2); font-size: 15px; line-height: 26px; }
+  .meta { margin: 0; color: var(--ink-3); font-size: 13px; line-height: 20px; }
+
+  .viewer-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 16px;
+  }
+
+  .stage {
+    position: relative;
+    height: 590px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--subtle);
+    overflow: hidden;
+    cursor: grab;
+  }
+
+  .stage:active { cursor: grabbing; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+
+  .stage__hint {
+    position: absolute;
+    left: 16px;
+    bottom: 14px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 16px;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .reset {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.86);
+    color: var(--ink-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+
+  }
+
+  .reset:hover { color: var(--ink-1); border-color: var(--ink-3); }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .state-btn {
+    height: 34px;
+    padding: 0 13px;
+    border: 1px solid var(--border-strong);
+    border-radius: 5px;
+    background: var(--surface);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .state-btn:hover { border-color: var(--ink-3); color: var(--ink-1); }
+
+  .state-btn.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .caption {
+    margin-left: auto;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 18px;
+    text-align: right;
+  }
+
+  .specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .spec {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 9px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+
+  .spec b { color: var(--ink-2); font-weight: 600; }
+
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .note {
+    border-top: 2px solid var(--ink-1);
+    padding-top: 12px;
+  }
+
+  .note__num { color: var(--primary); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; }
+  .note h3 { margin-top: 6px; }
+  .note p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 21px; }
+
+  .foot { color: var(--ink-3); font-size: 12px; line-height: 18px; }
+  .foot a { color: var(--primary-hover); text-decoration: none; }
+  .foot a:hover { text-decoration: underline; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .state-btn { transition: none; }
+  }
+
+  @media (max-width: 860px) {
+    .stage { height: 470px; }
+    .notes { grid-template-columns: 1fr; }
+    .viewer-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+    .caption { margin-left: 0; text-align: left; }
+  }
+
+  @media (max-width: 680px) {
+    body { padding: 16px 12px 32px; }
+    .bar { padding: 0 16px; }
+    .lockup span, .bar__meta { display: none; }
+    .sheet { padding: 0 16px; }
+    section { padding: 28px 0; }
+    .stage { height: 390px; }
+    .stage__hint { left: 12px; bottom: 10px; }
+    .state-btn { padding: 0 10px; }
+    .specs { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="bar">
+    <div class="lockup">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>Bababoi 错题学习机</b>
+      <span>小纸 · 三渲二 3D</span>
+    </div>
+    <div class="bar__meta">REALTIME 3D · FLAT GRAPHIC</div>
+  </div>
+
+  <div class="sheet">
+    <section>
+      <p class="kicker">吉祥物 / 3D flat</p>
+      <h1>小纸 · 三渲二</h1>
+      <p class="lead">真正的挤出几何体，不是把平面图倾斜。正面是纯色平涂贴图，侧面和背面是纯色蓝；平涂折角、蓝芯和粗墨线轮廓一起构成平面的层次，厚度来自 0.24 挤出。拖动旋转，查看背面。</p>
+      <p class="meta">挤出厚度 0.24 · 纯色平涂 · 无阴影 · 粗墨线轮廓 · 本地 Three.js r170</p>
+    </section>
+
+    <section>
+      <div class="viewer-head">
+        <h2 style="margin:0">实时视图</h2>
+        <p class="meta">拖动旋转 · 指针轻摆 · 滚轮缩放 · 双击复位</p>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas id="scene"></canvas>
+        <div class="stage__hint">拖动旋转 / 指针轻摆 / 滚轮缩放</div>
+        <button class="reset" id="reset" type="button">复位</button>
+      </div>
+
+      <div class="controls" role="group" aria-label="选择表情状态">
+        <button class="state-btn is-active" type="button" data-state="default">默认</button>
+        <button class="state-btn" type="button" data-state="curious">好奇</button>
+        <button class="state-btn" type="button" data-state="thinking">思考</button>
+        <button class="state-btn" type="button" data-state="happy">完成</button>
+        <button class="state-btn" type="button" data-state="error">失败</button>
+        <span class="caption" id="caption">默认 · 登录 / 首页 / 设置</span>
+      </div>
+
+      <div class="specs">
+        <span class="spec"><b>geometry</b> extruded card</span>
+        <span class="spec"><b>paint</b> flat color</span>
+        <span class="spec"><b>shadow</b> none / flat</span>
+        <span class="spec"><b>outline</b> hull 1.08×</span>
+        <span class="spec"><b>front</b> 2D flat texture</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>为什么是平面 3D</h2>
+      <div class="notes">
+        <div class="note">
+          <span class="note__num">01 / REAL 3D</span>
+          <h3>卡片是真的几何体</h3>
+          <p>卡片用 ExtrudeGeometry 挤出 0.24 厚度，正面/背面/侧边是不同材质；拖动是相机绕物体旋转，不是 CSS 倾斜图片。</p>
+        </div>
+        <div class="note">
+          <span class="note__num">02 / CEL</span>
+          <h3>2D 表情 + 3D 体积</h3>
+          <p>正面表情是一张 1024×1219 的纯平涂贴图：没有阴影、渐变和高光。体积由纯色蓝侧边、挤出厚度和粗墨线轮廓提供。</p>
+        </div>
+        <div class="note">
+          <span class="note__num">03 / THICKNESS</span>
+          <h3>不同层级不同厚度</h3>
+          <p>0.24 挤出卡片 + 平涂蓝色折角 + 纯色蓝边 + 内嵌正面贴图 + 粗墨线轮廓；去掉所有投影后，靠几何和黑边表达厚度。</p>
+        </div>
+      </div>
+      <p class="foot" style="margin-top:24px">空闲轻摆、指针视差、状态切换轻弹；思考泡泡循环上浮、问号旋转、星星循环出现、失败水滴下落。系统开启减少动态时自动停用。Three.js r170（MIT）以本地 vendor 存放，页面离线可开；这是设计演示，不进入应用包。平面 Calm Academic 版仍在 <a href="../mascot-states.html">mascot-states.html</a>。未改应用代码。</p>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from './vendor/three.module.min.js';
+import { OrbitControls } from './vendor/OrbitControls.js';
+
+const stage = document.querySelector('#stage');
+const canvas = document.querySelector('#scene');
+const caption = document.querySelector('#caption');
+const stateButtons = [...document.querySelectorAll('.state-btn')];
+const resetButton = document.querySelector('#reset');
+
+/* ---------- palette ---------- */
+const C = {
+  paper: '#f7f8fa',
+  paperBright: '#ffffff',
+  paperShade: '#e4e9ef',
+  paperShade2: '#d6dde5',
+  paperLine: '#cfd7e0',
+  ink: '#1b1f24',
+  blue: '#165dff',
+  blueDeep: '#0e42d2',
+  blueLight: '#9dc0ff',
+  blush: '#e1eeff',
+  blushShade: '#cfe4ff',
+  grey: '#cfd3da',
+  greyShade: '#b8c0ca',
+};
+
+/* ---------- card dimensions ---------- */
+const W = 2.1;
+const H = 2.5;
+const D = 0.24;
+
+/* ---------- renderer / scene / camera ---------- */
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#f4f5f7');
+
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+const defaultCamera = new THREE.Vector3(2.6, 1.35, 7.35);
+camera.position.copy(defaultCamera);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, -0.02, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enablePan = false;
+controls.minDistance = 4.6;
+controls.maxDistance = 9.5;
+controls.minPolarAngle = Math.PI * 0.3;
+controls.maxPolarAngle = Math.PI * 0.62;
+controls.update();
+
+/* ---------- flat materials ---------- */
+const paperFlat = new THREE.MeshBasicMaterial({ color: C.paper });
+const blueFlat = new THREE.MeshBasicMaterial({ color: C.blue });
+const blueDeepFlat = new THREE.MeshBasicMaterial({ color: C.blueDeep });
+const greyFlat = new THREE.MeshBasicMaterial({ color: '#8a95a2' });
+const greenFlat = new THREE.MeshBasicMaterial({ color: '#1b6e43' });
+const inkBasic = new THREE.MeshBasicMaterial({ color: C.ink, side: THREE.BackSide });
+
+/* ---------- card shape ---------- */
+/* y-up, counter-clockwise; the folded corner sits top-right */
+const shape = new THREE.Shape();
+shape.moveTo(0.24, 0);
+shape.lineTo(1.86, 0);
+shape.quadraticCurveTo(2.1, 0, 2.1, 0.24);
+shape.lineTo(2.1, 1.96);
+shape.lineTo(1.56, 2.5);
+shape.lineTo(0.24, 2.5);
+shape.quadraticCurveTo(0, 2.5, 0, 2.26);
+shape.lineTo(0, 0.24);
+shape.quadraticCurveTo(0, 0, 0.24, 0);
+shape.closePath();
+
+const bodyGeo = new THREE.ExtrudeGeometry(shape, {
+  depth: D,
+  bevelEnabled: true,
+  bevelThickness: 0.018,
+  bevelSize: 0.018,
+  bevelSegments: 2,
+  curveSegments: 24,
+});
+bodyGeo.translate(-W / 2, -H / 2, -D / 2);
+
+const card = new THREE.Group();
+scene.add(card);
+
+/* body: paper caps, blue sides */
+const body = new THREE.Mesh(bodyGeo, [blueFlat, blueFlat]);
+body.castShadow = false;
+body.receiveShadow = false;
+card.add(body);
+
+/* inverted-hull ink outline */
+const outline = new THREE.Mesh(bodyGeo.clone(), inkBasic);
+outline.scale.setScalar(1.08);
+outline.castShadow = false;
+outline.receiveShadow = false;
+card.add(outline);
+
+/* ---------- front texture drawing ---------- */
+const CW = 1024;
+const CH = 1219;
+const SX = CW / 210;
+const SY = CH / 250;
+const fx = (x) => (x - 95) * SX;
+const fy = (y) => (y - 80) * SY;
+
+function rr(ctx, x, y, w, h, r) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function drawBase(ctx) {
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(0, 0, CW, CH);
+
+  /* flat blue folded corner, painted into the front texture */
+  ctx.beginPath();
+  ctx.moveTo(fx(251), fy(80));
+  ctx.lineTo(fx(305), fy(134));
+  ctx.lineTo(fx(251), fy(134));
+  ctx.closePath();
+  ctx.fillStyle = C.blue;
+  ctx.fill();
+
+  /* flat notebook rules */
+  for (const y of [293, 307]) {
+    ctx.strokeStyle = C.paperLine;
+    ctx.lineWidth = 2.4 * SX;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fx(130), fy(y));
+    ctx.lineTo(fx(270), fy(y));
+    ctx.stroke();
+  }
+
+  /* flat dots: two grey + one blue */
+  flatDot(ctx, 180, 250, 6, C.grey);
+  flatDot(ctx, 200, 250, 6, C.grey);
+  flatDot(ctx, 220, 250, 6, C.blue);
+}
+
+function flatDot(ctx, x, y, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(fx(x), fy(y), r * SX, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCheeks(ctx) {
+  for (const cx of [144, 256]) {
+    ctx.fillStyle = C.blush;
+    ctx.beginPath();
+    ctx.ellipse(fx(cx), fy(190), 20 * SX, 10 * SY, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawEye(ctx, x, y, w, h, angle, color = C.ink) {
+  const cx = fx(x + w / 2);
+  const cy = fy(y + h / 2);
+  const ww = w * SX;
+  const hh = h * SY;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((angle * Math.PI) / 180);
+  ctx.fillStyle = color;
+  rr(ctx, -ww / 2, -hh / 2, ww, hh, ww / 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function strokeMouth(ctx, path, width = 6.5) {
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = width * SX;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  path(ctx);
+  ctx.stroke();
+}
+
+function mouthSmile(ctx, dx = 0) {
+  ctx.moveTo(fx(178), fy(194 + dx));
+  ctx.quadraticCurveTo(fx(200), fy(214 + dx), fx(222), fy(194 + dx));
+}
+
+function mouthWide(ctx, dx = 0) {
+  ctx.moveTo(fx(174), fy(194 + dx));
+  ctx.quadraticCurveTo(fx(200), fy(218 + dx), fx(226), fy(194 + dx));
+}
+
+function mouthFlat(ctx, dx = 0) {
+  ctx.moveTo(fx(189), fy(194 + dx));
+  ctx.lineTo(fx(211), fy(194 + dx));
+}
+
+function mouthFrown(ctx, dx = 0) {
+  ctx.moveTo(fx(182), fy(206 + dx));
+  ctx.quadraticCurveTo(fx(200), fy(190 + dx), fx(218), fy(206 + dx));
+}
+
+function drawMouthOval(ctx) {
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 6.5 * SX;
+  ctx.beginPath();
+  ctx.ellipse(fx(200), fy(204), 9 * SX, 11 * SY, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawFace(ctx, state) {
+  drawCheeks(ctx);
+  if (state === 'default') {
+    drawEye(ctx, 155, 136, 20, 36, 0);
+    drawEye(ctx, 225, 136, 20, 36, 0);
+    strokeMouth(ctx, mouthSmile);
+  } else if (state === 'curious') {
+    drawEye(ctx, 155, 136, 20, 36, 0);
+    drawEye(ctx, 225, 136, 20, 36, 0);
+    drawMouthOval(ctx);
+  } else if (state === 'thinking') {
+    drawEye(ctx, 159, 132, 20, 34, 0);
+    drawEye(ctx, 229, 132, 20, 34, 0);
+    strokeMouth(ctx, mouthFlat);
+  } else if (state === 'happy') {
+    drawEye(ctx, 155, 144, 20, 28, -10);
+    drawEye(ctx, 225, 144, 20, 28, 10);
+    strokeMouth(ctx, mouthWide);
+  } else if (state === 'error') {
+    drawEye(ctx, 155, 144, 20, 28, 10);
+    drawEye(ctx, 225, 144, 20, 28, -10);
+    strokeMouth(ctx, mouthFrown);
+  }
+}
+
+function makeFrontTexture(state) {
+  const c = document.createElement('canvas');
+  c.width = CW;
+  c.height = CH;
+  const ctx = c.getContext('2d');
+  drawBase(ctx);
+  drawFace(ctx, state);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/* ---------- back texture ---------- */
+/* ---------- front overlay ---------- */
+function makeOverlay(shape, z, material, side = THREE.FrontSide) {
+  const geo = new THREE.ShapeGeometry(shape, 24);
+  geo.translate(-W / 2, -H / 2, 0);
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, (pos.getX(i) + W / 2) / W, (pos.getY(i) + H / 2) / H);
+  }
+  uv.needsUpdate = true;
+  if (side !== THREE.FrontSide) material.side = side;
+  material.toneMapped = false;
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.z = z;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
+const frontTextures = {
+  default: makeFrontTexture('default'),
+  curious: makeFrontTexture('curious'),
+  thinking: makeFrontTexture('thinking'),
+  happy: makeFrontTexture('happy'),
+  error: makeFrontTexture('error'),
+};
+
+const frontMaterial = new THREE.MeshBasicMaterial({ map: frontTextures.default, toneMapped: false, side: THREE.DoubleSide });
+const front = makeOverlay(shape, D / 2 + 0.026, frontMaterial);
+card.add(front);
+
+/* flat white dot grid on the blue back cap, no overlay seam */
+const backDotMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.DoubleSide });
+for (const ix of [-1, 0, 1]) {
+  for (const iy of [-1, 0, 1]) {
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.035, 16), backDotMaterial);
+    dot.position.set(ix * 0.12, iy * 0.12, -D / 2 - 0.026);
+    card.add(dot);
+  }
+}
+
+
+
+/* ---------- 3D state FX ---------- */
+const thinkingDots = [];
+const happyStars = [];
+let errorDrop = null;
+
+const fxGroups = {
+  curious: new THREE.Group(),
+  thinking: new THREE.Group(),
+  happy: new THREE.Group(),
+  error: new THREE.Group(),
+};
+for (const group of Object.values(fxGroups)) {
+  group.visible = false;
+  card.add(group);
+}
+
+/* curious: a spinning 3D question mark tube + dot */
+let curiousPivot = null;
+{
+  const g = fxGroups.curious;
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.06, 0.0, 0),
+    new THREE.Vector3(0.06, 0.18, 0),
+    new THREE.Vector3(0.18, 0.24, 0),
+    new THREE.Vector3(0.3, 0.18, 0),
+    new THREE.Vector3(0.3, 0.08, 0),
+    new THREE.Vector3(0.18, 0.02, 0),
+    new THREE.Vector3(0.18, -0.04, 0),
+  ]);
+  const pivot = new THREE.Group();
+  pivot.position.set(0.78, 1.52, 0.3);
+  const q = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.026, 8, false), blueFlat);
+  q.position.set(-0.18, -0.09, 0);
+  q.scale.setScalar(1.4);
+  pivot.add(q);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), blueFlat);
+  dot.position.set(0.02, -0.22, 0);
+  dot.scale.setScalar(1.4);
+  pivot.add(dot);
+  g.add(pivot);
+  curiousPivot = pivot;
+}
+
+/* thinking: a rising bubble stream, shifted to the right */
+{
+  const g = fxGroups.thinking;
+  g.position.x = 0.24;
+  const dots = [
+    [0.35, 1.44, 0.08, greyFlat, 0.0],
+    [0.55, 1.61, 0.105, greyFlat, 0.33],
+    [0.78, 1.79, 0.135, blueFlat, 0.66],
+  ];
+  for (const [x, y, r, mat, phase] of dots) {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat);
+    dot.position.set(x, y, 0.3);
+    dot.userData.baseY = y;
+    dot.userData.phase = phase;
+    thinkingDots.push(dot);
+    g.add(dot);
+  }
+  const extras = [
+    [0.46, 1.34, 0.045, greyFlat, 0.15],
+    [0.62, 1.46, 0.038, greyFlat, 0.45],
+    [0.78, 1.38, 0.05, blueFlat, 0.72],
+    [0.92, 1.58, 0.035, blueFlat, 0.9],
+    [0.56, 1.7, 0.032, greyFlat, 0.25],
+  ];
+  for (const [x, y, r, mat, phase] of extras) {
+    const bubble = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
+    bubble.position.set(x, y, 0.3);
+    bubble.userData.baseY = y;
+    bubble.userData.phase = phase;
+    thinkingDots.push(bubble);
+    g.add(bubble);
+  }
+}
+
+/* happy: three 3D four-point stars */
+function makeStarShape(s) {
+  const sh = new THREE.Shape();
+  sh.moveTo(0, -s);
+  sh.bezierCurveTo(0, -s * 0.32, s * 0.32, 0, s, 0);
+  sh.bezierCurveTo(s * 0.32, 0, 0, s * 0.32, 0, s);
+  sh.bezierCurveTo(0, s * 0.32, -s * 0.32, 0, -s, 0);
+  sh.bezierCurveTo(-s * 0.32, 0, 0, -s * 0.32, 0, -s);
+  sh.closePath();
+  return sh;
+}
+{
+  const g = fxGroups.happy;
+  const stars = [
+    [0.82, 1.45, 0.22, blueFlat, blueFlat],
+    [-0.88, 1.34, 0.18, greenFlat, greenFlat],
+    [0.34, 1.72, 0.15, blueFlat, blueFlat],
+    [-0.3, 1.76, 0.1, blueFlat, blueFlat],
+    [0.58, 1.86, 0.08, greenFlat, greenFlat],
+  ];
+  for (const [x, y, s, faceMat, sideMat] of stars) {
+    const geo = new THREE.ExtrudeGeometry(makeStarShape(s), { depth: 0.02, bevelEnabled: false, curveSegments: 8 });
+    const star = new THREE.Mesh(geo, [faceMat, sideMat]);
+    star.position.set(x, y, 0.3);
+    star.userData.baseY = y;
+    happyStars.push(star);
+    g.add(star);
+  }
+}
+
+/* error: a 3D teardrop with a hard specular */
+{
+  const g = fxGroups.error;
+  const sh = new THREE.Shape();
+  sh.moveTo(0, -0.1);
+  sh.quadraticCurveTo(0.09, 0, 0.09, 0.05);
+  sh.quadraticCurveTo(0.09, 0.13, 0, 0.16);
+  sh.quadraticCurveTo(-0.09, 0.13, -0.09, 0.05);
+  sh.quadraticCurveTo(-0.09, 0, 0, -0.1);
+  sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.025, bevelEnabled: false, curveSegments: 12 });
+  const drop = new THREE.Mesh(geo, [blueFlat, blueFlat]);
+  drop.position.set(-0.8, 0.78, 0.3);
+  drop.userData.baseY = 0.78;
+  errorDrop = drop;
+  g.add(drop);
+}
+
+/* ---------- interactions ---------- */
+let dragging = false;
+controls.addEventListener('start', () => { dragging = true; });
+controls.addEventListener('end', () => { dragging = false; });
+
+function resetView() {
+  camera.position.copy(defaultCamera);
+  controls.target.set(0, -0.02, 0);
+  controls.update();
+}
+resetButton.addEventListener('click', resetView);
+canvas.addEventListener('dblclick', resetView);
+
+/* pointer parallax and reduced-motion preference */
+let pointerX = 0;
+let pointerY = 0;
+let targetPointerX = 0;
+let targetPointerY = 0;
+let intro = 0;
+let statePop = 0;
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+stage.addEventListener('pointermove', (event) => {
+  if (reduceMotion) return;
+  const rect = stage.getBoundingClientRect();
+  targetPointerX = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+  targetPointerY = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+});
+stage.addEventListener('pointerleave', () => {
+  targetPointerX = 0;
+  targetPointerY = 0;
+});
+
+const captions = {
+  default: '默认 · 登录 / 首页 / 设置',
+  curious: '好奇 · 空错题本 / 空统计',
+  thinking: '思考 · 分析 / 生成 / 校验',
+  happy: '完成 · 练习正确 / 掌握度提升',
+  error: '失败 · 分析 / 识图 / 网络错误',
+};
+
+let activeState = 'default';
+function setState(state) {
+  activeState = state;
+  frontMaterial.map = frontTextures[state];
+  frontMaterial.needsUpdate = true;
+  caption.textContent = captions[state];
+  for (const btn of stateButtons) {
+    btn.classList.toggle('is-active', btn.dataset.state === state);
+  }
+  for (const key of Object.keys(fxGroups)) {
+    fxGroups[key].visible = key === state;
+    if (key === state) fxGroups[key].scale.setScalar(0.6);
+  }
+  statePop = 1;
+}
+stateButtons.forEach((btn) => btn.addEventListener('click', () => setState(btn.dataset.state)));
+
+/* ---------- resize ---------- */
+function resize() {
+  const width = stage.clientWidth;
+  const height = stage.clientHeight;
+  renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+resize();
+
+/* ---------- animate ---------- */
+
+const clock = new THREE.Clock();
+function easeOutCubic(x) {
+  return 1 - Math.pow(1 - x, 3);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = performance.now();
+
+  if (!reduceMotion) {
+    intro = Math.min(1, intro + dt * 2.2);
+    statePop = Math.max(0, statePop - dt * 3.2);
+    pointerX += (targetPointerX - pointerX) * 0.06;
+    pointerY += (targetPointerY - pointerY) * 0.06;
+
+    if (!dragging) {
+      card.rotation.y = Math.sin(t * 0.00055) * 0.12 + pointerX * 0.1 + statePop * 0.2;
+      card.rotation.x = Math.sin(t * 0.00042) * 0.018 + pointerY * 0.05;
+      card.position.y = Math.sin(t * 0.0009) * 0.025;
+    }
+
+    const scale = (0.94 + 0.06 * easeOutCubic(intro)) * (1 + 0.025 * statePop);
+    card.scale.setScalar(scale);
+
+    /* FX loops */
+    fxGroups.curious.position.y = Math.sin(t * 0.001) * 0.02;
+    if (curiousPivot) {
+      curiousPivot.rotation.y = t * 0.0012;
+      curiousPivot.rotation.z = Math.sin(t * 0.0008) * 0.04;
+    }
+
+    for (const dot of thinkingDots) {
+      const phase = (t * 0.00028 + dot.userData.phase) % 1;
+      dot.position.y = dot.userData.baseY - 0.12 + phase * 0.26;
+      dot.scale.setScalar(0.35 + 0.65 * Math.sin(phase * Math.PI));
+    }
+
+    for (let i = 0; i < happyStars.length; i++) {
+      const star = happyStars[i];
+      const phase = (t * 0.0004 + i * 0.2) % 1;
+      let s;
+      if (phase < 0.16) s = phase / 0.16;
+      else if (phase < 0.68) s = 1;
+      else s = (1 - phase) / 0.32;
+      star.scale.setScalar(s);
+      star.rotation.z = Math.sin(t * 0.0008 + i * 0.9) * 0.12;
+    }
+
+    if (errorDrop) {
+      const phase = (t * 0.00028) % 1;
+      errorDrop.position.y = 1.0 - phase * 0.5;
+      errorDrop.scale.setScalar(1.35 * (0.4 + 0.6 * Math.sin(phase * Math.PI)));
+      errorDrop.rotation.z = Math.sin(t * 0.0007) * 0.06;
+    }
+
+    const g = fxGroups[activeState];
+    if (g) g.scale.setScalar(0.6 + 0.4 * (1 - statePop));
+  } else {
+    card.rotation.set(0, 0, 0);
+    card.position.y = 0;
+    card.scale.setScalar(1);
+    const g = fxGroups[activeState];
+    if (g) g.scale.setScalar(1);
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
