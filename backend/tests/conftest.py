@@ -75,3 +75,41 @@ def register_user(
 
 def auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+ADMIN_TEST_PASSWORD = "Adm1n-pass!"
+
+
+def create_admin(
+    client: TestClient, db, username: str = "admin01", password: str = ADMIN_TEST_PASSWORD,
+    **fields,
+) -> dict:
+    """直接建 admin 账号并走管理端登录，返回登录响应（含 access_token）。"""
+    from app.core.security import hash_password
+    from app.models import User
+
+    session = db()
+    try:
+        session.add(
+            User(
+                username=username,
+                email=fields.pop("email", None),
+                password_hash=hash_password(password),
+                role="admin",
+                **fields,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    resp = client.post(
+        "/api/v1/admin/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def admin_headers(client: TestClient, db, username: str = "admin01") -> dict:
+    return auth_headers(create_admin(client, db, username=username)["access_token"])

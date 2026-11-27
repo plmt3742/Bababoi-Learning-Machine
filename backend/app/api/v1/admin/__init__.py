@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.admin import auth
+from app.api.v1.admin import auth, read
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 router.include_router(auth.router)
+router.include_router(read.router)

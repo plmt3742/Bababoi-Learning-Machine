@@ -19,6 +19,59 @@
         "title": "AdminLoginRequest",
         "type": "object"
       },
+      "AdminOverview": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertItem"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "failed_tasks": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTask"
+            },
+            "title": "Failed Tasks",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "pending_password_requests": {
+            "items": {
+              "$ref": "#/components/schemas/PasswordRequest"
+            },
+            "title": "Pending Password Requests",
+            "type": "array"
+          },
+          "recent_audit": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLog"
+            },
+            "title": "Recent Audit",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/OverviewStats"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/OverviewTrend"
+          }
+        },
+        "required": [
+          "generated_at",
+          "stats",
+          "failed_tasks",
+          "pending_password_requests",
+          "recent_audit",
+          "alerts",
+          "trend"
+        ],
+        "title": "AdminOverview",
+        "type": "object"
+      },
       "AdminProfile": {
         "properties": {
           "email": {
@@ -52,6 +105,305 @@
         "title": "AdminProfile",
         "type": "object"
       },
+      "AdminSystem": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/SystemCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "config": {
+            "items": {
+              "$ref": "#/components/schemas/SystemConfigRow"
+            },
+            "title": "Config",
+            "type": "array"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/SystemEnvironment"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SystemEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SystemStatus"
+          }
+        },
+        "required": [
+          "generated_at",
+          "environment",
+          "status",
+          "checks",
+          "config",
+          "events"
+        ],
+        "title": "AdminSystem",
+        "type": "object"
+      },
+      "AdminTask": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "questionId": {
+            "title": "Questionid",
+            "type": "integer"
+          },
+          "retryIndex": {
+            "title": "Retryindex",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "targetIndex": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetindex"
+          },
+          "userId": {
+            "title": "Userid",
+            "type": "integer"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "questionId",
+          "userId",
+          "question",
+          "username",
+          "stage",
+          "targetIndex",
+          "status",
+          "errorCode",
+          "errorMessage",
+          "retryIndex",
+          "createdAt",
+          "startedAt",
+          "finishedAt",
+          "duration"
+        ],
+        "title": "AdminTask",
+        "type": "object"
+      },
+      "AdminTaskDetail": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "string"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "questionId": {
+            "title": "Questionid",
+            "type": "integer"
+          },
+          "retryIndex": {
+            "title": "Retryindex",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "targetIndex": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetindex"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TaskTimelineItem"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "userId": {
+            "title": "Userid",
+            "type": "integer"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "questionId",
+          "userId",
+          "question",
+          "username",
+          "stage",
+          "targetIndex",
+          "status",
+          "errorCode",
+          "errorMessage",
+          "retryIndex",
+          "createdAt",
+          "startedAt",
+          "finishedAt",
+          "duration",
+          "timeline"
+        ],
+        "title": "AdminTaskDetail",
+        "type": "object"
+      },
       "AdminTokenResponse": {
         "properties": {
           "access_token": {
@@ -72,6 +424,429 @@
           "user"
         ],
         "title": "AdminTokenResponse",
+        "type": "object"
+      },
+      "AdminUser": {
+        "properties": {
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "disabledAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabledat"
+          },
+          "disabledReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabledreason"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "generated": {
+            "title": "Generated",
+            "type": "integer"
+          },
+          "hasPersonalKey": {
+            "title": "Haspersonalkey",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "keyLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keylast4"
+          },
+          "lastLogin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastlogin"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "pendingPasswordRequests": {
+            "title": "Pendingpasswordrequests",
+            "type": "integer"
+          },
+          "practice": {
+            "title": "Practice",
+            "type": "integer"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "questions": {
+            "title": "Questions",
+            "type": "integer"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "status",
+          "role",
+          "questions",
+          "generated",
+          "practice",
+          "lastLogin",
+          "createdAt",
+          "hasPersonalKey",
+          "provider",
+          "model",
+          "keyLast4",
+          "pendingPasswordRequests",
+          "disabledAt",
+          "disabledReason"
+        ],
+        "title": "AdminUser",
+        "type": "object"
+      },
+      "AdminUserDetail": {
+        "properties": {
+          "createdAt": {
+            "title": "Createdat",
+            "type": "string"
+          },
+          "disabledAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabledat"
+          },
+          "disabledReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabledreason"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "generated": {
+            "title": "Generated",
+            "type": "integer"
+          },
+          "hasPersonalKey": {
+            "title": "Haspersonalkey",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "keyLast4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keylast4"
+          },
+          "lastLogin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastlogin"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "passwordRequests": {
+            "items": {
+              "$ref": "#/components/schemas/PasswordRequest"
+            },
+            "title": "Passwordrequests",
+            "type": "array"
+          },
+          "pendingPasswordRequests": {
+            "title": "Pendingpasswordrequests",
+            "type": "integer"
+          },
+          "practice": {
+            "title": "Practice",
+            "type": "integer"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "questions": {
+            "title": "Questions",
+            "type": "integer"
+          },
+          "recentTasks": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTask"
+            },
+            "title": "Recenttasks",
+            "type": "array"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "status",
+          "role",
+          "questions",
+          "generated",
+          "practice",
+          "lastLogin",
+          "createdAt",
+          "hasPersonalKey",
+          "provider",
+          "model",
+          "keyLast4",
+          "pendingPasswordRequests",
+          "disabledAt",
+          "disabledReason",
+          "recentTasks",
+          "passwordRequests"
+        ],
+        "title": "AdminUserDetail",
+        "type": "object"
+      },
+      "AiLog": {
+        "properties": {
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "hasRaw": {
+            "title": "Hasraw",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "inputTokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputtokens"
+          },
+          "keySource": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keysource"
+          },
+          "latency": {
+            "title": "Latency",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "operation": {
+            "title": "Operation",
+            "type": "string"
+          },
+          "outputTokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outputtokens"
+          },
+          "promptVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptversion"
+          },
+          "questionId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questionid"
+          },
+          "queueWait": {
+            "title": "Queuewait",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "time",
+          "username",
+          "operation",
+          "model",
+          "promptVersion",
+          "status",
+          "latency",
+          "queueWait",
+          "tokens",
+          "inputTokens",
+          "outputTokens",
+          "keySource",
+          "errorCode",
+          "questionId",
+          "hasRaw"
+        ],
+        "title": "AiLog",
         "type": "object"
       },
       "AiSettingsOut": {
@@ -184,6 +959,239 @@
           "model"
         ],
         "title": "AiSettingsUpdate",
+        "type": "object"
+      },
+      "AlertItem": {
+        "properties": {
+          "acknowledgedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedat"
+          },
+          "acknowledgedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledgedby"
+          },
+          "current": {
+            "title": "Current",
+            "type": "integer"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "integer"
+          },
+          "time": {
+            "title": "Time",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "title",
+          "detail",
+          "time",
+          "status",
+          "acknowledgedBy",
+          "acknowledgedAt",
+          "rule",
+          "current",
+          "threshold",
+          "target"
+        ],
+        "title": "AlertItem",
+        "type": "object"
+      },
+      "AlertTarget": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "to"
+        ],
+        "title": "AlertTarget",
+        "type": "object"
+      },
+      "AuditLog": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "admin": {
+            "title": "Admin",
+            "type": "string"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetid"
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targettype"
+          },
+          "time": {
+            "title": "Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "time",
+          "admin",
+          "action",
+          "target",
+          "targetType",
+          "targetId",
+          "reason",
+          "result",
+          "ip",
+          "requestId",
+          "before",
+          "after",
+          "errorMessage"
+        ],
+        "title": "AuditLog",
         "type": "object"
       },
       "BlankAnswer": {
@@ -843,6 +1851,525 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "OverviewAiStats": {
+        "properties": {
+          "calls_24h": {
+            "title": "Calls 24H",
+            "type": "integer"
+          },
+          "error_rate": {
+            "title": "Error Rate",
+            "type": "number"
+          },
+          "estimated_cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "invalid_rate": {
+            "title": "Invalid Rate",
+            "type": "number"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "p50_latency_ms": {
+            "title": "P50 Latency Ms",
+            "type": "integer"
+          },
+          "p95_latency_ms": {
+            "title": "P95 Latency Ms",
+            "type": "integer"
+          },
+          "success_rate": {
+            "title": "Success Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "calls_24h",
+          "success_rate",
+          "error_rate",
+          "invalid_rate",
+          "p50_latency_ms",
+          "p95_latency_ms",
+          "input_tokens",
+          "output_tokens",
+          "estimated_cost"
+        ],
+        "title": "OverviewAiStats",
+        "type": "object"
+      },
+      "OverviewContentStats": {
+        "properties": {
+          "flagged": {
+            "title": "Flagged",
+            "type": "integer"
+          },
+          "generated": {
+            "title": "Generated",
+            "type": "integer"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "integer"
+          },
+          "practice": {
+            "title": "Practice",
+            "type": "integer"
+          },
+          "questions": {
+            "title": "Questions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "questions",
+          "generated",
+          "practice",
+          "flagged",
+          "hidden"
+        ],
+        "title": "OverviewContentStats",
+        "type": "object"
+      },
+      "OverviewPasswordStats": {
+        "properties": {
+          "approved_today": {
+            "title": "Approved Today",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "rejected_today": {
+            "title": "Rejected Today",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "approved_today",
+          "rejected_today"
+        ],
+        "title": "OverviewPasswordStats",
+        "type": "object"
+      },
+      "OverviewStats": {
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/OverviewAiStats"
+          },
+          "content": {
+            "$ref": "#/components/schemas/OverviewContentStats"
+          },
+          "password_requests": {
+            "$ref": "#/components/schemas/OverviewPasswordStats"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/OverviewTaskStats"
+          },
+          "users": {
+            "$ref": "#/components/schemas/OverviewUserStats"
+          }
+        },
+        "required": [
+          "users",
+          "content",
+          "ai",
+          "tasks",
+          "password_requests"
+        ],
+        "title": "OverviewStats",
+        "type": "object"
+      },
+      "OverviewTaskStats": {
+        "properties": {
+          "canceled_24h": {
+            "title": "Canceled 24H",
+            "type": "integer"
+          },
+          "done_24h": {
+            "title": "Done 24H",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "oldest_queue_seconds": {
+            "title": "Oldest Queue Seconds",
+            "type": "integer"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued",
+          "running",
+          "failed",
+          "done_24h",
+          "canceled_24h",
+          "oldest_queue_seconds"
+        ],
+        "title": "OverviewTaskStats",
+        "type": "object"
+      },
+      "OverviewTrend": {
+        "properties": {
+          "latency": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__admin__TrendPoint"
+            },
+            "title": "Latency",
+            "type": "array"
+          },
+          "success": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__admin__TrendPoint"
+            },
+            "title": "Success",
+            "type": "array"
+          }
+        },
+        "required": [
+          "success",
+          "latency"
+        ],
+        "title": "OverviewTrend",
+        "type": "object"
+      },
+      "OverviewUserStats": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "integer"
+          },
+          "new_7d": {
+            "title": "New 7D",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "disabled",
+          "new_7d"
+        ],
+        "title": "OverviewUserStats",
+        "type": "object"
+      },
+      "Page_AdminTask_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTask"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AdminTask]",
+        "type": "object"
+      },
+      "Page_AdminUser_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUser"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AdminUser]",
+        "type": "object"
+      },
+      "Page_AiLog_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AiLog"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AiLog]",
+        "type": "object"
+      },
+      "Page_AuditLog_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLog"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AuditLog]",
+        "type": "object"
+      },
+      "Page_PasswordRequest_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PasswordRequest"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PasswordRequest]",
+        "type": "object"
+      },
+      "PasswordRequest": {
+        "properties": {
+          "accountStatus": {
+            "title": "Accountstatus",
+            "type": "string"
+          },
+          "deliveryChannel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverychannel"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "emailMatches": {
+            "title": "Emailmatches",
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          },
+          "mustChangePassword": {
+            "title": "Mustchangepassword",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "registeredEmail": {
+            "title": "Registeredemail",
+            "type": "string"
+          },
+          "reviewNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewnote"
+          },
+          "reviewedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewedat"
+          },
+          "reviewedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewedby"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "submittedAt": {
+            "title": "Submittedat",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "registeredEmail",
+          "emailMatches",
+          "accountStatus",
+          "reason",
+          "status",
+          "submittedAt",
+          "reviewedBy",
+          "reviewedAt",
+          "reviewNote",
+          "ip",
+          "expiresAt",
+          "deliveryChannel",
+          "mustChangePassword"
+        ],
+        "title": "PasswordRequest",
         "type": "object"
       },
       "PracticeRecordCreate": {
@@ -1773,7 +3300,7 @@
           },
           "recent_trend": {
             "items": {
-              "$ref": "#/components/schemas/TrendPoint"
+              "$ref": "#/components/schemas/app__schemas__stats__TrendPoint"
             },
             "title": "Recent Trend",
             "type": "array"
@@ -1824,6 +3351,161 @@
           "updated_at"
         ],
         "title": "StatsOverview",
+        "type": "object"
+      },
+      "SystemCheck": {
+        "properties": {
+          "checkedAt": {
+            "title": "Checkedat",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "meta": {
+            "title": "Meta",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "status",
+          "value",
+          "detail",
+          "checkedAt",
+          "meta"
+        ],
+        "title": "SystemCheck",
+        "type": "object"
+      },
+      "SystemConfigRow": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "note"
+        ],
+        "title": "SystemConfigRow",
+        "type": "object"
+      },
+      "SystemEnvironment": {
+        "properties": {
+          "app_env": {
+            "title": "App Env",
+            "type": "string"
+          },
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "is_demo": {
+            "title": "Is Demo",
+            "type": "boolean"
+          },
+          "llm_mode": {
+            "title": "Llm Mode",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          },
+          "worker_enabled": {
+            "title": "Worker Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "app_env",
+          "is_demo",
+          "version",
+          "llm_mode",
+          "worker_enabled",
+          "database"
+        ],
+        "title": "SystemEnvironment",
+        "type": "object"
+      },
+      "SystemEvent": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time",
+          "title",
+          "detail",
+          "level"
+        ],
+        "title": "SystemEvent",
+        "type": "object"
+      },
+      "SystemStatus": {
+        "properties": {
+          "active_alerts": {
+            "title": "Active Alerts",
+            "type": "integer"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "summary",
+          "active_alerts"
+        ],
+        "title": "SystemStatus",
         "type": "object"
       },
       "TagOut": {
@@ -1999,6 +3681,46 @@
         "title": "TaskOut",
         "type": "object"
       },
+      "TaskTimelineItem": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "time": {
+            "title": "Time",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "status",
+          "time",
+          "meta"
+        ],
+        "title": "TaskTimelineItem",
+        "type": "object"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -2019,30 +3741,6 @@
           "user"
         ],
         "title": "TokenResponse",
-        "type": "object"
-      },
-      "TrendPoint": {
-        "description": "某一天（Asia/Shanghai）的练习数；`date` 固定 `YYYY-MM-DD`。",
-        "properties": {
-          "correct_count": {
-            "title": "Correct Count",
-            "type": "integer"
-          },
-          "date": {
-            "title": "Date",
-            "type": "string"
-          },
-          "practice_count": {
-            "title": "Practice Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "date",
-          "practice_count",
-          "correct_count"
-        ],
-        "title": "TrendPoint",
         "type": "object"
       },
       "UserResponse": {
@@ -2067,6 +3765,16 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "must_change_password": {
+            "default": false,
+            "title": "Must Change Password",
+            "type": "boolean"
+          },
+          "role": {
+            "default": "student",
+            "title": "Role",
+            "type": "string"
           },
           "username": {
             "title": "Username",
@@ -2291,6 +3999,48 @@
         ],
         "title": "WeakKnowledgePoint",
         "type": "object"
+      },
+      "app__schemas__admin__TrendPoint": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
+      },
+      "app__schemas__stats__TrendPoint": {
+        "description": "某一天（Asia/Shanghai）的练习数；`date` 固定 `YYYY-MM-DD`。",
+        "properties": {
+          "correct_count": {
+            "title": "Correct Count",
+            "type": "integer"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "practice_count": {
+            "title": "Practice Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "practice_count",
+          "correct_count"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -2306,6 +4056,328 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/ai-logs": {
+      "get": {
+        "operationId": "list_ai_logs_api_v1_admin_ai_logs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "success",
+                "error",
+                "invalid",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "vision",
+                "analyze",
+                "generate",
+                "judge",
+                "all"
+              ],
+              "title": "Operation",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AiLog_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Ai Logs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/ai-logs/{log_id}": {
+      "get": {
+        "operationId": "get_ai_log_api_v1_admin_ai_logs__log_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log_id",
+            "required": true,
+            "schema": {
+              "title": "Log Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Ai Log",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/alerts": {
+      "get": {
+        "operationId": "alerts_api_v1_admin_alerts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertItem"
+                  },
+                  "title": "Response Alerts Api V1 Admin Alerts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Alerts",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "operationId": "list_audit_api_v1_admin_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "result",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "success",
+                "failed",
+                "all"
+              ],
+              "title": "Result",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditLog_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Audit",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/audit/{audit_id}": {
+      "get": {
+        "operationId": "get_audit_api_v1_admin_audit__audit_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "audit_id",
+            "required": true,
+            "schema": {
+              "title": "Audit Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Audit",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/auth/login": {
       "post": {
         "operationId": "login_api_v1_admin_auth_login_post",
@@ -2387,6 +4459,473 @@
           }
         ],
         "summary": "Me",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "operationId": "overview_api_v1_admin_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Overview",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/password-requests": {
+      "get": {
+        "operationId": "list_password_requests_api_v1_admin_password_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PasswordRequest_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Password Requests",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/password-requests/{request_id}": {
+      "get": {
+        "operationId": "get_password_request_api_v1_admin_password_requests__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordRequest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Password Request",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/system": {
+      "get": {
+        "operationId": "system_api_v1_admin_system_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSystem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "System",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/tasks": {
+      "get": {
+        "operationId": "list_tasks_api_v1_admin_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "queued",
+                "running",
+                "done",
+                "failed",
+                "canceled",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminTask_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tasks",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/tasks/{task_id}": {
+      "get": {
+        "operationId": "get_task_api_v1_admin_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTaskDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Task",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "operationId": "list_users_api_v1_admin_users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "active",
+                "disabled",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminUser_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Users",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}": {
+      "get": {
+        "operationId": "get_user_api_v1_admin_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get User",
         "tags": [
           "admin"
         ]
