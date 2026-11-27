@@ -51,7 +51,8 @@
    cp /srv/bababoi/repo/deploy/.env.example /srv/bababoi/.env
    chmod 600 /srv/bababoi/.env
    # 填 JWT_SECRET（≥32 字节）、DEMO_PASSWORD、CORS_ORIGINS=["http://<IP>"]
-   # TRUSTED_PROXIES=["127.0.0.1"] 保持 JSON 数组
+   # TRUSTED_PROXIES 保持 JSON 数组，且必须含后端看到的对端网段（Docker 下是网桥网关，
+   # 支持 CIDR，例如 ["127.0.0.1", "172.16.0.0/12"]）；只写 127.0.0.1 会让限流变全站一个桶
    ```
 
    `DATABASE_URL` / `UPLOAD_DIR` 由 compose 固定为 `/data` 下，不要在 `.env` 里改。
@@ -153,7 +154,7 @@ ls -lh /srv/bababoi/backup/
 ## 已知取舍
 
 - **只能单进程**：worker 随进程起，多副本会重复消费队列；SQLite 也单写。entrypoint 已固定 `--workers 1`。
-- **不加 `--proxy-headers`**：XFF 由 `app/utils/client_ip.py` 解析；`TRUSTED_PROXIES` 是精确字符串匹配，不支持网段。
+- **不加 `--proxy-headers`**：XFF 由 `app/utils/client_ip.py` 解析；`TRUSTED_PROXIES` 支持单个 IP 与 CIDR 网段（Docker 下填网桥网段，不要只填 `127.0.0.1`）。
 - **413 不走错误信封**：上传超限由 nginx 直接返回，前端只能给通用文案。
 - **SSE 暂无**：`proxy_buffering off` 是给 BE-010 留的口子，当前没有流式接口。
 - **VITE_USE_MOCK 生产无效**：`main.ts` 有 `import.meta.env.DEV` 守卫；部署脚本仍显式写 `false`，防有人用 `vite preview` 当部署。

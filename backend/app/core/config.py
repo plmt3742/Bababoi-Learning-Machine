@@ -28,9 +28,17 @@ class Settings(BaseSettings):
     # FR-7 账号：JWT 有效期 7 天（05 §6.3）；secret 必须由环境变量注入
     jwt_secret: str = ""
     access_token_expire_days: int = 7
-    # 登录失败限流（05 §6.3：5 次/分钟/IP，内存计数即可，不引入 Redis）
+    # 登录失败限流（05 §6.3）：5 次/分钟/IP；存储由下面的 rate_limit_storage_url 决定
     login_rate_limit: int = 5
     login_rate_window_s: int = 60
+    # 注册按 IP 限额：注册是零成本的，不挡的话"换号"就能绕过按用户的 AI 额度。
+    # 默认 30/小时：实验室考核全班通常一个 NAT 出口，3/小时会把正常注册挡在外面；
+    # 公开部署想收紧就调小（或被邀请码取代）。
+    register_rate_limit: int = 30
+    register_rate_window_s: int = 3600
+    # 限流存储（limits URI）：单实例默认进程内存；多实例改 redis://host:6379/0
+    #（需安装 limits[redis]），业务代码不用改
+    rate_limit_storage_url: str = "memory://"
     # 反代后 request.client.host 恒为 nginx 的 IP，限流会把所有用户算成同一个（13号 §4.6）。
     # 只有直连来源在这个列表里时，才读 X-Forwarded-For；默认空 = 不信任任何代理头。
     trusted_proxies: list[str] = []
