@@ -2049,6 +2049,147 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VisionJobErrorOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "VisionJobErrorOut",
+        "type": "object"
+      },
+      "VisionJobOut": {
+        "description": "轮询响应：status=done 才带 result，failed 才带 error。\n\n`queued` 时带上排队信息——刷新页面后还能显示\"前面还有几个\"，\n否则重新轮询就只剩一个转圈。",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisionJobErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimated_wait_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Wait S"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "integer"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageExtractionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "VisionJobOut",
+        "type": "object"
+      },
+      "VisionJobSubmitOut": {
+        "description": "提交响应：job_id 为 None 表示命中缓存、结果已直接返回。",
+        "properties": {
+          "estimated_wait_s": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Wait S"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageExtractionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reused": {
+            "default": false,
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "VisionJobSubmitOut",
+        "type": "object"
+      },
       "WeakKnowledgePoint": {
         "description": "父题标签聚合出的一条薄弱点；`accuracy` 与总览同口径（0–1）。",
         "properties": {
@@ -2664,6 +2805,7 @@
     },
     "/api/v1/questions/from-image": {
       "post": {
+        "deprecated": true,
         "description": "图片 → 1..N 条可编辑题目条目。不建错题、不分析、不返回 bbox（ADR-004）。",
         "operationId": "extract_from_image_api_v1_questions_from_image_post",
         "requestBody": {
@@ -2704,6 +2846,120 @@
           }
         ],
         "summary": "Extract From Image",
+        "tags": [
+          "images"
+        ]
+      }
+    },
+    "/api/v1/questions/from-image/jobs": {
+      "post": {
+        "description": "提交识图任务（B 档）：命中缓存直接 200 + 结果；否则 202 + 排队号。",
+        "operationId": "submit_from_image_job_api_v1_questions_from_image_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FromImageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionJobSubmitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionJobSubmitOut"
+                }
+              }
+            },
+            "description": "已入队（未命中缓存）"
+          },
+          "404": {
+            "description": "图片不存在或不属于本人"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "VISION_QUEUE_FULL / VISION_PREVIOUS_PENDING / VISION_REFRESH_COOLDOWN；QUEUE_FULL 带 Retry-After"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit From Image Job",
+        "tags": [
+          "images"
+        ]
+      }
+    },
+    "/api/v1/questions/from-image/jobs/{job_id}": {
+      "get": {
+        "description": "轮询识图任务；不属于本人的任务按 404 处理，不承认存在性。",
+        "operationId": "get_image_job_api_v1_questions_from_image_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisionJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "任务不存在或不属于本人（VISION_JOB_NOT_FOUND）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Image Job",
         "tags": [
           "images"
         ]

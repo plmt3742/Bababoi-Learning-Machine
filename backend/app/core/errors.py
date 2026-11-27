@@ -32,6 +32,10 @@ class ErrorCode(StrEnum):
     AI_INVALID_OUTPUT = "AI_INVALID_OUTPUT"
     AI_INVALID_IMAGE = "AI_INVALID_IMAGE"
     VISION_REFRESH_COOLDOWN = "VISION_REFRESH_COOLDOWN"  # BE-024：force_refresh 冷却中（429）
+    VISION_QUEUE_FULL = "VISION_QUEUE_FULL"  # 识图队列达到准入上限（429 + Retry-After）
+    VISION_PREVIOUS_PENDING = "VISION_PREVIOUS_PENDING"  # 同人已有不同参数的识图任务（429）
+    VISION_QUEUE_TIMEOUT = "VISION_QUEUE_TIMEOUT"  # 排队超过上限仍未开始（任务 failed）
+    VISION_JOB_NOT_FOUND = "VISION_JOB_NOT_FOUND"  # 任务不存在或不属于本人（404）
     NOT_FOUND = "NOT_FOUND"  # 本 PR 新增：路由未命中，与 QUESTION_NOT_FOUND 区分
     FORBIDDEN = "FORBIDDEN"  # 框架 403（鉴权中间件等），与业务态的 QUESTION_FORBIDDEN 区分
     METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"  # 框架 405
@@ -52,11 +56,19 @@ _HTTP_STATUS_CODES = {
 class ApiError(Exception):
     """业务层抛这个，别抛裸 HTTPException——否则 code 会丢。"""
 
-    def __init__(self, code: ErrorCode, message: str, http_status: int) -> None:
+    def __init__(
+        self,
+        code: ErrorCode,
+        message: str,
+        http_status: int,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.http_status = http_status
+        # 429 的 Retry-After 这类响应头跟着异常走，handler 统一写回
+        self.headers = headers or {}
 
 
 def _body(request: Request, code: ErrorCode, message: str) -> dict:
@@ -82,7 +94,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(
-            _body(request, exc.code, exc.message), status_code=exc.http_status
+            _body(request, exc.code, exc.message),
+            status_code=exc.http_status,
+            headers=exc.headers or None,
         )
 
     @app.exception_handler(RequestValidationError)

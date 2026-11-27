@@ -24,6 +24,7 @@ EXPECTED_TABLES = {
     "practice_records",
     "ai_call_logs",
     "vision_extract_cache",
+    "vision_job",
     "user_ai_settings",
 }
 

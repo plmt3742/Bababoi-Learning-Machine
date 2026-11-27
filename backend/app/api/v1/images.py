@@ -8,15 +8,17 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.ai.errors import AIError
 from app.api.v1.deps import get_current_user, get_session_factory
 from app.core.config import settings
 from app.core.errors import ApiError, ErrorCode
+from app.db.session import get_session
 from app.models import User
 from app.schemas.image import FromImageRequest, ImageExtractionOut, ImageUploadOut
-from app.services import extraction_service, image_service
+from app.schemas.vision import VisionJobOut, VisionJobSubmitOut
+from app.services import extraction_service, image_service, vision_job_service
 
 router = APIRouter(tags=["images"])
 
@@ -85,7 +87,7 @@ def get_uploaded_image(user_id: int, filename: str, user: User = Depends(get_cur
     return Response(content=data, media_type=media_type, headers=_CACHE_HEADERS)
 
 
-@router.post("/questions/from-image")
+@router.post("/questions/from-image", deprecated=True)
 def extract_from_image(
     body: FromImageRequest,
     user: User = Depends(get_current_user),
@@ -104,3 +106,53 @@ def extract_from_image(
         raise ApiError(ErrorCode(exc.error_code), exc.message,
                        _AI_STATUS.get(exc.error_code, 502)) from None
     return ImageExtractionOut.model_validate(result)
+
+
+@router.post(
+    "/questions/from-image/jobs",
+    response_model=VisionJobSubmitOut,
+    responses={
+        202: {"model": VisionJobSubmitOut, "description": "已入队（未命中缓存）"},
+        404: {"description": "图片不存在或不属于本人"},
+        429: {
+            "description": (
+                "VISION_QUEUE_FULL / VISION_PREVIOUS_PENDING / "
+                "VISION_REFRESH_COOLDOWN；QUEUE_FULL 带 Retry-After"
+            )
+        },
+    },
+)
+def submit_from_image_job(
+    body: FromImageRequest,
+    response: Response,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+    session_factory: sessionmaker = Depends(get_session_factory),
+) -> VisionJobSubmitOut:
+    """提交识图任务（B 档）：命中缓存直接 200 + 结果；否则 202 + 排队号。"""
+    result = vision_job_service.submit(
+        session,
+        session_factory,
+        user.id,
+        image_path=body.image_path,
+        subject=body.subject,
+        force_refresh=body.force_refresh,
+    )
+    response.status_code = 200 if result["job_id"] is None else 202
+    return VisionJobSubmitOut.model_validate(result)
+
+
+@router.get(
+    "/questions/from-image/jobs/{job_id}",
+    response_model=VisionJobOut,
+    responses={404: {"description": "任务不存在或不属于本人（VISION_JOB_NOT_FOUND）"}},
+)
+def get_image_job(
+    job_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> VisionJobOut:
+    """轮询识图任务；不属于本人的任务按 404 处理，不承认存在性。"""
+    return VisionJobOut.model_validate(
+        vision_job_service.get_for_user(session, user.id, job_id)
+    )
