@@ -87,6 +87,7 @@
 | [adr/ADR-007-user-ai-key.md](adr/ADR-007-user-ai-key.md) | 用户自带 AI API Key（BYOK）设置 | Accepted |
 | [adr/ADR-008-generated-type-consistency-toggle.md](adr/ADR-008-generated-type-consistency-toggle.md) | 生成题题型一致性改为用户设置开关 | Accepted |
 | [adr/ADR-009-admin-in-demo.md](adr/ADR-009-admin-in-demo.md) | 管理端进入 11.29 演示 | Accepted |
+| [adr/ADR-010-scope-roles-types-subjects-stages.md](adr/ADR-010-scope-roles-types-subjects-stages.md) | 范围边界：角色 / 题型 / 学科 / 学段 | Accepted |
 
 ## 状态图例
 
