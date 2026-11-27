@@ -1,8 +1,8 @@
 # admin · 内部运维台（P1 占位）
 
-> 状态：P1 规划中，尚未开始业务代码。
-> 决策：`docs/adr/ADR-005-admin-console.md`（2026-11-06，霹雳马桶 + 人机）。
-> 重要：不进入 11.29 学生演示路径；不是教师端，也不是完整后台管理。
+> 状态：规划中，尚未开始业务代码。
+> 决策：`docs/adr/ADR-005-admin-console.md` + `docs/adr/ADR-009-admin-in-demo.md`。
+> 重要：管理端**进入 11.29 演示**，但演示只展示已实现能力；完整方案见 `docs/agent/28-admin-console.md`。不是教师端，也不是完整后台管理。
 
 ## 这个目录是什么
 
@@ -12,6 +12,7 @@
 2. 定位内容：错题/生成题列表与详情，软删除/隐藏明显有问题的内容。
 3. 恢复任务：查看 `generation_task`，重试失败任务。
 4. 查 AI 成本：`ai_call_logs` 的 operation/model/status/latency/tokens/error。
+5. 处理密码申请：学生线上提交，管理员审批，临时密码只在管理端显示一次。
 
 学生端仍在 `frontend/`；两者共用同一套后端 API，但 admin 使用独立的 `/api/v1/admin/*` 路由和 `require_admin` 权限。
 
@@ -28,10 +29,10 @@ admin/
 │   ├── App.vue
 │   ├── api/              # client、admin.ts、types.ts
 │   ├── router/           # /admin/login、/admin、/admin/users...
-│   ├── stores/auth.ts    # 独立 localStorage key
+│   ├── stores/auth.ts    # 独立 localStorage key（bababoi:admin-token）
 │   ├── layouts/AdminShell.vue
-│   ├── components/       # KPI card、DataTable、StatusTag...
-│   └── views/            # Login/Dashboard/Users/Questions/Tasks/AiLogs
+│   ├── components/       # KPI card、DataTable、StatusTag、ConfirmWithReason...
+│   └── views/            # Login/Dashboard/Users/PasswordRequests/Questions/Tasks/AiLogs/Audit/System
 └── README.md
 ```
 
@@ -41,32 +42,40 @@ admin/
 |---|---|---|
 | 登录 | 管理员账号登录；非 admin 拒绝 | P1 |
 | 总览 | 4 个 KPI + AI 成功率/延迟 + 失败任务数 | P1 |
-| 用户 | 列表、搜索、禁用/启用；不重置密码、不模拟登录 | P1 |
-| 内容 | 错题/生成题列表与详情；软删除/隐藏 | P1 |
-| 任务 | 队列列表、状态筛选、失败重试 | P1 |
-| AI 日志 | operation/model/status/latency/tokens/error | P1 |
-| 审计 | admin 删除/重试/禁用记录 | P2 |
+| 用户 | 列表、搜索、禁用/启用、强制下线 | P1 |
+| 密码申请 | 线上申请列表、审批/拒绝、临时密码一次性展示 | P1 |
+| 内容 | 错题/生成题列表与详情；软删除/隐藏/标记 | P1 |
+| 任务 | 队列列表、状态筛选、失败重试/排队取消 | P1 |
+| AI 日志 | operation/model/status/latency/tokens/error；raw 单独接口 | P1 |
+| 审计 | admin 删除/重试/禁用/审批/敏感读取记录 | P1 |
+| 系统 | 健康、版本/环境、只读配置 | P1 |
 
 ## 后端依赖（尚未实现）
 
-- `users.role`（student/admin）+ migration + seed 管理员。
+- `users.role`（student/admin）、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at` + migration + seed 管理员。
 - `require_admin` 依赖：查 DB 角色，学生 token 一律 403。
+- `admin_audit_logs` + 审计服务。
+- `password_reset_requests` + 学生线上申请 + 管理员审批接口。
 - `GET /api/v1/admin/overview`
-- `GET /api/v1/admin/users`、`PATCH /api/v1/admin/users/{id}`
+- `GET /api/v1/admin/users`、`PATCH /api/v1/admin/users/{id}`、`POST /api/v1/admin/users/{id}/force-logout`
+- `GET /api/v1/admin/password-reset-requests`、`POST .../{id}/approve`、`POST .../{id}/reject`
 - `GET /api/v1/admin/questions`、`DELETE /api/v1/admin/questions/{id}`
 - `GET /api/v1/admin/tasks`、`POST /api/v1/admin/tasks/{id}/retry`
 - `GET /api/v1/admin/ai-logs`
 
 ## 开始条件
 
-1. 11.21 核心闭环稳定，P0 没有阻塞 bug。
-2. ADR-005 已确认，`users.role` 契约写进 `05-architecture.md`。
-3. 先做“登录 + 总览 + 用户只读”，不要一次做全。
+1. ADR-005 + ADR-009 已确认，`28-admin-console.md` 作为详细契约。
+2. Phase 0 基础：`users.role`/`disabled_at`、`require_admin`、`admin_audit_logs`、seed admin。
+3. 先做“登录 + 总览 + 任务/AI 日志只读”，再做密码申请审批等写操作。
 
 ## 安全底线
 
 - 不提交默认管理员密码；seed 用环境变量或一次性密码。
 - admin 响应不返回 `password_hash`、密钥、其他用户敏感信息。
-- 所有删除软删；P2 审计日志。
+- 所有删除软删；审计日志 P1，不提供 UI 删除。
 - admin 不直接执行 SQL，不做用户模拟登录。
 - admin 的 localStorage key 与学生端分开（如 `bababoi:admin-token`）。
+- 不新增姓名/学号；密码申请只使用用户名 + 可选邮箱 + 原因。
+- 临时密码只在管理端显示一次，24h 有效，学生登录后强制改密；不写日志/审计/数据库明文。
+- 没有邮件/短信通知；管理员通过现有外部渠道通知学生。

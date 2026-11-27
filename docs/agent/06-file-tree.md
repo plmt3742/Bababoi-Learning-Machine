@@ -31,7 +31,7 @@ BababoiLearningMachine/
 │   ├── src/                       # api/assets/components/...
 │   ├── tests/
 │   └── e2e/
-├── admin/                         # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
+├── admin/                         # 内部运维台（占位，ADR-005/009；进入 11.29 演示）
 │   └── README.md                  # 规划与范围；业务代码待 ADM-002+
 ├── backend/                       # 按 2026-11-07 实际结构（BE-001~021 落地后）
 │   ├── README.md                  # 状态与待办
@@ -234,7 +234,7 @@ BababoiLearningMachine/
 | `docs/product/` | PRD、IA/流程、页面规范、设计 tokens、草稿双写、线框/交互地图 | 实现细节、API 字段定义（放 05） |
 | `docs/adr/` | 不可逆/跨模块决策 | 日常小决定 |
 | `docs/interaction/` | 交互参考 demo（历史参考，非契约） | 业务代码、API 字段定义 |
-| `admin/` | P1 内部运维台（独立 Vue app）：总览/用户/内容/任务/AI 日志 | 学生端功能、教师端、密钥、完整 RBAC |
+| `admin/` | 内部运维台（独立 Vue app，进入 11.29 演示）：总览/用户/内容/任务/AI 日志/审计/密码申请 | 学生端功能、教师端、密钥、完整 RBAC |
 | `frontend/src/api/` | Axios 实例、端点函数、请求/响应类型 | 业务组件、页面状态 |
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
 | `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |

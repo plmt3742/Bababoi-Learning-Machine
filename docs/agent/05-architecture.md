@@ -778,6 +778,27 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - 用户 Key 失效/额度不足要返回明确错误，不静默回退。
 - **实现口径（BE-020）**：`base_url` 先只允许 `https` + 白名单 host（`api.deepseek.com` / `api.openai.com`，端口 443），自定义地址等 SSRF 防护做完再放开；Key 用 Fernet 加密，`SETTINGS_ENCRYPTION_KEY` 缺失时 PUT 返回 503 `AI_PROVIDER_ERROR`（不静默退回系统 Key）；连接池按 Key 哈希缓存，Key 在**执行时**解析（排队期间换 Key 生效）；`LLM_MOCK=true` 时短路，不要求任何 Key。`ai_call_logs.key_source` 三值：`user` / `system` / `mock`。识图缓存键**不含** `key_source`：同一用户先用系统 Key、后配自带 Key，同图仍会命中已有缓存（省钱，但按 `key_source=user` 统计调用数不会涨）；缓存键里的 `model` 取**用户配置的 model**（只读该列、不解密，命中仍不需要 Key），BYOK 换模型同样不命中。`SETTINGS_ENCRYPTION_KEY` 与数据同寿命，更换前先清空 `user_ai_settings`，否则所有密文解不开。
 
+### 6.10 Admin API（P1 / ADR-009）
+
+> 管理端进入 11.29 演示（ADR-009）。完整功能、数据模型、审计与线上密码重置流程见 `docs/agent/28-admin-console.md`；本节只保留 05 的契约入口，字段以 28 号文档和 OpenAPI 为准。
+
+- Base URL：`/api/v1/admin`；除公开的密码申请提交外，全部依赖 `require_admin`。
+- 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403。
+- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`；管理端独立 token key。
+
+| 模块 | 端点 |
+|---|---|
+| 监控 | `GET /admin/overview`、`GET /admin/metrics/ai`、`GET /admin/metrics/tasks`、`GET /admin/health` |
+| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`PATCH /admin/users/{id}`、`POST /admin/users/{id}/force-logout` |
+| 密码申请 | 公开 `POST /auth/password-reset-requests`；管理端 `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject` |
+| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`DELETE /admin/questions/{id}`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
+| 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
+| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`GET /admin/ai-logs/{id}/raw`、`GET /admin/ai-logs/export` |
+| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export` |
+| 系统 | `GET /admin/system` |
+
+新增/调整的数据模型（待 migration）：`users.role`、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`、`content_flags`；`ai_call_logs` 建议补 `task_id`/`request_id`。列表统一 `{items,total,page,page_size}`，错误统一 `{detail:{code,message,request_id}}`。
+
 ## 7. AI 流水线
 
 ### 7.0 图片文本提取（多模态直读，不做独立 OCR）

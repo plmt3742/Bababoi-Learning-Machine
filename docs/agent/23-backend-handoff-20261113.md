@@ -165,7 +165,7 @@ DEMO_PASSWORD=*** uv run python scripts/seed_demo.py
 
 ## 8. 当前可以延后
 
-SSE（BE-010）、单题重生成/质量反馈（BE-015）、同组公式结构去重（BE-022）、MySQL 兼容（BE-011）、admin（P1）、BYOK（P1，前端已降级）。都不在 11.29 演示关键路径上。
+SSE（BE-010）、单题重生成/质量反馈（BE-015）、同组公式结构去重（BE-022）、MySQL 兼容（BE-011）、BYOK（P1，前端已降级）。admin 原为 P1 不在演示，2026-11-27 由 ADR-009 修订为进入 11.29 演示（范围见 `28-admin-console.md`）。
 
 ## 9. 待拍板（回复一句即可）
 

@@ -53,6 +53,7 @@
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
 | [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
 | [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
+| [agent/28-admin-console.md](agent/28-admin-console.md) | 管理端规划与后端对接：监控、审计、任务/AI、内容、线上密码申请审批、数据模型/API/分期 | 开发/联调管理端前；评审监控与审计时 |
 
 ### 产品设计
 
@@ -81,10 +82,11 @@
 | [adr/ADR-002-mvp-scope.md](adr/ADR-002-mvp-scope.md) | MVP 范围与 P0/P1/P2 | Proposed |
 | [adr/ADR-003-image-input-vision.md](adr/ADR-003-image-input-vision.md) | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted |
 | [adr/ADR-004-image-text-extraction.md](adr/ADR-004-image-text-extraction.md) | 图片录入：用户裁剪 + 文本提取 + 多题条目 | Accepted |
-| [adr/ADR-005-admin-console.md](adr/ADR-005-admin-console.md) | 独立 admin 管理端（P1 内部运维台） | Accepted |
+| [adr/ADR-005-admin-console.md](adr/ADR-005-admin-console.md) | 独立 admin 管理端（P1 内部运维台；演示范围由 ADR-009 修订） | Accepted |
 | [adr/ADR-006-three-segment-generation.md](adr/ADR-006-three-segment-generation.md) | 生成链路改为「三段并发，每段 1 道」 | Accepted |
 | [adr/ADR-007-user-ai-key.md](adr/ADR-007-user-ai-key.md) | 用户自带 AI API Key（BYOK）设置 | Accepted |
 | [adr/ADR-008-generated-type-consistency-toggle.md](adr/ADR-008-generated-type-consistency-toggle.md) | 生成题题型一致性改为用户设置开关 | Accepted |
+| [adr/ADR-009-admin-in-demo.md](adr/ADR-009-admin-in-demo.md) | 管理端进入 11.29 演示 | Accepted |
 
 ## 状态图例
 
@@ -117,7 +119,7 @@
 | 2026-11-05 | 同步 origin/main：补 13-backend-merge-audit；新增 ADR-004 图片文本提取 v2；后端通知 issue #13 | 霹雳马桶 / agent |
 | 2026-11-06 | 新增 16-three-segments-frontend-review（三段并发对接记录入库）与 ADR-006 三段并发；05 升 v0.5.1、04 补 BE-021/BE-022 | 人机 / agent |
 | 2026-11-06 | 同步前端进度：FE-009/019（PR #19）与全量 Calm Academic 视觉覆写（PR #21）已合入 main；旧 PR #20 关闭；更新 00/03/04/11 + 04 design system + 02/06/07 + frontend README | 霹雳马桶 / agent |
-| 2026-11-06 | 新增 ADR-005：独立 `admin/` 为 P1 内部运维台，不进入 11.29 演示；同步 01-project/06-file-tree/README/AGENTS | 霹雳马桶 / 人机 |
+| 2026-11-06 | 新增 ADR-005：独立 `admin/` 为 P1 内部运维台，不进入 11.29 演示（2026-11-27 由 ADR-009 修订为进入演示）；同步 01-project/06-file-tree/README/AGENTS | 霹雳马桶 / 人机 |
 | 2026-11-06 | 会话交接同步：main @ 7ee6029；前端 FE-001~024 页面完成；后端剩余 BE-014/BE-018/BE-013/BE-020/ADR-006；新增 ADR-007 BYOK | 霹雳马桶 / agent |
 | 2026-11-07 | 新增 18 后端未完成接口设计同步（当前 SQLite、云上 MySQL；BE-025/026/013/018/020/024/008/009/OPS） | 霹雳马桶 / agent |
 | 2026-11-07 | 新增 19 项目阶段性汇报（完成度/可演示范围/未完成项/风险/下一步） | 霹雳马桶 / agent |
@@ -125,3 +127,4 @@
 | 2026-11-10 | 新增 21 后端优先开工对接单：后端 10 步顺序、统计/草稿/偏好/BYOK/三段生成/识图契约与验收清单，供前端逐接口切换 | 霹雳马桶 / agent |
 | 2026-11-11 | 新增 22 后端产出 review 对接单：#63 阻断（env 读取）、#58/#62/#64/#65 应修项、合并顺序与待拍板口径 | 霹雳马桶 / agent |
 | 2026-11-11 | 22 补"已确认无问题/安全扫描"；04 新增 FE-032~035 联调任务并同步后端 PR 状态；00 更新当前状态与下一步 | 霹雳马桶 / agent |
+| 2026-11-27 | 新增 28 管理端规划与后端对接、ADR-009（管理端进入 11.29 演示）；同步 ADR-005/README/AGENTS/00/04/06/11/管理端 README 的演示口径 | 霹雳马桶 / agent |
