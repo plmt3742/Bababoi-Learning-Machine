@@ -28,7 +28,24 @@ _UNIQUE_V2 = ["user_id", "image_sha", "subject_key", "model", "hop1_version", "h
 _UNIQUE_V1 = ["user_id", "image_sha", "subject_key", "hop1_version", "hop2_version"]
 
 
+def _is_mysql() -> bool:
+    return op.get_bind().dialect.name == "mysql"
+
+
 def upgrade() -> None:
+    if _is_mysql():
+        # MySQL 把 UNIQUE KEY 反射成 unique Index，batch.drop_constraint(type_="unique")
+        # 在它身上找不到；而且 MySQL 本来就能直接 ADD COLUMN / DROP+ADD UNIQUE。
+        op.add_column(
+            "vision_extract_cache",
+            sa.Column("model", sa.String(length=64), nullable=False, server_default=""),
+        )
+        op.add_column(
+            "vision_extract_cache", sa.Column("last_forced_at", sa.DateTime(), nullable=True)
+        )
+        op.drop_index("uq_vision_cache_key", table_name="vision_extract_cache")
+        op.create_unique_constraint("uq_vision_cache_key", "vision_extract_cache", _UNIQUE_V2)
+        return
     with op.batch_alter_table("vision_extract_cache", recreate="always") as batch:
         batch.add_column(
             sa.Column("model", sa.String(length=64), nullable=False, server_default="")
@@ -51,6 +68,12 @@ def downgrade() -> None:
             ")"
         )
     )
+    if _is_mysql():
+        op.drop_index("uq_vision_cache_key", table_name="vision_extract_cache")
+        op.create_unique_constraint("uq_vision_cache_key", "vision_extract_cache", _UNIQUE_V1)
+        op.drop_column("vision_extract_cache", "last_forced_at")
+        op.drop_column("vision_extract_cache", "model")
+        return
     with op.batch_alter_table("vision_extract_cache", recreate="always") as batch:
         batch.drop_constraint("uq_vision_cache_key", type_="unique")
         batch.create_unique_constraint("uq_vision_cache_key", _UNIQUE_V1)
