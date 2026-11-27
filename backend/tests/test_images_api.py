@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 
 import pytest
@@ -13,6 +14,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from app.ai import prompts
+from app.ai.client import VISION_STEP_TEXT, LLMResponse, MockLLMClient
 from app.ai.errors import AITimeoutError
 from app.core.config import settings
 from app.models import AiCallLog
@@ -353,3 +355,126 @@ def test_queue_path_still_logs_after_the_ai_log_refactor(client, db) -> None:
         log = s.scalars(select(AiCallLog)).all()[-1]
         assert log.operation == "analysis" and log.status == "success"
         assert log.queue_wait_ms is not None  # 任务侧才有的排队时长，识图那条是 None
+
+
+class _EchoTopWarningClient(MockLLMClient):
+    """两跳都回同一句顶层说明：第 2 跳看得到第 1 跳的转录，模型常把同一句话再抄一遍。"""
+
+    def complete(self, operation, messages, **kwargs):
+        response = super().complete(operation, messages, **kwargs)
+        payload = json.loads(response.text)
+        if isinstance(payload, dict) and "questions" in payload:
+            payload["warnings"] = ["图片底部有一行被裁掉"]
+        return LLMResponse(
+            text=json.dumps(payload, ensure_ascii=False),
+            model=response.model,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            latency_ms=response.latency_ms,
+            finish_reason=response.finish_reason,
+        )
+
+
+def test_from_image_dedupes_identical_top_warnings(client, db, token_and_user, monkeypatch) -> None:
+    token, _ = token_and_user
+    monkeypatch.setattr(
+        extraction_service, "_llm_client", lambda *args, **kwargs: _EchoTopWarningClient()
+    )
+    image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
+
+    body = _extract(client, token, image_path).json()
+    assert body["warnings"].count("图片底部有一行被裁掉") == 1, body["warnings"]
+
+
+class _Hop1ItemWarningClient(MockLLMClient):
+    """第 1 跳顶层带一句点得到题号的警告，第 2 跳正常返回。"""
+
+    def complete(self, operation, messages, **kwargs):
+        response = super().complete(operation, messages, **kwargs)
+        system = messages[0]["content"] if messages else ""
+        payload = json.loads(response.text)
+        if isinstance(payload, dict) and VISION_STEP_TEXT in system:
+            payload["warnings"] = ["第 2 题题干下方公式被图片下边缘截断"]
+        return LLMResponse(
+            text=json.dumps(payload, ensure_ascii=False),
+            model=response.model,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            latency_ms=response.latency_ms,
+            finish_reason=response.finish_reason,
+        )
+
+
+def test_from_image_moves_transcript_item_warning_off_the_top_banner(
+    client, db, token_and_user, monkeypatch
+) -> None:
+    """第 1 跳的题号警告挂到卡片后，不能又被全量拼回顶层（同一条会显示两次）。"""
+    token, _ = token_and_user
+    monkeypatch.setattr(
+        extraction_service, "_llm_client", lambda *args, **kwargs: _Hop1ItemWarningClient()
+    )
+    image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
+
+    body = _extract(client, token, image_path).json()
+    assert not any("第 2 题" in warning for warning in body["warnings"]), body["warnings"]
+    second = body["questions"][1]
+    assert any("第 2 题" in warning for warning in second["warnings"]), second["warnings"]
+    assert second["incomplete"] is True
+
+
+class _Hop1MixedWarningsClient(MockLLMClient):
+    """第 1 跳 3 题 + 4 条警告（3 条带题号、1 条全局），第 2 跳原样回 3 题。
+
+    警告数（4）≠ 题数（3）正是原 bug 的形态：判据必须是"匹配不匹配得到题号"，
+    不能靠数量相等去猜。
+    """
+
+    _QUESTIONS = [
+        {"index": 1, "content_md": "第 1 题：求 $f(x)=x^2$ 的导数。", "question_type": "solve"},
+        {"index": 2, "content_md": "第 2 题：求 $g(x)=\\ln x$ 的定义域。", "question_type": "solve"},
+        {"index": 3, "content_md": "第 3 题：求 $h(x)=x^3$ 的极小值。", "question_type": "solve"},
+    ]
+    _WARNINGS = [
+        "整页光线偏暗，建议重拍",
+        "第1题公式被图片下边缘截断",
+        "第2题末行被裁掉",
+        "第3题题干模糊",
+    ]
+
+    def complete(self, operation, messages, **kwargs):
+        response = super().complete(operation, messages, **kwargs)
+        system = messages[0]["content"] if messages else ""
+        payload = {"questions": self._QUESTIONS, "warnings": []}
+        if VISION_STEP_TEXT in system:
+            payload["warnings"] = self._WARNINGS
+        return LLMResponse(
+            text=json.dumps(payload, ensure_ascii=False),
+            model=response.model,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            latency_ms=response.latency_ms,
+            finish_reason=response.finish_reason,
+        )
+
+
+def test_from_image_sinks_item_warnings_and_keeps_global_one(
+    client, db, token_and_user, monkeypatch
+) -> None:
+    """4 条警告 vs 3 题：带题号的 3 条下沉到各自卡片，全局 1 条留在顶层。"""
+    token, _ = token_and_user
+    monkeypatch.setattr(
+        extraction_service,
+        "_llm_client",
+        lambda *args, **kwargs: _Hop1MixedWarningsClient(),
+    )
+    image_path = upload(client, token, image_bytes(900, 700)).json()["image_path"]
+
+    body = _extract(client, token, image_path).json()
+    assert len(body["questions"]) == 3, body["questions"]
+    assert body["warnings"] == ["整页光线偏暗，建议重拍"], body["warnings"]
+    for index, question in enumerate(body["questions"], start=1):
+        assert any(f"第{index}题" in warning for warning in question["warnings"]), (
+            question["warnings"]
+        )
+        assert question["incomplete"] is True
+        assert not any("光线" in warning for warning in question["warnings"])
