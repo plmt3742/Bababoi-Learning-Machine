@@ -1,11 +1,11 @@
-"""注册/登录业务（05 §6.3）：查重、验密、失败限流、更新 last_login_at。
+"""注册/登录/改密业务（05 §6.3）：查重、验密、失败限流、更新 last_login_at、会话版本吊销。
 
 限流计数交给 `core/rate_limit`（limits 的 MovingWindow）。默认进程内存存储，
 只对单实例成立；多实例时把 `RATE_LIMIT_STORAGE_URL` 换成 redis:// 即可。
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -56,6 +56,13 @@ register_limiter = SlidingWindowLimiter(
     code=ErrorCode.AUTH_RATE_LIMITED,
     message="注册过于频繁，请稍后再试",
 )
+# 改密按账号限流（不需要 IP：请求已经带登录态）；只数失败，成功会清零。
+# 独立建、不复用 LoginRateLimiter：标识符带 change-password 命名空间。
+change_password_limiter = SlidingWindowLimiter(
+    "5/60 seconds",
+    code=ErrorCode.AUTH_RATE_LIMITED,
+    message="改密尝试次数过多，请稍后再试",
+)
 
 
 def register(session: Session, data: RegisterRequest, ip: str) -> User:
@@ -91,6 +98,44 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
 
     login_limiter.reset(ip)
     user.last_login_at = utcnow()
+    # 登录**不动** token_version：手机拍题 + 电脑做题是学生的真实形态，
+    # 登录就 +1 会让两台设备互相踢下线（定案单 2026-11-21 §3）。
     session.commit()
     session.refresh(user)
     return user
+
+
+def _bump_token_version(session: Session, user_id: int) -> int:
+    """把版本 +1 并返回新值（BE-028），调用方负责 commit。
+
+    必须用 `FOR UPDATE`（当前读）：MySQL RR 隔离级别下，本事务在 `login()` /
+    `get_current_user()` 里已经建立了一致性快照，普通 SELECT 会读回**旧版本**，
+    于是签出去的 token 版本落后、下一次请求立刻 401；SQLite 会忽略该子句（本来就有写锁）。
+
+    现在只有"全踢"动作（改密、未来的管理员强制下线）调用它——登录/登出都不能 +1。
+    """
+    current = session.scalar(
+        select(User.token_version).where(User.id == user_id).with_for_update()
+    )
+    new = (current or 0) + 1
+    session.execute(update(User).where(User.id == user_id).values(token_version=new))
+    return new
+
+
+def change_password(
+    session: Session, user: User, current_password: str, new_password: str
+) -> None:
+    """改密（BE-029）：验旧密码 → 写新散列 → 版本 +1 让所有设备重新登录。"""
+    key = f"user:{user.id}"
+    change_password_limiter.check("change-password", key)
+
+    if not verify_password(current_password, user.password_hash):
+        change_password_limiter.record("change-password", key)
+        raise ApiError(ErrorCode.AUTH_INVALID_CREDENTIALS, "当前密码不正确", 401)
+    if current_password == new_password:
+        raise ApiError(ErrorCode.VALIDATION_ERROR, "新密码不能与当前密码相同", 400)
+
+    user.password_hash = hash_password(new_password)
+    user.token_version = _bump_token_version(session, user.id)
+    session.commit()
+    change_password_limiter.reset("change-password", key)

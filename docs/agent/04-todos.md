@@ -130,8 +130,8 @@ ID:
 |---|---|---|---|---|---|---|
 | FE-024 | 个人设置页 + AI API Key UI | 霹雳马桶 | P1 | 无 | `/settings`；账号信息 + AI 设置；masked 回显；密码输入/显示切换；不写 localStorage/Pinia | DONE（PR #35；mock 先行，等 BE-020） |
 | BE-020 | 用户 AI Key 设置接口 | 人机 | P1 | FE-024 | `GET/PUT/DELETE /settings/ai`；加密存储；masked；SSRF 白名单；回退系统 Key；测试 | 已完成（PR #73 已合 `2f5b131`；2026-11-15 前端 review 整改：Key 解析失败落终态、缓存键用用户 model、strip 校验、未配置回默认 provider、`repr` 去 Key、日志 model 用实际客户端） |
-| FE-038 | 个人设置重置密码（凭旧密码） | 霹雳马桶 | P1 | 无 | `/settings` 重置密码卡：当前密码 + 新密码 + 确认；8–72 字节、新旧不得相同；成功清会话回登录并提示；404/405 降级 | DONE（mock 先行；typecheck/lint/test 通过，等 BE-029） |
-| BE-029 | 重置密码接口（凭旧密码） | 人机 | P1 | BE-003 | `POST /auth/change-password`；校验旧密码；更新 bcrypt hash；成功后吊销旧 token（建议 token_version）；限流；测试 | TODO（口径见 26 号单 §2） |
+| FE-038 | 个人设置重置密码（凭旧密码） | 霹雳马桶 | P1 | 无 | `/settings` 重置密码卡：当前密码 + 新密码 + 确认；至少 8 位且 ≤72 字节、新旧不得相同；成功清会话回登录并提示；404/405 降级 | DONE（前端 #99 已合 `e8a5629`；后端 BE-029 随本 PR） |
+| BE-029 | 重置密码接口（凭旧密码） | 人机 | P1 | BE-003 | `POST /auth/change-password`；校验旧密码；更新 bcrypt hash；成功后吊销旧 token（token_version +1）；限流；测试 | 待合（随 #103；验旧密码、至少 8 位且 ≤72 字节、新旧不同、失败 5 次/分钟/账号；成功后全设备重新登录） |
 | FE-039 | 登录页忘记密码 + 管理员授权说明 | 霹雳马桶 | P1 | 无 | 登录页「忘记密码？」展开说明；不提交表单；登录/注册切换时收起 | DONE |
 | BE-030 | 管理员重置密码（admin P1） | 人机 | P1 | ADM-002/004 | 管理员核验身份后重置；后续 `POST /admin/users/{id}/reset-password`；审计日志；吊销 token；学生端不调用 | BLOCKED（管理端未建；当前人工改库） |
 
@@ -170,6 +170,7 @@ ID:
 | BE-022 | 同组公式结构去重 | 人机 | P1 | BE-021 | 三段并发的遗留：只拒"归一化后逐字相同"，所以两格可能出同一个函数式（实测第 1 格 `2x-a\ln x`、第 3 格同一函数式只多挂一个小问）。做法是抽题干里的 `$...$` 数学式做规范化比较，判"结构相同"后**只给 warnings 提示、不判死**（误判代价是让某张卡变成不可用）。P0 先靠 `too_easy`/`too_hard` 人工反馈兜（16 号 §三） | TODO |
 | BE-024 | 识图拆两步（转录 `adaptive` + 结构化 `disabled`） | 人机 | P1 | BE-014 | 本期采用（Issue #47）：转录开思考、结构化关思考；一次 HTTP；`chapter` 只能第 1 跳给；空位统一 `___`；`ai_call_logs` 两行；vision max_tokens ≥16000；超时 ≥180s；前端 loading 已接；验收用概率表述（四张图各 2 次，末题至少 1 次返回 + incomplete） | 已完成（#67 已合 `be4dcf8`；两跳 + 两行日志 + 180s + 第 1 跳警告下沉；结果缓存 #71 已合（`7ab9cf9`），staging 真图验证 5 条 / 12.9s / 第二次 0.07s 命中：键含 model，请求 `force_refresh`（60s 冷却，调用前占用、失败也计），出参 `cached`/`extracted_at`；补列走前向迁移 `c4e8a1d62f37`） |
 | BE-027 | 排队任务取消 | 人机 | P1 | BE-006/007 | `POST /tasks/{id}/cancel`；只认 `queued` → `canceled`，`running` 不打断；取消后同一段可重新入队 | 已完成（#74 已合 `e746c09`；含 #75 error 字段清理；6 条测试，无迁移） |
+| BE-028 | 会话吊销（改密全踢）+ 改密接口（BE-029） | 人机 | P0 | BE-003 | `users.token_version` 列（迁移前向补列，历史行回填 0）；JWT 加 `ver`；**登录/登出不动**（多设备共存），改密/强制下线 +1；新增 `POST /auth/change-password`（验旧密码、8 位/72 字节、新旧不同、失败 5 次/分钟）；老 token 无 `ver` 按 0 兼容 | 待合（2026-11-21 按定案单 §3 改口径；`_bump_token_version` 改 `FOR UPDATE` 当前读；会话 12 条 + 迁移 1 条测试；**上线前需在 MySQL 8 做一次并发改密/当前读专项验证**（SQLite 下 `FOR UPDATE` 是 no-op）） |
 | BE-023 | ~~密页分块识图~~ **已取消** | 人机 | — | BE-014 | 前提被实测推翻：截断不是"一页题太多"造成的，而是 `reasoning_content` 吃光了 `max_tokens`。关掉思考（`VISION_THINKING=false`）后整页 6 题只要 861 输出 token / 3.9s，余量 89%，不需要分块。留这条记录是为了防止有人按原理由重做。**11-07 补：`thinking.type` 实测还有第三档 `adaptive`（代码里只写了 enabled/disabled），`adaptive` 比 `enabled` 省 35% 时间且照样在正文标 `[不清]`** | 取消 |
 | BE-011 | MySQL 兼容性修复 | 人机 | P0 | BE-002 | 迁移在 MySQL 通过；utf8mb4；JSON/datetime/索引检查 | TODO |
 | BE-017 | DeepSeek 图片文本提取 spike | 人机 | P0 | BE-005 | 上传单题/多题大学理科题图，`deepseek-flash` 返回 1..N 道题文本（公式 LaTeX）；记录条目完整率、延迟/成本/失败模式；不做 bbox | 已完成（合成图 5 类 + 三张实拍；含图题 `has_figure` 正确且不编造、无题图返回空数组+warning；**实拍 14 条里按"原样过严格入库校验"算是 12/14=86%，这个数触发了 ADR-004 §6 的复审，处置见 §6.1：识图交付文本、结构不自洽就降级**；**延迟/成本的分场景数据在 05 §6.8，不要引用单点**；探针脚本随 PR B 进 `backend/scripts/`） |

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String
+from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, BigIntPK, TimestampMixin, utcnow
@@ -29,4 +29,12 @@ class User(Base, TimestampMixin):
     # 建号即有值（= 建号时间），迁移老行由 c8e1b6a4d902 回填；接口仍留 created_at 兜底。
     preference_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=utcnow
+    )
+    # BE-028：token 版本号，JWT 的 `ver` 声明必须与它一致才放行。
+    # 只在"全踢"动作时 +1：改密（BE-029）、未来的管理员强制下线。
+    # 登录、登出都**不**动它——学生手机拍题 + 电脑做题，登录就 +1 会互相踢下线
+    # （定案单 2026-11-21 §3）；登出只清前端 token。
+    # 老 token 没有 `ver` 声明，按 0 处理：部署后旧 token 在用户改密前仍然有效。
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
