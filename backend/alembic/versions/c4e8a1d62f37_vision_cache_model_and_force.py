@@ -10,6 +10,11 @@ SQLite 不能直接改约束，走 batch（重建表）；MySQL 上就是 ADD CO
 降级会把"同图同版本、不同 model"的重复行合并成最新一行，否则缩回 5 列唯一键时撞键。
 
 `b7c2f4a91d30` 已接在 `c8e1b6a4d902` 后面；本文件跟着它走，不用动。
+
+2026-11-27 例外：本条就地改了 MySQL 分支（`batch.drop_constraint` 在 MySQL 上找不到被反射成
+index 的唯一键）。安全前提只有两条：① MySQL 上没有库能通过旧版——旧版正是在这里挂的；
+② SQLite 分支逐字符未变，schema 产物与旧版完全一致。MySQL 上线后若再发现迁移问题，
+**必须新开一条前向迁移，不许再就地改本条**。
 """
 from __future__ import annotations
 

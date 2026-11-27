@@ -86,3 +86,42 @@ jobs:
           else
             echo "No test script in frontend/package.json; skipping"
           fi
+
+  # MySQL-only 迁移分支在 SQLite 测试里是 0 覆盖：这里用真库把整条链跑一遍（含降级）。
+  migrations-mysql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bababoi
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      ALEMBIC_DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/bababoi?charset=utf8mb4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-network-caching: true
+      - name: Install dependencies
+        run: uv sync --frozen --group dev
+      - name: Upgrade head (fresh MySQL)
+        run: uv run alembic upgrade head
+      - name: Downgrade to base
+        run: uv run alembic downgrade base
+      - name: Upgrade head again
+        run: uv run alembic upgrade head
+      - name: Single head
+        run: test "$(uv run alembic heads | grep -c '(head)')" -eq 1
