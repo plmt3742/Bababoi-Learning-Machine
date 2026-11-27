@@ -35,10 +35,11 @@ ADR = Architecture Decision Record（架构决策记录）。用来记录**不�
 | ADR-002 | MVP 范围与 P0/P1/P2 | Proposed | 2026-11-04 |
 | ADR-003 | 图片输入：DeepSeek 多模态直读，不做独立 OCR | Accepted | 2026-11-04 |
 | ADR-004 | 图片录入改为「文本提取 + 多题条目」 | Accepted | 2026-11-05 |
-| ADR-005 | 独立 admin 管理端（P1 内部运维台） | Accepted | 2026-11-06 |
+| ADR-005 | 独立 admin 管理端（P1 内部运维台；演示范围由 ADR-009 修订） | Accepted | 2026-11-06 |
 | ADR-006 | 生成链路改为「三段并发，每段 1 道」 | Accepted | 2026-11-06 |
 | ADR-007 | 用户自带 AI API Key（BYOK）设置 | Accepted | 2026-11-06 |
 | ADR-008 | 生成题题型一致性改为用户设置开关 | Accepted | 2026-11-07 |
+| ADR-009 | 管理端进入 11.29 演示 | Accepted | 2026-11-27 |
 | ADR-010 | 范围边界：角色 / 题型 / 学科 / 学段 | Accepted | 2026-11-27 |
 
 ## 写 ADR 的最小结构

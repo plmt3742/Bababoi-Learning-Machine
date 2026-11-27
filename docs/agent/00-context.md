@@ -69,7 +69,7 @@ AI 分析（知识点、题型、错误原因）
 - 后端待办：BE-020 BYOK、BE-024 两步识图（PR #67 待合）、BE-011 MySQL 兼容、OPS-001/002/005（compose/staging）
 - 前端：FE-032~035 已完成（PR #68 已合）；时间解析统一到 `utils/time.ts`（questions/tasks/practice/auth 是 UTC naive，drafts/stats 带 Z）；设置页偏好/AI 面板 404 降级；录入页支持 Ctrl/⌘+Enter；FE-017 375/768/1366 截图验收通过
 - 联调实测（2026-11-13，真实后端 + 种子数据）：草稿 204/200/409/204、统计 accuracy 0.667 + 7 天稀疏趋势、练习/任务正常、图片上传 201 + from-image 4 条、偏好默认 true 且改后刷新仍生效
-- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
+- 管理端：ADR-005 + ADR-009；`admin/` 进入 11.29 演示（范围见 `28-admin-console.md`）；BYOK 见 ADR-007，仍为 P1
 - 范围/交互/验收以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 - CI：`.github/workflows/ci.yml` 已存在；frontend job 跑 lint/typecheck/build/test；backend 跑 ruff/pytest + OpenAPI 快照防漂移（#65）
 - 图片录入：用户裁剪 + 图片转文本 + 多题条目（ADR-004）；识图三项初判可空，空结果 200 + `questions[]`
