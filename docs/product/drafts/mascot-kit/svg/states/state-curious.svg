@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-labelledby="mascot-state-curious-title">
+  <title id="mascot-state-curious-title">小纸 · 好奇 / 空状态</title>
+
+  <defs>
+    <clipPath id="mascot-state-curious-sheet">
+      <path d="M119 80 L251 80 L305 134 L305 306 Q305 330 281 330 L119 330 Q95 330 95 306 L95 104 Q95 80 119 80 Z"/>
+    </clipPath>
+    <filter id="mascot-state-curious-grain" x="-2%" y="-2%" width="104%" height="104%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="3" seed="11" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0"/>
+    </filter>
+    <filter id="mascot-state-curious-fiber" x="-2%" y="-2%" width="104%" height="104%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="7" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0"/>
+    </filter>
+  </defs>
+
+  <!-- 纸叠与接触阴影 -->
+  <ellipse cx="200" cy="349" rx="94" ry="10" fill="#CFD3DA" opacity="0.18"/>
+  <ellipse cx="200" cy="347" rx="76" ry="6" fill="#CFD3DA" opacity="0.28"/>
+  <rect x="105" y="92" width="210" height="250" rx="24" fill="#F3F4F6" stroke="#CFD3DA" stroke-width="3"/>
+
+  <!-- 纸面主体 -->
+  <path d="M119 80 L251 80 L305 134 L305 306 Q305 330 281 330 L119 330 Q95 330 95 306 L95 104 Q95 80 119 80 Z" fill="#FFFFFF"/>
+
+  <!-- inner paper thickness -->
+  <g clip-path="url(#mascot-state-curious-sheet)">
+    <rect x="95" y="316" width="210" height="14" fill="#E4E6EA" opacity="0.55"/>
+    <rect x="291" y="80" width="14" height="250" fill="#E4E6EA" opacity="0.55"/>
+  </g>
+
+  <!-- 折角：被订正过的那一面向内折 -->
+  <!-- 折角在纸面上留下的薄影 -->
+  <g clip-path="url(#mascot-state-curious-sheet)" opacity="0.35">
+    <path d="M251 80 L305 134 L251 134 Z" fill="#CFD3DA" transform="translate(-4 4)"/>
+  </g>
+  <path d="M251 80 L305 134 L251 134 Z" fill="#165DFF"/>
+  <path d="M251 80 L251 134 L305 134" fill="none" stroke="#0E42D2" stroke-width="3.5"/>
+
+  <!-- 纸纹 -->
+  <g clip-path="url(#mascot-state-curious-sheet)" opacity="0.14">
+    <rect x="95" y="80" width="210" height="250" filter="url(#mascot-state-curious-grain)"/>
+  </g>
+
+  <g clip-path="url(#mascot-state-curious-sheet)" opacity="0.04">
+    <rect x="95" y="80" width="210" height="250" filter="url(#mascot-state-curious-fiber)"/>
+  </g>
+
+  <!-- 纸面轮廓 -->
+  <path d="M119 80 L251 80 L305 134 L305 306 Q305 330 281 330 L119 330 Q95 330 95 306 L95 104 Q95 80 119 80 Z" fill="none" stroke="#1B1F24" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- 表情：更大的眼睛与腮红，小圆嘴，头顶一个蓝色问号 -->
+  <ellipse cx="144" cy="190" rx="20" ry="10" fill="#EDF3FF" opacity="0.9"/>
+  <ellipse cx="256" cy="190" rx="20" ry="10" fill="#EDF3FF" opacity="0.9"/>
+  <rect x="155" y="136" width="20" height="36" rx="10" fill="#1B1F24"/>
+  <rect x="225" y="136" width="20" height="36" rx="10" fill="#1B1F24"/>
+  <rect x="160" y="143" width="4" height="8" rx="2" fill="#FFFFFF" opacity="0.92"/>
+  <rect x="230" y="143" width="4" height="8" rx="2" fill="#FFFFFF" opacity="0.92"/>
+  <ellipse cx="200" cy="204" rx="9" ry="11" fill="none" stroke="#1B1F24" stroke-width="6.5"/>
+
+  <!-- 腹部三点：一道错题，三道练习 -->
+  <circle cx="180" cy="250" r="6" fill="#CFD3DA"/>
+  <circle cx="200" cy="250" r="6" fill="#CFD3DA"/>
+  <circle cx="220" cy="250" r="6" fill="#165DFF"/>
+
+  <!-- 横线纸 -->
+  <path d="M130 293 H270" stroke="#E4E6EA" stroke-width="3" stroke-linecap="round"/>
+  <path d="M130 307 H270" stroke="#E4E6EA" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 状态标记：问号 -->
+  <path d="M294 42 Q294 26 308 26 Q322 26 322 40 Q322 50 308 54 L308 60" fill="none" stroke="#165DFF" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="308" cy="69" r="3.8" fill="#165DFF"/>
+</svg>

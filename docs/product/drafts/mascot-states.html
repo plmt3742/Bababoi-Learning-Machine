@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小纸 · 表情与状态 · Bababoi Learning Machine</title>
+<style>
+  :root {
+    --surface: #ffffff;
+    --subtle: #fbfbfc;
+    --bg: #f3f4f6;
+    --ink-1: #1b1f24;
+    --ink-2: #414a57;
+    --ink-3: #5f6775;
+    --border: #e4e6ea;
+    --border-strong: #cfd3da;
+    --primary: #165dff;
+    --primary-hover: #0e42d2;
+    --primary-soft: #edf3ff;
+    --success: #1b6e43;
+    --success-soft: #eef6f0;
+    --danger: #b42318;
+    --danger-soft: #fcf2f1;
+    --radius-frame: 10px;
+    --radius-card: 8px;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 40px 24px 64px;
+    background: var(--bg);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    max-width: 1140px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-frame);
+    box-shadow: 0 1px 2px rgba(20, 28, 45, 0.05), 0 14px 40px rgba(20, 28, 45, 0.05);
+    overflow: hidden;
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: 56px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+  .dots {
+    display: grid;
+    grid-template-columns: repeat(3, 4px);
+    grid-template-rows: repeat(3, 4px);
+    gap: 3px;
+    flex: none;
+  }
+
+  .dots i { width: 4px; height: 4px; border-radius: 0.6px; background: var(--border-strong); }
+  .dots i:nth-child(1), .dots i:nth-child(5), .dots i:nth-child(9) { background: var(--primary); }
+
+  .lockup b { font-weight: 600; font-size: 14px; white-space: nowrap; }
+  .lockup span { color: var(--ink-3); font-size: 14px; white-space: nowrap; }
+  .bar__meta { color: var(--ink-3); font-size: 14px; white-space: nowrap; }
+
+  .sheet { padding: 0 32px; }
+  section { padding: 40px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: 0; }
+
+  .kicker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--ink-3);
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  .kicker::before { content: ''; width: 6px; height: 6px; flex: none; background: var(--primary); }
+
+  h1 { margin: 0 0 12px; font-size: 28px; line-height: 36px; font-weight: 650; letter-spacing: -0.01em; }
+  h2 { margin: 0 0 18px; font-size: 18px; line-height: 28px; font-weight: 650; }
+  h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; font-weight: 650; }
+
+  .lead { max-width: 48em; margin: 0 0 8px; color: var(--ink-2); font-size: 16px; line-height: 28px; }
+  .meta { margin: 0; color: var(--ink-3); font-size: 14px; line-height: 22px; }
+
+  .states {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .state {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+  }
+
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 190px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--subtle);
+    background-image: radial-gradient(circle, rgba(65, 74, 87, 0.1) 0.6px, transparent 0.8px);
+    background-size: 18px 18px;
+  }
+
+  .stage img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
+
+  .state__body { padding: 14px 16px 16px; }
+  .state__body p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 20px; }
+
+  .state__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    margin-bottom: 8px;
+    padding: 0 7px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+
+  .state--ok .state__label { color: var(--success); background: var(--success-soft); border-color: #cfe5d7; }
+  .state--error .state__label { color: var(--danger); background: var(--danger-soft); border-color: #efd1cd; }
+  .state--accent .state__label { color: var(--primary-hover); background: var(--primary-soft); border-color: #cfddff; }
+
+  .state__copy {
+    margin-top: 8px !important;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+    color: var(--ink-3) !important;
+    font-size: 12px !important;
+    line-height: 18px !important;
+  }
+
+  table { width: 100%; margin-top: 4px; border-collapse: collapse; font-size: 14px; line-height: 22px; }
+  th, td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { color: var(--ink-3); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  td:first-child { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+  code { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 40px;
+  }
+
+  .rules h3 { margin-bottom: 6px; }
+  .rules ul { margin: 0; padding-left: 18px; color: var(--ink-2); }
+  .rules li + li { margin-top: 5px; }
+
+  .ladder { display: flex; align-items: flex-end; gap: 28px; margin-top: 8px; }
+  .size { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .size img { display: block; }
+  .size span { color: var(--ink-3); font-family: var(--font-mono); font-size: 11px; }
+
+  .foot { padding-top: 16px; color: var(--ink-3); font-size: 13px; line-height: 20px; }
+  .note { margin: 16px 0 0; color: var(--ink-3); font-size: 13px; line-height: 20px; }
+
+  @media (max-width: 980px) {
+    .states { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .stage { height: 180px; }
+  }
+
+  @media (max-width: 680px) {
+    .bar { padding: 0 16px; }
+    .lockup span, .bar__meta { display: none; }
+    .sheet { padding: 0 16px; }
+    .states { grid-template-columns: 1fr; }
+    .rules { grid-template-columns: 1fr; gap: 18px; }
+    .ladder { flex-wrap: wrap; gap: 20px; }
+    th, td { padding-right: 8px; }
+    code { overflow-wrap: anywhere; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="bar">
+    <div class="lockup">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>Bababoi 错题学习机</b>
+      <span>品牌资产 · 表情与状态</span>
+    </div>
+    <div class="bar__meta">v2 · 2026</div>
+  </div>
+
+  <div class="sheet">
+    <section>
+      <p class="kicker">吉祥物</p>
+      <h1>小纸 · 表情与状态</h1>
+      <p class="lead">以去手脚的主体版为唯一身体基准：纸面、折角、三点、横线和腮红都不动，只改眼睛、嘴型和 2–4 个强调标记。表情服务产品状态，不做表情包。</p>
+      <p class="meta">5 个状态 · 400 × 400 画布 · 5px 轮廓 / 6.5px 表情线 · 48px 以下使用标记</p>
+    </section>
+
+    <section>
+      <h2>状态一览</h2>
+      <div class="states">
+        <article class="state">
+          <div class="stage">
+            <img src="../../../frontend/src/assets/mascot/mascot-body.svg" width="150" height="150" alt="小纸默认状态：纸面主体，完整眼睛，微笑">
+          </div>
+          <div class="state__body">
+            <span class="state__label">DEFAULT</span>
+            <h3>默认</h3>
+            <p>登录、首页、设置，以及没有特定状态的普通页面。</p>
+            <p class="state__copy">继续你的错题闭环。</p>
+          </div>
+        </article>
+
+        <article class="state state--accent">
+          <div class="stage">
+            <img src="../../../frontend/src/assets/mascot/states/state-curious.svg" width="150" height="150" alt="小纸好奇状态：小圆嘴，头顶蓝色问号">
+          </div>
+          <div class="state__body">
+            <span class="state__label">EMPTY</span>
+            <h3>好奇</h3>
+            <p>错题列表空、统计无数据、没有草稿、首次进入。</p>
+            <p class="state__copy">还没有错题，先录入一道。</p>
+          </div>
+        </article>
+
+        <article class="state state--accent">
+          <div class="stage">
+            <img src="../../../frontend/src/assets/mascot/states/state-thinking.svg" width="150" height="150" alt="小纸思考状态：视线偏右上，嘴压平，头顶三点">
+          </div>
+          <div class="state__body">
+            <span class="state__label">ANALYZING</span>
+            <h3>思考</h3>
+            <p>分析中、生成中、校验中，以及任务中心的运行中。</p>
+            <p class="state__copy">正在分析知识点…</p>
+          </div>
+        </article>
+
+        <article class="state state--ok">
+          <div class="stage">
+            <img src="../../../frontend/src/assets/mascot/states/state-happy.svg" width="150" height="150" alt="小纸完成状态：眼睛微眯外倾，嘴角放宽，三颗四角星">
+          </div>
+          <div class="state__body">
+            <span class="state__label">SUCCESS</span>
+            <h3>完成</h3>
+            <p>生成完成、练习正确、掌握度提升、连续复习达成。</p>
+            <p class="state__copy">三张同类题已经准备好。</p>
+          </div>
+        </article>
+
+        <article class="state state--error">
+          <div class="stage">
+            <img src="../../../frontend/src/assets/mascot/states/state-error.svg" width="150" height="150" alt="小纸失败状态：眼睛微收内倾，嘴角向下，额头一滴汗">
+          </div>
+          <div class="state__body">
+            <span class="state__label">ERROR</span>
+            <h3>失败</h3>
+            <p>分析失败、生成失败、网络错误、图片识别失败。</p>
+            <p class="state__copy">这次没跑通，重试一下。</p>
+          </div>
+        </article>
+      </div>
+      <p class="note">可选动效：思考态的第三颗蓝点按 1.8s 呼吸；完成态三颗星错峰 80ms 淡入。不要给整只角色加弹跳；所有动效尊重 <code>prefers-reduced-motion</code>。</p>
+    </section>
+
+    <section>
+      <h2>状态映射</h2>
+      <table>
+        <thead>
+          <tr><th>产品状态</th><th>图形</th><th>使用位置</th><th>文案要点</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>idle / 默认</td><td><code>mascot-body.svg</code></td><td>登录、首页、设置、介绍页</td><td>保持安静，不抢题干和主操作</td></tr>
+          <tr><td>empty / 空</td><td><code>states/state-curious.svg</code></td><td>空错题本、空统计、无草稿</td><td>告诉用户下一步能做什么</td></tr>
+          <tr><td>analyzing / generating / validating</td><td><code>states/state-thinking.svg</code></td><td>详情页 AI 面板、任务中心运行中</td><td>说明当前阶段和大概等待时间</td></tr>
+          <tr><td>success / 完成</td><td><code>states/state-happy.svg</code></td><td>生成完成、练习正确、掌握度提升</td><td>确认结果，并给出下一步</td></tr>
+          <tr><td>error / 失败</td><td><code>states/state-error.svg</code></td><td>分析/生成/识图/网络失败</td><td>说明原因，保留输入，提供重试</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>表情参数</h2>
+      <table>
+        <thead>
+          <tr><th>部件</th><th>基准</th><th>允许的变化</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>眼睛</td><td>20 宽；默认/好奇 36 高，思考 34，完成/失败 28</td><td>思考上移 6、右移 4；完成/失败下移 3；倾斜 ±10°</td></tr>
+          <tr><td>眼高光</td><td>4 × 8，跟随眼睛倾斜</td><td>所有状态固定，不单独移动</td></tr>
+          <tr><td>腮红</td><td>(144,190) / (256,190)，20 × 10</td><td>所有状态固定，不移动、不改色</td></tr>
+          <tr><td>腹部三点</td><td>r6，中心 (180 / 200 / 220, 250)</td><td>所有状态固定，第三颗蓝点不换位置</td></tr>
+          <tr><td>嘴</td><td>中心 (200,204)，6.5px 描边</td><td>默认 44 宽；开心 52 宽；好奇小圆；思考平线；失败倒弧</td></tr>
+          <tr><td>强调标记</td><td>头顶或两侧</td><td>问号、三点、三颗四角星、一滴汗；每个状态最多 3 个</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>使用规则</h2>
+      <div class="rules">
+        <div>
+          <h3>必须保持</h3>
+          <ul>
+            <li>纸面、折角、三颗点、横线、轮廓和腮红位置在所有状态中一致。</li>
+            <li>只改变眼睛高度/倾斜、嘴型和少量强调标记，不新增肢体。</li>
+            <li>线条：轮廓 5px、表情线 6.5px、折角与纸纹 3–3.5px；不要单独加粗某一个状态。</li>
+            <li>失败状态必须同时有可读文案和重试按钮，表情只做辅助。</li>
+            <li>状态表情建议 ≥ 120px；96px 以下只保留默认表情或标记，状态靠文案和语义色。</li>
+            <li>48px 及以下使用 <code>mascot-mark.svg</code>；状态靠文案和语义色，不靠小图表情。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>不要做</h3>
+          <ul>
+            <li>不要把手脚、铅笔、手指或额外配饰加回主体版。</li>
+            <li>不要用夸张表情包、拟人五官或新的高饱和色。</li>
+            <li>不要让表情替代错误说明，也不要用表情暗示 AI 结果一定正确。</li>
+            <li>不要给每个状态做一套不同的身体；身体始终是同一张纸。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>尺寸</h2>
+      <div class="ladder">
+        <div class="size">
+          <img src="../../../frontend/src/assets/mascot/mascot-body.svg" width="240" height="240" alt="240px 主体版">
+          <span>240px</span>
+        </div>
+        <div class="size">
+          <img src="../../../frontend/src/assets/mascot/mascot-body.svg" width="96" height="96" alt="96px 主体版">
+          <span>96px</span>
+        </div>
+        <div class="size">
+          <img src="../../../frontend/src/assets/mascot/mascot-mark.svg" width="48" height="48" alt="48px 纸面标记">
+          <span>48px · 标记</span>
+        </div>
+        <div class="size">
+          <img src="../../../frontend/src/assets/mascot/mascot-mark.svg" width="32" height="32" alt="32px 纸面标记">
+          <span>32px · 标记</span>
+        </div>
+        <div class="size">
+          <img src="../../../frontend/src/assets/mascot/mascot-mark.svg" width="24" height="24" alt="24px 纸面标记">
+          <span>24px · 标记</span>
+        </div>
+      </div>
+      <p class="foot">状态文件只新增表情与强调标记；身体路径、折角、三点和横线与 <code>mascot-body.svg</code> 保持一致。默认主体可下到 96px；状态表情建议 ≥ 120px。所有 SVG 透明背景，不含外链字体和位图。3D 三渲二交互版见 <a href="mascot-3d/index.html">mascot-3d/index.html</a>。</p>
+    </section>
+  </div>
+</div>
+</body>
+</html>
