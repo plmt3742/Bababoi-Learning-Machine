@@ -56,7 +56,6 @@ def client(db, tmp_path, monkeypatch):
     # 上传的图落到临时目录：不隔离的话测试会往仓库 backend/uploads/ 里写真文件
     monkeypatch.setattr(settings, "upload_dir", (tmp_path / "uploads").as_posix())
     login_limiter.clear()
-    login_limiter.clear()
     register_limiter.clear()
     change_password_limiter.clear()
     with TestClient(app) as c:

@@ -17,7 +17,7 @@ from app.core.security import PASSWORD_MAX_BYTES, verify_password
 from app.db.base import utcnow
 from app.models import User
 from app.services.auth_service import LoginRateLimiter
-from tests.conftest import TEST_SECRET, register_user
+from tests.conftest import TEST_SECRET, auth_headers, register_user
 
 
 def _register(client, username: str = "小明_01", password: str = "p@ssw0rd9") -> dict:
@@ -200,15 +200,22 @@ def test_limit_identifiers_have_business_namespace(client, monkeypatch) -> None:
 
         monkeypatch.setattr(SlidingWindowLimiter, method, make_spy(method, original))
 
-    _register(client, "namespace_01")
+    data = _register(client, "namespace_01")
     client.post(
         "/api/v1/auth/login", json={"username": "namespace_01", "password": "wrong-pass-1"}
+    )
+    client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "wrong-pass-1", "new_password": "new-p@ssw0rd9"},
+        headers=auth_headers(data["access_token"]),
     )
 
     namespaced = {(method, identifiers[0]) for method, identifiers in seen if identifiers}
     assert ("hit", "register") in namespaced, "注册要带 register 前缀"
     assert ("check", "login") in namespaced, "登录要带 login 前缀"
     assert ("record", "login") in namespaced, "登录失败计数也要带 login 前缀"
+    assert ("check", "change-password") in namespaced, "改密要带 change-password 前缀"
+    assert ("record", "change-password") in namespaced, "改密失败计数也要带 change-password 前缀"
 
 
 def test_rate_limit_config_rejects_non_positive(monkeypatch) -> None:
