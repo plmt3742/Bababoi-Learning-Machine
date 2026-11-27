@@ -194,6 +194,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 - 其他业务接口一律 403 `PASSWORD_CHANGE_REQUIRED`。
 - 前端路由守卫读取 `must_change_password`（登录响应或 `/auth/me`），跳转 `/settings` 强制改密；`/auth/me` 必须放行，否则刷新/恢复会话会把用户踢回登录页。
 - 改密成功后清 `must_change_password` 与 `temp_password_expires_at`，`token_version += 1`，当前会话也需用新密码重新登录。
+- **发布顺序（11-28 定）**：前端「守卫 + 拦截器特判」先上（flag 全 false，零风险）；`/forgot-password` 页面可以先做但**先不挂登录页入口**（学生提交接口在 BE-030，提前挂链接会 404），BE-030 上线后再开入口。后端「第一次写 `must_change_password=true`」必须与全局门禁 + 三端点白名单同一 PR；门禁已随 #124 落地，若 #124 未合则 BE-030 一并带上——拆开就是假门禁或空跑。
 
 ## 6. 数据模型
 
