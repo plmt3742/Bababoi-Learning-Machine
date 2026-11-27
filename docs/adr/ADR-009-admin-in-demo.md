@@ -4,7 +4,7 @@
 - 日期：2026-11-27
 - 决策人：霹雳马桶、人机
 - 相关任务：ADM-001 ~ ADM-012
-- 相关文档：`docs/agent/28-admin-console.md`、`docs/adr/ADR-005-admin-console.md`、`docs/agent/04-todos.md`
+- 相关文档：`docs/agent/28-admin-console.md`、`docs/adr/ADR-005-admin-console.md`、`docs/adr/ADR-010-scope-roles-types-subjects-stages.md`、`docs/agent/04-todos.md`
 
 ## 1. 背景
 
@@ -31,6 +31,7 @@ ADR-005 曾决定 `admin/` 只做 P1 内部运维台，不进入 11.29 学生演
 - 管理端是独立 `admin/` 应用，使用 `/api/v1/admin/*` 与 `require_admin`，不放进学生端。
 - 线上密码重置使用正常注册字段（username/可选 email/password），不新增姓名/学号。
 - 临时密码只在管理端显示一次，24h 有效，学生登录后强制改密；不做邮件/短信通知、学生状态页。
+- 密码重置细节以 ADR-010 §2.1 与 28 号文档 §5 为准：提交固定 202 泛化响应、改密门禁 403 `PASSWORD_CHANGE_REQUIRED`、临时密码可重新生成。
 
 ## 3. 后果
 
@@ -55,7 +56,7 @@ ADR-005 曾决定 `admin/` 只做 P1 内部运维台，不进入 11.29 学生演
 | 权限绕过 | `require_admin` 查 DB；学生 token 403；测试 401/403 |
 | 误删数据 | 所有删除软删；审计与写操作同事务 |
 | 临时密码泄露 | 只显示一次；不写日志/审计/数据库明文；24h；强制改密 |
-| 管理端/学生端 session 互踢 | 独立 token key、独立登录页 |
+| 管理端/学生端 session 互踢 | 独立 localStorage key、独立登录页；JWT 与 `token_version` 共用同一校验链 |
 
 ## 4. 备选方案
 
@@ -78,6 +79,7 @@ ADR-005 曾决定 `admin/` 只做 P1 内部运维台，不进入 11.29 学生演
 
 - 详细方案：`docs/agent/28-admin-console.md`
 - 原管理端 ADR：`docs/adr/ADR-005-admin-console.md`
+- 角色/密码重置边界：`docs/adr/ADR-010-scope-roles-types-subjects-stages.md`
 - 任务：`docs/agent/04-todos.md` §1.6
 - 架构：`docs/agent/05-architecture.md` §6.10
 - 目录：`docs/agent/06-file-tree.md`

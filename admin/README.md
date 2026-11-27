@@ -1,4 +1,4 @@
-# admin · 内部运维台（P1 占位）
+# admin · 内部运维台（11.29 演示，占位）
 
 > 状态：规划中，尚未开始业务代码。
 > 决策：`docs/adr/ADR-005-admin-console.md` + `docs/adr/ADR-009-admin-in-demo.md`。
@@ -28,7 +28,7 @@ admin/
 │   ├── main.ts
 │   ├── App.vue
 │   ├── api/              # client、admin.ts、types.ts
-│   ├── router/           # /admin/login、/admin、/admin/users...
+│   ├── router/           # route path：/login、/、/users...（base=/admin/，实际 URL 为 /admin/login）
 │   ├── stores/auth.ts    # 独立 localStorage key（bababoi:admin-token）
 │   ├── layouts/AdminShell.vue
 │   ├── components/       # KPI card、DataTable、StatusTag、ConfirmWithReason...
@@ -36,19 +36,19 @@ admin/
 └── README.md
 ```
 
-## 页面与优先级
+## 页面与演示档位
 
-| 页面 | 内容 | 优先级 |
+| 页面 | 内容 | 演示档位 |
 |---|---|---|
-| 登录 | 管理员账号登录；非 admin 拒绝 | P1 |
-| 总览 | 4 个 KPI + AI 成功率/延迟 + 失败任务数 | P1 |
-| 用户 | 列表、搜索、禁用/启用、强制下线 | P1 |
-| 密码申请 | 线上申请列表、审批/拒绝、临时密码一次性展示 | P1 |
-| 内容 | 错题/生成题列表与详情；软删除/隐藏/标记 | P1 |
-| 任务 | 队列列表、状态筛选、失败重试/排队取消 | P1 |
-| AI 日志 | operation/model/status/latency/tokens/error；raw 单独接口 | P1 |
-| 审计 | admin 删除/重试/禁用/审批/敏感读取记录 | P1 |
-| 系统 | 健康、版本/环境、只读配置 | P1 |
+| 登录 | 管理员账号登录；非 admin 拒绝 | 必须 |
+| 总览 | 4 个 KPI + AI 成功率/延迟 + 失败任务数 | 必须 |
+| 用户 | 列表、搜索、禁用/启用、强制下线 | 目标（列表/禁用） |
+| 密码申请 | 线上申请列表、审批/拒绝、临时密码一次性展示与重新生成 | 目标 |
+| 内容 | 错题/生成题列表与详情；软删除/隐藏/标记 | 演示后 |
+| 任务 | 队列列表、状态筛选、失败重试/排队取消 | 必须 |
+| AI 日志 | operation/model/status/latency/tokens/error；raw 单独接口 | 必须 |
+| 审计 | admin 删除/重试/禁用/审批/敏感读取记录 | 必须（列表） |
+| 系统 | 健康、版本/环境、只读配置 | 必须 |
 
 ## 后端依赖（尚未实现）
 
@@ -58,7 +58,8 @@ admin/
 - `password_reset_requests` + 学生线上申请 + 管理员审批接口。
 - `GET /api/v1/admin/overview`
 - `GET /api/v1/admin/users`、`PATCH /api/v1/admin/users/{id}`、`POST /api/v1/admin/users/{id}/force-logout`
-- `GET /api/v1/admin/password-reset-requests`、`POST .../{id}/approve`、`POST .../{id}/reject`
+- `GET /api/v1/admin/password-reset-requests`、`POST .../{id}/approve`、`POST .../{id}/reject`、`POST .../{id}/regenerate-temp-password`
+- `GET /api/v1/admin/audit`
 - `GET /api/v1/admin/questions`、`DELETE /api/v1/admin/questions/{id}`
 - `GET /api/v1/admin/tasks`、`POST /api/v1/admin/tasks/{id}/retry`
 - `GET /api/v1/admin/ai-logs`

@@ -7,9 +7,9 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 
 # 28 · Admin 管理端规划与后端对接
 
-> 决策：ADR-005（独立管理端）+ ADR-009（进入 11.29 演示）。  
-> 前端：独立 `admin/` 应用；后端：`/api/v1/admin/*`，全部 `require_admin`。  
-> 本文是管理端的详细方案与后端对接单；代码实现以本文和 OpenAPI 为准。
+> 决策：ADR-005（独立管理端）+ ADR-009（进入 11.29 演示）。
+> 前端：独立 `admin/` 应用；后端：`/api/v1/admin/*`，全部 `require_admin`（登录与公开密码申请除外）。
+> 本文是管理端的详细方案与后端对接单；实现后以 OpenAPI 与代码为准，冲突时按 AGENTS 的事实来源优先级处理。
 
 ## 1. 定位与演示范围
 
@@ -57,7 +57,7 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 | 审计 | 所有管理员写操作 + 敏感读取 + 导出；append-only |
 | 监控 | DB 聚合 + `/health`；不引入新基础设施 |
 
-> 与 ADR-010 的关系：角色/题型/学科/学段边界一致；ADR-010 §2.1 的“管理员可重置密码”按本文 §5 的“学生线上申请 → 管理员审批”流程解释，临时密码 24h、强制改密；ADR-010 待补正。
+> 与 ADR-010 的关系：角色/题型/学科/学段边界一致；密码重置的定稿流程以 ADR-010 §2.1 与本文 §5 为准（2026-11-27 补正后一致），包括 202 泛化响应、强制改密门禁与临时密码重新生成。
 
 ## 3. 信息架构
 
@@ -139,13 +139,13 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 
 1. 学生登录页点“忘记密码”，进入 `/forgot-password`。
 2. 填写：`username`、注册邮箱（可选）、申请原因。
-3. 后端校验用户名存在；同一用户已有 pending 申请则拒绝；按 IP/用户名限流。
-4. 创建 `password_reset_requests`，状态 `pending`。
-5. 管理员在 `/admin/password-requests` 核对用户名/邮箱/账号状态；填写核验说明和原因。
+3. 后端对任何提交都返回同一个 **202 泛化响应**（不返回 `request_id`、不区分账号是否存在）；内部：用户名不存在则不落库；存在且已有 pending 则不重复建单（对外表现为幂等 202）；存在且无 pending 才建单；按 IP/用户名限流。
+4. 命中时创建 `password_reset_requests`，状态 `pending`；未命中不建单。
+5. 管理员在 `/admin/password-requests` 核对用户名/邮箱/账号状态；填写核验说明（必填）；拒绝时填写拒绝原因。
 6. 通过后：生成临时密码、bcrypt 入库、`must_change_password=true`、`temp_password_expires_at=now+24h`、`token_version += 1`、写审计。
 7. 管理端弹窗只显示一次临时密码；管理员通过外部渠道通知学生。
 8. 学生用临时密码登录；登录响应 `must_change_password=true`。
-9. 前端强制跳转设置页改密；后端 `require_password_ready` 拦截其他业务接口。
+9. 前端强制跳转设置页改密；后端按 §5.4 的 `require_password_ready` 门禁拦截其他业务接口。
 10. 学生用临时密码 + 新密码改密；清标记/过期时间、`token_version += 1`、审计；当前登录退出，用新密码重新登录。
 
 ### 5.2 边界
@@ -154,8 +154,8 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 - 临时密码由后端生成（12 位左右，去除易混淆字符），只在审批响应返回一次；`Cache-Control: no-store`。
 - 不写日志/审计/数据库明文；管理端不持久化；关闭弹窗即清空。
 - 临时密码 24h 有效；过期后登录和业务接口都拒绝，学生重新申请。
-- 管理员忘记临时密码只能重新生成；旧临时密码立即失效。
-- 目标为管理员/自己/禁用账号时不允许重置。
+- 管理员忘记临时密码只能重新生成；旧临时密码立即失效。重新生成端点见 §5.3；审批响应丢失时也用它恢复，不重复审批。
+- 审批时目标为管理员/自己/禁用账号则拒绝；提交端仍返回 202，不暴露账号状态。
 - 审计与重置同一事务；审计写失败则回滚，不生成临时密码。
 
 ### 5.3 接口
@@ -165,11 +165,14 @@ POST /api/v1/auth/password-reset-requests
 { "username": "student01", "email": "student01@example.com", "reason": "忘记密码" }
 ```
 
+响应固定为 `202 Accepted`，body 例如 `{ "message": "如果账号存在，申请已提交" }`；不返回 `request_id`，不区分账号是否存在。
+
 ```http
 GET  /api/v1/admin/password-reset-requests?status=pending
 GET  /api/v1/admin/password-reset-requests/{id}
 POST /api/v1/admin/password-reset-requests/{id}/approve
 POST /api/v1/admin/password-reset-requests/{id}/reject
+POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 ```
 
 通过响应（只返回一次）：
@@ -183,6 +186,15 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 }
 ```
 
+### 5.4 强制改密门禁
+
+临时密码登录成功后，登录响应带 `must_change_password=true`。在改密完成前：
+
+- 只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`。
+- 其他业务接口一律 403 `PASSWORD_CHANGE_REQUIRED`。
+- 前端路由守卫读取 `must_change_password`（登录响应或 `/auth/me`），跳转 `/settings` 强制改密；`/auth/me` 必须放行，否则刷新/恢复会话会把用户踢回登录页。
+- 改密成功后清 `must_change_password` 与 `temp_password_expires_at`，`token_version += 1`，当前会话也需用新密码重新登录。
+
 ## 6. 数据模型
 
 ### 6.1 `users` 新增字段
@@ -193,7 +205,6 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 | `disabled_at` | DATETIME NULL | 禁用时间 |
 | `must_change_password` | BOOLEAN NOT NULL DEFAULT false | 临时密码强制改密 |
 | `temp_password_expires_at` | DATETIME NULL | 24h 有效期 |
-| `password_changed_at` | DATETIME NULL | 最近改密时间 |
 
 **不新增姓名/学号。**
 
@@ -202,7 +213,7 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 | 字段 | 说明 |
 |---|---|
 | `id` | 主键 |
-| `user_id` | 命中的学生 ID；用户名不存在时为空 |
+| `user_id` | 命中的学生 ID（NOT NULL；未命中不建单） |
 | `username` | 提交的用户名 |
 | `submitted_email` | 提交的邮箱（可选） |
 | `reason` | 申请原因 |
@@ -223,7 +234,7 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 | `target_type` / `target_id` / `target_label` | 目标及快照 |
 | `target_owner_id` | 内容所属学生 |
 | `before_json` / `after_json` | 脱敏 diff |
-| `reason` | 必填原因 |
+| `reason` | 可空；系统动作自动填充（如登录/登出），管理员写操作可选填 |
 | `result` | success/failed |
 | `request_id` / `ip` / `user_agent` | 来源 |
 | `created_at` | 时间 |
@@ -244,14 +255,14 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 | 认证 | `POST /admin/auth/login`、`GET /admin/me` |
 | 监控 | `GET /admin/overview`、`GET /admin/metrics/ai`、`GET /admin/metrics/tasks`、`GET /admin/health` |
 | 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`PATCH /admin/users/{id}`、`POST /admin/users/{id}/force-logout` |
-| 密码申请 | `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject`；公开 `POST /auth/password-reset-requests` |
+| 密码申请 | `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password`；公开 `POST /auth/password-reset-requests`（固定 202 泛化响应） |
 | 内容 | `GET/DELETE /admin/questions/{id}`、`GET /admin/questions`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
 | 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
 | AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`GET /admin/ai-logs/{id}/raw`、`GET /admin/ai-logs/export` |
 | 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export` |
 | 系统 | `GET /admin/system` |
 
-统一：`/api/v1` 前缀、Bearer JWT、`{items,total,page,page_size}`、统一错误信封、`X-Request-ID`。写操作带 `reason`，响应带 `audit_id`。
+统一：`/api/v1` 前缀、Bearer JWT、`{items,total,page,page_size}`、统一错误信封、`X-Request-ID`。写操作可带 `reason`（高风险操作建议填写），响应带 `audit_id`。
 
 ## 8. 监控口径
 
@@ -277,7 +288,7 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 
 ## 10. 安全与隐私
 
-- 管理端独立 token key/登录页；学生 token 403。
+- 管理端独立 localStorage key（`bababoi:admin-token`）与登录页；JWT 仍共用同一签名密钥与 `token_version` 校验，学生 token 403。
 - 管理端登录限流；CORS 增加 `http://localhost:5174`，生产同源。
 - 响应不返回 `password_hash`、JWT、API Key 密文、完整 Key。
 - 邮箱列表脱敏；原始 AI/图片访问审计；导出脱敏、限行数。
@@ -288,6 +299,7 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` 环境变量；无默认密码。
 - `seed_demo.py` 或 `seed_admin.py`；生产拒绝，`--reset` 需 `--yes`。
+- 管理员恢复：不做 UI 自助；提供 server-side CLI（如 `uv run python -m app.scripts.reset_admin_password`）或环境变量 re-seed，需服务器 shell 权限，操作写日志/审计。
 - 后端 `ruff` + `pytest` + OpenAPI `--check`；admin 前端独立 lint/typecheck/build。
 - nginx `location /admin/`；API 仍 `/api/v1`。
 - 学生端构建与演示脚本不受影响。
@@ -297,8 +309,8 @@ POST /api/v1/admin/password-reset-requests/{id}/reject
 | 阶段 | 内容 |
 |---|---|
 | Phase 0 | role/disabled/require_admin、admin 登录、audit 表、password_reset_requests 表、seed admin |
-| Phase 1 | overview、health、tasks/ai-logs 只读、users 只读 |
-| Phase 2 | 密码申请审批、用户禁用/强制下线、任务重试/取消、内容软删/标记、审计列表 |
+| Phase 1 | overview、health、tasks/ai-logs 只读、users 只读、审计列表只读 |
+| Phase 2 | 密码申请审批、用户禁用/强制下线、任务重试/取消、内容软删/标记 |
 | Phase 3 | AI 成本/失败趋势、内容质量队列、导出、告警 |
 | Phase 4 | 只读 auditor、保留策略、webhook、缓存清理、批量操作、IP 白名单 |
 

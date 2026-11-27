@@ -53,7 +53,7 @@ admin/                            # 独立 Vue 3 + Vite + TS + Arco app
 └── src/
     ├── main.ts / App.vue
     ├── api/                      # client、admin.ts、types.ts
-    ├── router/                   # /admin/login、/admin、/admin/users...
+    ├── router/                   # route path：/login、/、/users...（base=/admin/）
     ├── stores/auth.ts            # 独立 localStorage key，避免与学生端互踢
     ├── layouts/AdminShell.vue    # 侧边栏 + 顶栏，表格优先
     └── views/                    # Dashboard/Users/Questions/Tasks/AiLogs
@@ -77,7 +77,7 @@ backend/app/core/deps.py          # require_admin
 | 11.6–11.7 | ADR-005 + `admin/README.md` 占位 + 文档同步；不写业务代码 |
 | 11.8–11.14 | 不碰 admin，保核心纵向切片 + 部署 |
 | 11.15–11.21 | 若核心闭环稳定：角色/migration → overview → admin 登录壳 + 总览/用户只读（约 2–3 天） |
-| 11.22–11.29 | 冻结新功能；核心稳定才加任务重试/AI logs；否则只放 PPT 未来规划 |
+| 11.22–11.29 | 冻结学生端新功能（管理端按 ADR-009 例外）；核心稳定才加任务重试/AI logs；否则只放 PPT 未来规划 |
 | 11.29 后 | 内容审核、完整审计导出、完整 RBAC |
 
 > 2026-11-27 更新：演示范围按 **ADR-009**。11.29 前优先完成登录/总览/任务/AI 日志只读/审计；密码申请审批按 `docs/agent/28-admin-console.md` 排期，未完成项不伪装为已上线。
