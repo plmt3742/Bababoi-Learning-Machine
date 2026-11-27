@@ -298,8 +298,8 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 ## 11. Seed、CI、部署
 
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` 环境变量；无默认密码。
-- `seed_demo.py` 或 `seed_admin.py`；生产拒绝，`--reset` 需 `--yes`。
-- 管理员恢复：不做 UI 自助；提供 server-side CLI（如 `uv run python -m app.scripts.reset_admin_password`）或环境变量 re-seed，需服务器 shell 权限，操作写日志/审计。
+- `seed_admin.py`：生产**允许首次创建**（口令 ≥12 位，注册只产生 student，这是唯一正规入口）；账号已存在时默认不动（幂等）；改线上口令必须服务器 shell 执行 `--reset --yes`，未带 `--yes` 直接拒绝。任何环境都不打印口令。
+- 管理员恢复：不做 UI 自助；只能用服务器 shell 重新 seed（`--reset --yes`）或运维脚本，操作写日志/审计。
 - 后端 `ruff` + `pytest` + OpenAPI `--check`；admin 前端独立 lint/typecheck/build。
 - nginx `location /admin/`；API 仍 `/api/v1`。
 - 学生端构建与演示脚本不受影响。

@@ -59,6 +59,7 @@ uv sync
 uv run alembic upgrade head
 DEMO_PASSWORD='<演示口令>' uv run python scripts/seed_demo.py   # 灌演示数据（可重复执行；口令必填）
 # 管理端管理员（ADM-002；口令只从 shell 环境变量读，无默认值）
+# 生产首次建号用这条；已有账号默认不动，改口令必须加 --reset --yes
 ADMIN_USERNAME=admin ADMIN_PASSWORD='<强口令>' ADMIN_EMAIL=admin@example.com uv run python scripts/seed_admin.py
 uv run uvicorn app.main:app --reload --port 8000
 uv run pytest

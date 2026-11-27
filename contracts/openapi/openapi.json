@@ -2346,6 +2346,17 @@
             "title": "Submittedat",
             "type": "string"
           },
+          "usedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usedat"
+          },
           "username": {
             "title": "Username",
             "type": "string"
@@ -2367,7 +2378,8 @@
           "ip",
           "expiresAt",
           "deliveryChannel",
-          "mustChangePassword"
+          "mustChangePassword",
+          "usedAt"
         ],
         "title": "PasswordRequest",
         "type": "object"

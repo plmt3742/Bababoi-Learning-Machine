@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
+from app.services.admin_auth_service import admin_login_limiter
 from app.services.auth_service import (
     change_password_limiter,
     login_limiter,
@@ -58,6 +59,7 @@ def client(db, tmp_path, monkeypatch):
     login_limiter.clear()
     register_limiter.clear()
     change_password_limiter.clear()
+    admin_login_limiter.clear()
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

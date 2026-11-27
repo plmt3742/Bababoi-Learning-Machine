@@ -131,13 +131,12 @@ def _overview_ai(session: Session, now: datetime) -> tuple[OverviewAiStats, Over
 
 
 def _overview_tasks(session: Session, now: datetime) -> OverviewTaskStats:
-    def count_by(status: str) -> int:
-        return _scalar_count(
-            session,
-            select(func.count())
-            .select_from(GenerationTask)
-            .where(GenerationTask.status == status),
-        )
+    # 一次 GROUP BY 拿全部状态计数（复核单 §7.2：原来 5 次 count 串行）
+    counts = dict(
+        session.execute(
+            select(GenerationTask.status, func.count()).group_by(GenerationTask.status)
+        ).all()
+    )
 
     since_24h = now - timedelta(hours=24)
     done_24h = _scalar_count(
@@ -169,9 +168,9 @@ def _overview_tasks(session: Session, now: datetime) -> OverviewTaskStats:
         int((now - oldest_queued).total_seconds()) if oldest_queued is not None else 0
     )
     return OverviewTaskStats(
-        queued=count_by("queued"),
-        running=count_by("running"),
-        failed=count_by("failed"),
+        queued=int(counts.get("queued", 0)),
+        running=int(counts.get("running", 0)),
+        failed=int(counts.get("failed", 0)),
         done_24h=done_24h,
         canceled_24h=canceled_24h,
         oldest_queue_seconds=max(oldest_seconds, 0),

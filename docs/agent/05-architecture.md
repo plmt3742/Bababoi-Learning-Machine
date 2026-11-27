@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.33**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.34**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -1297,6 +1297,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.34 | **#123/#124 复核修复**：`password_reset_requests` DTO 补 `used_at`（前端判断申请是否已兑现）；管理端登录改用独立限流桶 `admin-login`（不再与学生登录互锁）；`/admin/*` 父 router 默认 `require_admin`（登录单独匿名 router）；搜索统一转义 `%`/`_`（`utils/search.py`）；`seed_admin.py` 生产允许首次创建（口令 ≥12 位）、改口令必须 `--reset --yes` | 人机 / agent |
 | 2026-11-28 | v0.6.33 | **ADM-003/007/011 只读端点**：overview 真实聚合（用户/内容/AI/任务/密码申请/趋势）、users 列表详情、tasks 列表详情（真实 timeline）、ai-logs 列表详情（不含 raw）、audit 列表详情（中文动作名可搜）、password-requests 只读、alerts 四类实时推导、system 真实探活；列表 DTO 出口 camelCase（按 `admin/src/types.ts`），时间/耗时由后端格式化为 UTC+8 展示串；`/auth/me` 补 `role`；CORS 默认加 admin 5174 开发来源 | 人机 / agent |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |

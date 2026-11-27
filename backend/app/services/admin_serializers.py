@@ -303,4 +303,5 @@ def build_password_request(session: Session, row: PasswordResetRequest) -> Passw
         expires_at=to_display(row.expires_at, seconds=False),
         delivery_channel=row.delivery_channel,
         must_change_password=bool(user.must_change_password) if user else False,
+        used_at=to_display(row.used_at, seconds=False),
     )

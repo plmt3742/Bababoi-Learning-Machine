@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import require_admin
 from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
 from app.db.session import get_session
@@ -38,8 +37,9 @@ from app.schemas.admin import (
 )
 from app.services import admin_serializers, admin_stats_service
 from app.services.admin_actions import actions_matching
+from app.utils.search import contains_pattern
 
-router = APIRouter(dependencies=[Depends(require_admin)])
+router = APIRouter()
 
 _PAGE_MAX = 100
 
@@ -51,7 +51,7 @@ def _paging(page: int, page_size: int) -> tuple[int, int]:
 
 
 def _like(column, keyword: str):
-    return column.ilike(f"%{keyword}%")
+    return column.ilike(contains_pattern(keyword), escape="\\")
 
 
 # --- 概览 / 告警 / 系统 ------------------------------------------------------

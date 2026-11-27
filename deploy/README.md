@@ -64,6 +64,17 @@
    BABABOI_ENV_FILE=/srv/bababoi/.env docker compose -f deploy/docker-compose.yml up -d --build
    ```
 
+4.1 首次部署建管理员（注册只产生 student，不会自动有 admin；ADM-002）：
+
+   ```bash
+   docker compose -f deploy/docker-compose.yml exec \
+     -e ADMIN_USERNAME=admin \
+     -e ADMIN_PASSWORD='<12 位以上强口令>' \
+     -e ADMIN_EMAIL=admin@example.com \
+     api python scripts/seed_admin.py
+   # 已有账号默认不动；改线上口令必须在服务器 shell 追加 --reset --yes
+   ```
+
 5. 探活：
 
    ```bash

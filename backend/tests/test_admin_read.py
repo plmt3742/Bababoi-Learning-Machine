@@ -28,6 +28,12 @@ READ_PATHS = [
     "/api/v1/admin/alerts",
     "/api/v1/admin/system",
     "/api/v1/admin/password-requests",
+    # 详情端点单独覆盖：以后把端点挪出受保护 router 时，这里要能红
+    "/api/v1/admin/users/999999",
+    "/api/v1/admin/tasks/999999",
+    "/api/v1/admin/ai-logs/999999",
+    "/api/v1/admin/audit/999999",
+    "/api/v1/admin/password-requests/999999",
 ]
 
 
@@ -244,6 +250,15 @@ def test_users_list_filters_and_never_leaks_hash(client, db):
     search = client.get("/api/v1/admin/users?q=alpha", headers=headers).json()
     assert [row["username"] for row in search["items"]] == ["alpha"]
 
+    # 通配符必须被转义：`%` / `_` 不能当 LIKE 通配符用（复核单 §7.1）
+    for wildcard in ("%", "_"):
+        assert (
+            client.get(
+                "/api/v1/admin/users", params={"q": wildcard}, headers=headers
+            ).json()["total"]
+            == 0
+        )
+
     # 管理员账号不进学生列表、也不能按 id 探
     admin = create_admin(client, db, username="admin02")
     me_id = client.get(
@@ -267,6 +282,7 @@ def test_user_detail_includes_recent_tasks_and_requests(client, db):
     assert detail["disabledReason"] == "测试禁用"
     assert [row["username"] for row in detail["passwordRequests"]] == ["beta"]
     assert detail["passwordRequests"][0]["emailMatches"] is True
+    assert detail["passwordRequests"][0]["usedAt"] is None
 
     alpha_detail = client.get(
         f"/api/v1/admin/users/{alpha['id']}", headers=headers

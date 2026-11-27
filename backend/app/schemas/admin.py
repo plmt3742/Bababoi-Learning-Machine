@@ -101,6 +101,8 @@ class PasswordRequest(CamelModel):
     expires_at: str | None
     delivery_channel: str | None
     must_change_password: bool
+    # BE-030：学生用临时密码成功改密后回写；前端据此判断「申请是否已兑现」
+    used_at: str | None
 
 
 # --- 任务 -------------------------------------------------------------------

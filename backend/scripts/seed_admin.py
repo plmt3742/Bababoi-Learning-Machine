@@ -9,9 +9,9 @@
 规则：
 - **没有默认账号、没有默认密码**：ADMIN_USERNAME / ADMIN_PASSWORD 缺失或为空直接退出。
 - 管理员只能由本脚本（服务器 shell / 部署脚本）创建；公开注册永远只产生 student。
-- `APP_ENV=production` 时拒绝运行；非 development/local 环境执行 `--reset` 必须加 `--yes`。
-- 默认「只建不改」：账号已存在时只确保 role=admin，不碰密码（避免误把线上口令改掉）。
-- `--reset` 才重写密码，并把 token_version +1（已登录的管理端立即失效）。
+- 生产首次建号：允许**创建**，口令至少 12 位；已有账号默认不动（幂等），
+  所以要改线上口令必须 `--reset --yes`（服务器 shell，显式确认）。
+- `--reset` 一律需要 `--yes`；改口令会把 token_version +1，已登录的管理端立即失效。
 - 口令只从环境变量读，不打印、不写日志、不写审计。
 """
 from __future__ import annotations
@@ -39,6 +39,8 @@ from app.db.session import SessionLocal  # noqa: E402
 from app.models import User  # noqa: E402
 from app.schemas.auth import RegisterRequest  # noqa: E402
 
+PROD_PASSWORD_MIN = 12
+
 
 def _env(name: str) -> str:
     return os.environ.get(name, "").strip()
@@ -47,12 +49,13 @@ def _env(name: str) -> str:
 def main(argv: list[str]) -> int:
     reset = "--reset" in argv
     yes = "--yes" in argv
+    production = settings.app_env == "production"
 
-    if settings.app_env == "production":
-        print("seed_admin 禁止在生产环境运行（APP_ENV=production）", file=sys.stderr)
-        return 2
-    if reset and not yes and settings.app_env not in ("development", "local"):
-        print("--reset 会覆盖现有管理员口令，非本地环境必须显式加 --yes", file=sys.stderr)
+    if reset and not yes:
+        print(
+            "--reset 会覆盖现有管理员口令，必须同时加 --yes 显式确认",
+            file=sys.stderr,
+        )
         return 2
 
     username = _env("ADMIN_USERNAME")
@@ -68,6 +71,12 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
+    if production and len(password) < PROD_PASSWORD_MIN:
+        print(
+            f"生产环境管理员口令至少 {PROD_PASSWORD_MIN} 位（当前 {len(password)}）",
+            file=sys.stderr,
+        )
+        return 2
 
     # 复用注册契约（用户名 3–32/字符集、bcrypt 72 字节）；脚本不能绕过校验造坏账号
     try:
@@ -79,6 +88,7 @@ def main(argv: list[str]) -> int:
     with SessionLocal() as session:
         user = session.scalar(select(User).where(User.username == username))
         if user is None:
+            # 生产首次建号：这是管理端上线的唯一正规入口（注册只产生 student）
             session.add(
                 User(
                     username=username,
@@ -108,9 +118,13 @@ def main(argv: list[str]) -> int:
             changed.append(f"token_version={user.token_version}")
         if not changed:
             session.rollback()
-            print(
-                f"管理员已存在，未修改：{username}（要重写口令加 --reset --yes）"
-            )
+            if production:
+                print(
+                    f"管理员已存在，未修改：{username}。"
+                    "要改线上口令，在服务器 shell 执行 --reset --yes",
+                )
+            else:
+                print(f"管理员已存在，未修改：{username}（要重写口令加 --reset --yes）")
             return 0
 
         user.updated_at = utcnow()
@@ -121,3 +135,4 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
+
