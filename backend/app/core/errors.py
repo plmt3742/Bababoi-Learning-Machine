@@ -38,6 +38,8 @@ class ErrorCode(StrEnum):
     VISION_JOB_NOT_FOUND = "VISION_JOB_NOT_FOUND"  # 任务不存在或不属于本人（404）
     NOT_FOUND = "NOT_FOUND"  # 本 PR 新增：路由未命中，与 QUESTION_NOT_FOUND 区分
     FORBIDDEN = "FORBIDDEN"  # 框架 403（鉴权中间件等），与业务态的 QUESTION_FORBIDDEN 区分
+    ACCOUNT_DISABLED = "ACCOUNT_DISABLED"  # ADM-009：账号被管理员禁用（403），所有登录态接口统一挡
+    ADMIN_REQUIRED = "ADMIN_REQUIRED"  # ADM-002：非管理员访问 /admin/*（403）；与 FORBIDDEN 区分便于前端跳转
     METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"  # 框架 405
     TASK_NOT_FOUND = "TASK_NOT_FOUND"  # 05 §6.2 早有成文，BE-006/007 起初误用了 NOT_FOUND
     PRACTICE_DUPLICATE = "PRACTICE_DUPLICATE"  # BE-012：60 秒窗口内相同作答重复提交（05 §6.4）

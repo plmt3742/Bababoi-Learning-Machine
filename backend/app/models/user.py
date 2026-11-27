@@ -38,3 +38,19 @@ class User(Base, TimestampMixin):
     token_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
+    # ADM-002 / ADR-010：角色只有 student / admin。注册只会产生 student；
+    # admin 只由 seed 脚本创建。鉴权每次查 DB，不信 token（JWT 里本来也不带 role）。
+    role: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="student", server_default="student"
+    )
+    # ADM-009：禁用是软状态，保留账号与数据；旧 token 靠 disabled_at 检查挡掉，
+    # 不依赖 token_version（强制下线才 +1）。
+    disabled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disabled_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # BE-030：管理员审批密码申请后发临时密码，登录后必须先改密。
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    temp_password_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )

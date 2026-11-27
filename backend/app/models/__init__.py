@@ -1,5 +1,6 @@
 """全部 ORM 模型集中导出，Alembic autogenerate 靠这个包看到所有表。"""
 from app.db.base import Base
+from app.models.admin import AdminAlertAck, AdminAuditLog, PasswordResetRequest
 from app.models.ai_settings import UserAiSettings
 from app.models.cache import VisionExtractCache
 from app.models.draft import Draft
@@ -23,4 +24,7 @@ __all__ = [
     "VisionJob",
     "PracticeRecord",
     "AiCallLog",
+    "AdminAuditLog",
+    "PasswordResetRequest",
+    "AdminAlertAck",
 ]
