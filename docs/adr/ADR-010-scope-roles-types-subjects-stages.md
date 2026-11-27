@@ -22,10 +22,10 @@
 - `admin` 是内部运维角色（ADR-005）：账号由环境变量初始化，**不开放注册**；学生端注册只会产生 `student`。
 - 鉴权：`require_admin` **每次查 DB 角色**（不信 token claim）；学生 token 访问 `/api/v1/admin/*` 一律 403。
 - **线上密码重置（定稿流程，详见 `docs/agent/28-admin-console.md` §5，PR #116）**：
-  1. 学生登录页 → `/forgot-password`，提交 `username` + 可选 `email` + 原因；未登录可访问；按 IP/用户名限流；同一用户已有 pending 申请则拒绝；响应不泄露用户名是否存在。
+  1. 学生登录页 → `/forgot-password`，提交 `username` + 可选 `email` + 原因；未登录可访问；按 IP/用户名限流。**防枚举口径（定稿）**：对任何输入都返回同一个 **202 泛化响应**（不返回 request_id、不区分账号是否存在）；内部——用户名不存在则不落库；存在且已有 pending 则不重复建单；存在且无 pending 才建单。28 号文档 §5.1 的「重复拒绝」对调用方表现为幂等 202，不暴露存在性。
   2. 管理员在 admin 审批队列通过 / 拒绝。
   3. 通过后由**系统生成**临时密码（约 12 位、去易混淆字符；只在管理端显示一次，`Cache-Control: no-store`）：写 bcrypt、`must_change_password=true`、`temp_password_expires_at=now+24h`、目标 `token_version+1`（全踢）、写审计——审计与重置同一事务，审计失败则回滚。
-  4. 学生用临时密码登录（响应 `must_change_password=true`），改密前只允许改密/登出；改密后清标记与过期时间、`token_version` 再 +1、写审计，用新密码重新登录。
+  4. 学生用临时密码登录（响应 `must_change_password=true`），改密前**只放行** `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`，其他业务接口一律 403 `PASSWORD_CHANGE_REQUIRED`（与 28 号文档 §5.4 对齐；`/auth/me` 不能漏，否则刷新/恢复会话会把用户踢回登录页）；改密后清标记与过期时间、`token_version` 再 +1、写审计，用新密码重新登录。
   5. 临时密码 24h 有效，过期后登录与业务接口都拒绝，需重新申请；管理员忘记只能重新生成，旧临时密码立即失效。
 - 不做：管理员**无条件直接重置**、邮件/短信通知、学生自助领取/状态页、模拟登录、直接改库、批量导出个人数据。
 - 不新增姓名/学号字段：申请只用 `username` + 可选 `email` + 原因。
@@ -55,7 +55,7 @@
 ## 3. 影响
 
 - 题型/学科/学段：**无迁移、无 API 形状变化**；只约束 prompt、种子与前端选项。
-- 角色：线上密码重置需要 `users.role`、`password_reset_requests`、`admin_audit_logs`、`must_change_password` 等字段，随 BE-030 单独迁移；学生端不受影响。
+- 角色：线上密码重置需要 `users.role`、`password_reset_requests`、`admin_audit_logs`、`must_change_password` 等字段，随 BE-030 单独迁移。**现有学生接口不破坏**；但学生前端需配套新增 `/forgot-password`、读取 `must_change_password`、路由守卫与设置页强制改密引导（FE 任务另开）。
 - 新扩展的验收口径：先过本 ADR 的边界，再谈实现。
 
 ## 4. 明确不做
