@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.31**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -181,6 +181,10 @@ erDiagram
 | created_at / updated_at | DATETIME | UTC |
 | last_login_at | DATETIME NULL | 可选 |
 | token_version | INT NOT NULL DEFAULT 0 | BE-028：会话版本号；**改密/强制下线** +1，JWT 的 `ver` 不一致即 401（登录、登出不动，多设备共存） |
+| role | VARCHAR(16) NOT NULL DEFAULT 'student' | ADM-002：`student` / `admin`；注册只产生 student，admin 只由 `scripts/seed_admin.py` 创建；鉴权每次查 DB |
+| disabled_at / disabled_reason | DATETIME NULL / VARCHAR(255) NULL | ADM-009：软禁用；所有登录态接口 403 `ACCOUNT_DISABLED`，登录也拒绝 |
+| must_change_password | BOOLEAN NOT NULL DEFAULT false | BE-030：临时密码登录后强制改密（门禁见 §6.2 `PASSWORD_CHANGE_REQUIRED`） |
+| temp_password_expires_at | DATETIME NULL | BE-030：临时密码 24h 有效期 |
 
 #### questions
 
@@ -373,6 +377,8 @@ erDiagram
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
 | 403 | `FORBIDDEN` | 框架层 403（鉴权中间件等），与业务态 `QUESTION_FORBIDDEN` 区分；issue #11 新增 |
+| 403 | `ACCOUNT_DISABLED` | 账号被管理员禁用；登录、`get_current_user` 与 `/admin/*` 统一拒绝（ADM-009） |
+| 403 | `ADMIN_REQUIRED` | 非管理员访问 `/api/v1/admin/*`，含用学生账号登录管理端（ADM-002） |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | 临时密码登录后未改密，仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`（ADR-010 / 28 §5.4） |
 | 405 | `METHOD_NOT_ALLOWED` | 方法用错；以前被统统标成 `VALIDATION_ERROR`，前端会误查表单字段；issue #11 新增 |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
@@ -786,21 +792,24 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 > 管理端进入 11.29 演示（ADR-009）。完整功能、数据模型、审计与线上密码重置流程见 `docs/agent/28-admin-console.md`；本节只保留 05 的契约入口，字段以 28 号文档和 OpenAPI 为准。
 
 - Base URL：`/api/v1/admin`；除 `POST /admin/auth/login` 与公开的 `POST /auth/password-reset-requests` 外，全部依赖 `require_admin`。
-- 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403。
-- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验。
+- 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403 `ADMIN_REQUIRED`，禁用账号 403 `ACCOUNT_DISABLED`。
+- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验，有效期单独 8h。
+- 实现真源：前端实际调用 `admin/src/api/admin.ts`（见 PR #120 分支）+ 28 号文档 §5/§6 + `admin/API_CONTRACT.md`。本节表格按 admin.ts 校正过，不再保留早期草稿里的 `/metrics/*`、`PATCH users`、`content_flags` 等叫法。
 
 | 模块 | 端点 |
 |---|---|
-| 监控 | `GET /admin/overview`、`GET /admin/metrics/ai`、`GET /admin/metrics/tasks`、`GET /admin/health` |
-| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`PATCH /admin/users/{id}`、`POST /admin/users/{id}/force-logout` |
-| 密码申请 | 公开 `POST /auth/password-reset-requests`（固定 202 泛化响应）；管理端 `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password` |
-| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`DELETE /admin/questions/{id}`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
+| 认证 | `POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`（登录/登出写审计） |
+| 监控 | `GET /admin/overview`、`GET /admin/alerts`（告警由真实数据推导，裸数组） |
+| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`POST /admin/users/{id}/status`（active/disabled）、`POST /admin/users/{id}/force-logout` |
+| 密码申请 | 公开 `POST /auth/password-reset-requests`（固定 202 泛化响应）；管理端 `GET /admin/password-requests`、`GET /admin/password-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password` |
+| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`POST /admin/questions/{id}/moderation`（`hide/restore/flag/unflag`） |
 | 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
-| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`GET /admin/ai-logs/{id}/raw`、`GET /admin/ai-logs/export` |
-| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export` |
+| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`POST /admin/ai-logs/{id}/raw`（`reason` 必填 + 审计 + `Cache-Control: no-store`） |
+| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export.csv` |
+| 告警确认 | `POST /admin/alerts/{key}/ack`、`POST /admin/alerts/{key}/unack` |
 | 系统 | `GET /admin/system` |
 
-新增/调整的数据模型（待 migration）：`users.role`、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`、`content_flags`；`ai_call_logs` 建议补 `task_id`/`request_id`。列表统一 `{items,total,page,page_size}`，错误统一 `{detail:{code,message,request_id}}`。
+数据模型：`users.role/disabled_at/disabled_reason/must_change_password/temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`（含 `used_at`）、`admin_alert_acks` 已随 ADM-002 迁移建表；内容审核字段（`questions.hidden_at/hidden_reason/flagged_at/flag_reason`，以 28 §5.4 与交接单为准，不用 `content_flags`）与 `ai_call_logs.task_id` 随后续 ADM 任务补迁移。列表统一 `{items,total,page,page_size}`（告警是裸数组），错误统一 `{detail:{code,message,request_id}}`。
 
 ## 7. AI 流水线
 
@@ -1288,6 +1297,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |

@@ -38,13 +38,20 @@ def verify_password(raw: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int, token_version: int) -> str:
+def create_access_token(
+    user_id: int, token_version: int, *, expires_hours: int | None = None
+) -> str:
     now = utcnow()
     payload = {
         "sub": str(user_id),
         "ver": token_version,
         "iat": now,
-        "exp": now + timedelta(days=settings.access_token_expire_days),
+        "exp": now
+        + (
+            timedelta(hours=expires_hours)
+            if expires_hours is not None
+            else timedelta(days=settings.access_token_expire_days)
+        ),
     }
     return jwt.encode(payload, _secret(), algorithm="HS256")
 

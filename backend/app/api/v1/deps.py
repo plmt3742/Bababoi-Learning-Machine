@@ -35,6 +35,20 @@ def get_current_user(
         # 登录/登出不动版本（多设备共存）。复用 AUTH_TOKEN_EXPIRED：
         # 前端本来就是"401 清 token 回登录页"，不需要新码。
         raise ApiError(ErrorCode.AUTH_TOKEN_EXPIRED, "登录已失效，请重新登录", 401)
+    if user.disabled_at is not None:
+        # ADM-009：禁用是软状态，token 仍有效但一律拒绝；单独错误码便于前端提示。
+        raise ApiError(ErrorCode.ACCOUNT_DISABLED, "账号已被禁用", 403)
+    return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """所有 `/admin/*`（登录除外）挂这个依赖。
+
+    角色每次都查 DB——JWT 里不带 role，也不允许以后往里加：token 是 7 天免签的，
+    claim 里的角色会在管理员被降级后继续生效。禁用检查已在 get_current_user 里。
+    """
+    if user.role != "admin":
+        raise ApiError(ErrorCode.ADMIN_REQUIRED, "需要管理员权限", 403)
     return user
 
 
