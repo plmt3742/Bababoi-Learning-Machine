@@ -15,7 +15,7 @@ from app.core.rate_limit import SlidingWindowLimiter
 from app.core.security import verify_password
 from app.db.base import utcnow
 from app.models import User
-from app.services import audit_service
+from app.services import audit_service, auth_service
 from app.utils.client_ip import client_ip
 
 logger = logging.getLogger(__name__)
@@ -65,12 +65,19 @@ def admin_login(
 
 
 def admin_logout(session: Session, request: Request, user: User) -> None:
-    """登出审计 best-effort：审计写失败不影响登出（客户端清 token 即可）。"""
+    """登出必须吊销当前账号的 token（11-28 定案，选 B）。
+
+    bump 先独立 commit，审计再 best-effort 另起事务：现有 `except` 会 rollback，
+    若把 bump 写在同一个 try 里，审计一失败登出就等于没生效。
+    """
+    user.token_version = auth_service.bump_token_version(session, user.id)
+    session.commit()
+
     try:
         audit_service.record(
             session, action="admin.logout", request=request, actor=user
         )
         session.commit()
-    except Exception:  # noqa: BLE001 - 审计失败不能把登出变成 500
+    except Exception:  # noqa: BLE001 - 审计失败不能把登出变成 500，也不能回滚吊销
         session.rollback()
-        logger.warning("admin.logout 审计写入失败，已忽略", exc_info=True)
+        logger.warning("admin.logout 审计写入失败，已忽略（token 已吊销）", exc_info=True)

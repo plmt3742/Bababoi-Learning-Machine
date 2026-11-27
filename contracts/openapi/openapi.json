@@ -3739,6 +3739,11 @@
             "title": "Access Token",
             "type": "string"
           },
+          "must_change_password": {
+            "default": false,
+            "title": "Must Change Password",
+            "type": "boolean"
+          },
           "token_type": {
             "default": "bearer",
             "title": "Token Type",

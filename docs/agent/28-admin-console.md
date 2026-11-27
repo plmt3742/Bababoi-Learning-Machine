@@ -289,7 +289,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 ## 10. 安全与隐私
 
 - 管理端独立 localStorage key（`bababoi:admin-token`）与登录页；JWT 仍共用同一签名密钥与 `token_version` 校验，学生 token 403。
-- 管理端登录限流；CORS 增加 `http://localhost:5174`，生产同源。
+- 管理端登录限流（独立 `admin-login` 桶，不与学生登录互锁）；**登出吊销 token**（`token_version+1`，其他设备一并失效）；CORS 增加 `http://localhost:5174`，生产同源。
 - 响应不返回 `password_hash`、JWT、API Key 密文、完整 Key。
 - 邮箱列表脱敏；原始 AI/图片访问审计；导出脱敏、限行数。
 - 图片走受保护接口，不暴露 `uploads/` 静态路径。

@@ -108,7 +108,7 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
     return user
 
 
-def _bump_token_version(session: Session, user_id: int) -> int:
+def bump_token_version(session: Session, user_id: int) -> int:
     """把版本 +1 并返回新值（BE-028），调用方负责 commit。
 
     必须用 `FOR UPDATE`（当前读）：MySQL RR 隔离级别下，本事务在 `login()` /
@@ -139,6 +139,10 @@ def change_password(
         raise ApiError(ErrorCode.VALIDATION_ERROR, "新密码不能与当前密码相同", 400)
 
     user.password_hash = hash_password(new_password)
-    user.token_version = _bump_token_version(session, user.id)
+    # BE-030：改密成功即解除强制改密；临时密码过期时间一并清掉，
+    # 否则门禁已放开但登录还会拿旧的 24h 期限做判断。
+    user.must_change_password = False
+    user.temp_password_expires_at = None
+    user.token_version = bump_token_version(session, user.id)
     session.commit()
     change_password_limiter.reset("change-password", key)

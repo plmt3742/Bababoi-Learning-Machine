@@ -276,6 +276,55 @@ def test_student_login_failures_do_not_lock_admin_login(client, db):
     assert _admin_login(client).status_code == 200
 
 
+def test_admin_logout_revokes_own_tokens_only(client, db):
+    """11-28 定案 B：管理端登出必须吊销 token，但不能波及学生/其他管理员。"""
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+    _create_user(db, "admin02", ADMIN_PASSWORD, role="admin")
+    token_a = _admin_login(client).json()["access_token"]  # 设备 1
+    token_b = _admin_login(client).json()["access_token"]  # 设备 2
+    token_other = _admin_login(client, "admin02").json()["access_token"]
+    student = register_user(client, username="student01")
+
+    resp = client.post("/api/v1/admin/logout", headers=auth_headers(token_a))
+    assert resp.status_code == 204
+
+    for token in (token_a, token_b):
+        resp = client.get("/api/v1/admin/me", headers=auth_headers(token))
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["code"] == "AUTH_TOKEN_EXPIRED"
+
+    assert (
+        client.get("/api/v1/admin/me", headers=auth_headers(token_other)).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            "/api/v1/auth/me", headers=auth_headers(student["access_token"])
+        ).status_code
+        == 200
+    )
+
+
+def test_admin_logout_revokes_even_when_audit_write_fails(client, db, monkeypatch):
+    """bump 必须独立 commit：审计打桩抛异常后 token 仍要失效（复核单 §11.1 坑 1）。"""
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+    token = _admin_login(client).json()["access_token"]
+
+    from app.services import audit_service
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("audit down")
+
+    monkeypatch.setattr(audit_service, "record", boom)
+
+    resp = client.post("/api/v1/admin/logout", headers=auth_headers(token))
+    assert resp.status_code == 204
+
+    resp = client.get("/api/v1/admin/me", headers=auth_headers(token))
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "AUTH_TOKEN_EXPIRED"
+
+
 # --- seed 脚本 --------------------------------------------------------------
 
 

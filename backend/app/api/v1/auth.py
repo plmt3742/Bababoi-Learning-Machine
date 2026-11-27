@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from app.api.v1.deps import get_current_user
+from app.api.v1.deps import exempt_password_gate, get_current_user
 from app.core.security import create_access_token
 from app.db.session import get_session
 from app.models import User
@@ -23,6 +23,7 @@ def _token_response(user: User) -> TokenResponse:
     return TokenResponse(
         access_token=create_access_token(user.id, user.token_version),
         user=UserResponse.model_validate(user),
+        must_change_password=user.must_change_password,
     )
 
 
@@ -45,6 +46,7 @@ def login(
 
 
 @router.post("/logout", status_code=204)
+@exempt_password_gate
 def logout(user: User = Depends(get_current_user)) -> None:
     """登出只清前端 token，服务端**不吊销**（定案单 2026-11-21 §3）。
 
@@ -55,6 +57,7 @@ def logout(user: User = Depends(get_current_user)) -> None:
 
 
 @router.post("/change-password", status_code=204)
+@exempt_password_gate
 def change_password(
     body: ChangePasswordRequest,
     user: User = Depends(get_current_user),
@@ -65,5 +68,6 @@ def change_password(
 
 
 @router.get("/me", response_model=UserResponse)
+@exempt_password_gate
 def me(user: User = Depends(get_current_user)) -> UserResponse:
     return UserResponse.model_validate(user)

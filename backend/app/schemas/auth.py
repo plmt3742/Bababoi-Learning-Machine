@@ -92,3 +92,5 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    # BE-030：前端登录后无需再请求 /me 就能判断是否必须改密
+    must_change_password: bool = False
