@@ -1,9 +1,18 @@
 """应用配置：环境变量 / .env 集中管理，PRD 里那些 🔵 数值定稿后只改这里。"""
 from __future__ import annotations
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.meta import API_PREFIX, PROJECT_NAME, VERSION
+
+# 识图第二跳（结构化）最坏耗时与安全垫：单次调用上限必须给它们留出预算。
+# 30 取结构化跳的实测上界（05 §6.8：两跳合计 17–60s、密页转录单跳 90.2s；
+# 结构化单跳没有单独的分位记录，换模型/加长输出必须重测）。
+STRUCTURE_WORST_CASE_S = 30
+SAFETY_MARGIN_S = 5
+# 整单 deadline 与前端轮询上限 180s（实际排队 40 + 140）配套，单独调大会让前端提前放弃
+VISION_RUN_DEADLINE_MAX_S = 140
 
 
 class Settings(BaseSettings):
@@ -52,8 +61,26 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-flash"
     llm_mock: bool = True  # CI 与本地默认不调真实模型（12号 §6.1）
     # 超时与队列（PRD 5.4 / 5.6，12号 §3.3）
-    # BE-024 两跳：转录开思考 + 结构化，实测墙钟 17–60s；前端等待上限必须同步 ≥180
-    recognize_client_timeout_s: int = 180  # 前端等待上限
+    # 旧同步端点（POST /questions/from-image）的单次调用上限。
+    # 注意它是「每次 LLM 调用」而不是整单——识图两跳，整单最坏是两个它。
+    recognize_client_timeout_s: int = 180
+    # 识图任务化（B 档，05 §6.8）：提交拿单号 → 轮询取结果。
+    # 典型等待 170s（准入估算 30 + 整单 140）；最坏 180s（准入只看估算，实际排队可到
+    # 判死线 40 → 40 + 140）。前端轮询上限按最坏值 180s，不许按 170 收。
+    # 排队时间确定、LLM 时间方差大，预算给后者：密页转录实测 90.2s + 结构化仍有余量。
+    # 单次上限必须 ≤ 整单 −（结构化最坏 30 + 安全垫 5）= 105（见模块常量与 validator），
+    # 再高就是赌第二跳跑不完。100 = 密页实测 90.2s + 约 11% 余量。
+    vision_call_timeout_s: int = 100
+    vision_run_deadline_s: int = 140
+    # 准入闸：预估等待超它就在提交时 429（不先收单再判死）；
+    # 判死闸 vision_queue_wait_max_s=40 留 10s 余量——估算有波动，放进来的人
+    # 不能刚过线就被自己的排队超时判死。两个闸别合并成一个键。
+    vision_admit_wait_max_s: int = 30
+    vision_queue_wait_max_s: int = 40
+    vision_max_concurrency: int = 8
+    # 硬兜底，防"等待估算失准"时队列无限涨；正常参数下准入闸（30s）先触发。
+    # 8 worker × 20s 下限 ⇒ 30s 时约 12 个排队，200 永远到不了，调了也没效果。
+    vision_queue_max_depth: int = 50
     # force_refresh 的冷却：每次强刷都是一次 17–90s 的两跳调用，不设冷却等于成本放大器。
     # 只按"上一次强刷"计时——首次重新识别不受影响，挡的是连点/脚本刷
     vision_force_refresh_cooldown_s: int = 60
@@ -87,6 +114,24 @@ class Settings(BaseSettings):
     # BYOK（ADR-007）：用户 AI Key 的加密密钥，Fernet key（32 字节 urlsafe base64）。
     # 留空 = /settings/ai 返回 503，不影响系统 Key 的既有链路。
     settings_encryption_key: str = ""
+
+    @model_validator(mode="after")
+    def _validate_vision_budget(self) -> Settings:
+        """识图预算的不变量；放在 pydantic validator 里，任何进程 import 配置就校验，
+        不依赖 FastAPI lifespan（单独起 worker 的进程也拦得住）。"""
+        if self.vision_run_deadline_s > VISION_RUN_DEADLINE_MAX_S:
+            raise ValueError(
+                f"VISION_RUN_DEADLINE_S 不得超过 {VISION_RUN_DEADLINE_MAX_S}："
+                "它和前端轮询上限 180s（实际排队 40 + 140）配套，单独调大会让前端提前放弃"
+            )
+        slack = STRUCTURE_WORST_CASE_S + SAFETY_MARGIN_S
+        if self.vision_call_timeout_s > self.vision_run_deadline_s - slack:
+            raise ValueError(
+                "VISION_CALL_TIMEOUT_S 过大：第一跳会吃光整单预算"
+                f"（必须 ≤ 整单 − {slack}，其中结构化最坏 {STRUCTURE_WORST_CASE_S}s"
+                f" + 安全垫 {SAFETY_MARGIN_S}s，见 config 模块常量）"
+            )
+        return self
 
     def validate_for_startup(self) -> None:
         """启动时把密钥类配置一次性查完，而不是等第一个请求 500（13号 §4 / issue #11）。"""

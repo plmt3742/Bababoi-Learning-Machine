@@ -383,6 +383,9 @@ erDiagram
 | 429 | `AUTH_RATE_LIMITED` | 登录失败过于频繁（5 次/分钟/IP），或改密失败过于频繁（5 次/分钟/账号；BE-003 / BE-029） |
 | 429 | `AI_RATE_LIMITED` | AI 调用过于频繁 |
 | 429 | `VISION_REFRESH_COOLDOWN` | 识图「重新识别」冷却中（`force_refresh` 默认 60s 一次；BE-024） |
+| 429 | `VISION_QUEUE_FULL` | 识图排队达到准入上限（`Retry-After: 30`；B 档任务化） |
+| 429 | `VISION_PREVIOUS_PENDING` | 同人已有不同参数的识图任务在排队/运行（B 档任务化） |
+| 404 | `VISION_JOB_NOT_FOUND` | 识图任务不存在或不属于本人（B 档任务化） |
 | 502 | `AI_PROVIDER_ERROR` | LLM 供应商错误 |
 | 504 | `AI_TIMEOUT` | LLM 超时 |
 | 422 | `AI_INVALID_OUTPUT` | AI 输出无法解析/校验失败 |
@@ -590,7 +593,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 |---|---|---|
 | POST | `/uploads/images` | multipart `file`（前端裁剪后上传）；**201** 返回 `{image_path, url, width, height}`。服务端按字节嗅格式 → EXIF 转正 → 剥元数据 → 压到长边 ≤2000px JPEG（q85，体积退让到 ≤5MB）；返回的 width/height 是**落盘那份的实际尺寸**，前端按它占位防跳版 |
 | GET | `/uploads/{user_id}/{filename}` | 鉴权取图（JWT）。只有内容寻址文件名（16 位十六进制 + jpg/png/webp）被接受，其余一律 **404 不给 403**（403 会泄露"这文件存在但不属于你"）；`Cache-Control: private, max-age=31536000, immutable`。不挂 StaticFiles |
-| POST | `/questions/from-image` | `{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`） |
+| POST | `/questions/from-image` | **旧同步端点（deprecated）**；B 档任务化用 `POST /questions/from-image/jobs` + `GET …/jobs/{job_id}`（见 §6.8「识图任务化」）。原语义：`{image_path, subject?, force_refresh?}` → `{image_path, questions:[...], warnings, cached, extracted_at}`；**只提取文本，不创建错题、不分析、不返回 bbox**；404 图不属于本人/不存在；无题图 → 200 + `questions: []` + `warnings`（不是错误）；坏输出 → 422 `AI_INVALID_IMAGE`；超时 180s（BE-024 两跳，见 §6.8）→ 504 `AI_TIMEOUT`；相同图 + 学科 + 模型 + prompt 版本命中缓存时直接返回（见 §6.8「结果缓存」），`force_refresh=true` 跳过缓存重跑并覆盖写回（连续强刷 → 429 `VISION_REFRESH_COOLDOWN`） |
 | POST | `/questions` | 用户确认后，每道条目调用一次；返回 `{question, task_id}`，自动入队 analysis |
 | POST | `/questions/{id}/generate` | 用户选中题目后，每个选中题目调用一次；返回 `tasks[]`（ADR-006：每题排 3 段，见 §6.4）；多选后端不设上限（任务按 `task_max_concurrency` 排队执行，排队中可取消） |
 
@@ -733,11 +736,26 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
   **4 条结构自洽保住、2 条降级成文本**（都来自密页 C 的填空）。
   ADR-004 §6 那条"结构化成功率 <90% 就复审"以旧口径算是**已经触发**（12/14=86%），
   处置写进 ADR-004，不在这里只留个数。
-- 超时：识图当前 **180s**（`RECOGNIZE_CLIENT_TIMEOUT_S=180`）同步等待，**超时不自动重试**（用户能立刻重传或改用文本录入）。前端等待上限必须与后端一致；⚠️ 14 号 §5-4 写的是 120s。**单跳关思考实拍整页 2.4–3.9s**；两跳形态实测 17–60s。
+- 超时：旧同步端点**单次调用 180s**（`RECOGNIZE_CLIENT_TIMEOUT_S`，是"每次 LLM 调用"不是整单），**超时不自动重试**；任务化路径改用 `VISION_CALL_TIMEOUT_S=100` + 整单 `VISION_RUN_DEADLINE_S=140`（见 §6.8「识图任务化」；单次硬上限 105 = 140−30−5，再高就是赌第二跳跑不完）。**单跳关思考实拍整页 2.4–3.9s**；两跳形态实测 17–60s；密页转录跳单次实测 90.2s。
 - 输出上限：转录跳 `max_tokens=24000`（开思考后 reasoning 会吃 token；密页实测 17251 输出 token，16000 会截断），结构化跳 8000。
   关思考时整页最多 861 输出 token；开启思考时同一页要 4145–12742 token，**顶格截断风险回到转录跳**——
   所以截断这条错误路径要留着：`finish_reason=length` → 直接判坏输出**且不重试**（同参数再跑只会再截断一次），文案给可执行动作"这张图题目太多，请裁成几次再上传"。
 - 若 `has_figure=true`，当前阶段只提示“含图，暂只提取文字”；生成题仍要求“纯文本可作答”，不要生成依赖不存在图片的题。
+
+**识图任务化（B 档，2026-11-21）**
+
+把识图从"同步等 17–90s"改成"提交拿单号 + 轮询取结果"，让 40 线程池不再被识图钉死；旧同步端点保留并标 deprecated，前端用 `VITE_VISION_ASYNC` 切路径（路径不同，回滚才成立）。
+
+- 端点：
+  - `POST /questions/from-image/jobs` → **200** 命中缓存（`job_id=null` + `result`，不建行不排队）或 **202** `{job_id, status, queue_position, estimated_wait_s, reused}`；
+  - `GET /questions/from-image/jobs/{job_id}` → `{job_id, status, queue_position?, estimated_wait_s?, result?, error?}`；`queued` 时带排队位置/预估（刷新页面后仍能显示"前面还有几个"）；越权/不存在一律 404 `VISION_JOB_NOT_FOUND`（不承认存在性）。
+- **幂等键 = `user + image_path + subject + force_refresh` 全等**；同参数复用单号，不同参数 429 `VISION_PREVIOUS_PENDING`。
+- **名额三层**：同时跑 `VISION_MAX_CONCURRENCY=8`；全局排队 `VISION_QUEUE_MAX_DEPTH=50`（正常参数下准入闸先触发，它只是估算失准时的硬兜底），且预估等待（按 **排队 + 正在跑** 估算）> `VISION_ADMIT_WAIT_MAX_S=30` 时**提交即 429**（`VISION_QUEUE_FULL` + `Retry-After: 30`，不做先收单再判死）；每人同时 1 个未完成（`active_slot` 唯一约束兜多标签页竞态）。
+- **缓存快路径在提交时做**：命中直接 200；强刷冷却先在提交时**只读判断**（429 `VISION_REFRESH_COOLDOWN`），**准入通过、真正入队前才扣额度**——被队列/上一单拒掉的人不消耗 60s 冷却，按 `Retry-After` 重试不会连吃两个 429。冷却撞上"同参任务并发/双击重新识别"时**复用已有单号**（不是 429）；入队撞 `active_slot` 唯一约束失败的一方**归还**刚占的额度。
+- **时间预算**：**典型等待 170s**（准入估算 30 + 认领后整单 140）；**最坏 180s**（准入只看估算，实际排队可到判死线 40 → 40 + 140；deadline 从认领起算）。**前端轮询上限必须按最坏值 180s，不许按 170 收**——175s 才跑完的任务会被前端提前判失败。准入闸比判死闸（`VISION_QUEUE_WAIT_MAX_S=40`）紧 10s：估算有波动，放进来的人不能刚过线就被自己的排队超时判死。排队时间确定、LLM 方差大，预算给后者（密页转录实测 90.2s，加结构化仍有余量）；`VISION_CALL_TIMEOUT_S=100` 只是单次上限（硬边界 **105 = 140−30−5**：第一跳之后必须给第二跳留 ≥30s + 5s 收尾，启动校验会拒绝超过硬边界的配置），真正生效的是整单 deadline。deadline 是协作式的：pipeline 每次调用前按剩余时间收紧 timeout，剩余 ≤5s 不再发起（Python 杀不掉阻塞线程）。
+- **排队超时**：首次认领（`attempts=0`）且已等 >40s（`VISION_QUEUE_WAIT_MAX_S`）→ `failed` `VISION_QUEUE_TIMEOUT`；崩溃重排过的任务跳过这个判断（`created_at` 是原始提交时间）。超时判定与认领**都走条件 UPDATE**（`WHERE status='queued'`）：40s 临界点上两个 worker 同时读到同一行时，不会把已认领成 running 的任务覆盖成 failed 而静默丢结果。
+- **worker**：独立线程组（复用 `TASK_WORKERS_ENABLED` 开关），与生题 worker 分开，避免互相饿死；启动自愈把卡住的 running 放回队列（`attempts>=2` → `failed` `AI_TIMEOUT`）；另有**独立 janitor 线程**（不消费任务，不会被最长 140s 的 `execute_job` 挡住）每 30s 扫 **deadline 已过 30s 仍 running** 的行做同样处理（兜 `mark_done` 的 commit 失败/线程失联，否则 `active_slot` 会一直占着）；`mark_done/mark_failed` 锁冲突重试一次、未命中（rowcount=0）留日志；终态任务 24h 后清理，**只删终态**。
+- 状态词与 `generation_task` 同一套：`queued | running | done | failed | canceled`。
 
 ### 6.9 个人设置 / 用户自带 AI Key（P1）
 
@@ -1176,7 +1194,14 @@ TASK_MAX_CONCURRENCY=6        # 一次生题排 3 段，2 个位会让第 3 段�
 TASK_HARD_TIMEOUT_S=120       # 单段/单任务服务端硬超时
 TASK_REQUEUE_DEADLINE_S=90    # 跑过 90s 的段不再自动重排队，直接 failed
 TASK_RETRY_LIMIT=1
-RECOGNIZE_CLIENT_TIMEOUT_S=180 # 识图两跳同步等待（转录 17-60s）
+RECOGNIZE_CLIENT_TIMEOUT_S=180 # 旧同步端点的单次调用上限（不是整单）
+# --- 识图任务化（B 档）---
+VISION_CALL_TIMEOUT_S=100      # 单次调用上限；≤ RUN_DEADLINE-35（105），否则第一跳吃光预算
+VISION_RUN_DEADLINE_S=140      # 认领后整单硬截止（协作式）
+VISION_ADMIT_WAIT_MAX_S=30     # 准入：预估等待（按排队+running）超它，提交即 429
+VISION_QUEUE_WAIT_MAX_S=40     # 判死：认领时实际已等超它才 failed；比准入多 10s 余量
+VISION_MAX_CONCURRENCY=8       # 识图 worker 数；8 并发 soak 19.3s/张、上游无 429，保持 8
+VISION_QUEUE_MAX_DEPTH=50       # 硬兜底：正常参数下准入闸（30s）先触发
 TASK_WORKERS_ENABLED=true     # API 测试里关掉
 
 # --- 图片（12号 §5 + BE-014）---
@@ -1272,8 +1297,11 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
+| 2026-11-24 | v0.6.29 | **识图任务化复核修复（#100 review）**：排队超时分支改条件 UPDATE，堵住"临界点判超时覆盖已认领的 running、`mark_done` 静默丢结果"的竞态；`mark_done/mark_failed` rowcount=0 留日志 + 锁冲突重试一次；独立 janitor 线程每 30s 扫 deadline 超 30s 仍 running 的行做运行期自愈（`attempts>=2` → failed，否则回队列）；终态清理也挪进该线程（原来塞在消费循环里会被长任务拖住）；强刷冷却撞同参并发/双击改为复用单号，入队冲突归还额度；深度闸默认 200→50（正常参数下准入闸先触发，只作硬兜底）；CORS 暴露 `Retry-After`、旧同步端点在 OpenAPI 标 deprecated；准入/判死解耦为 30/40（新增 `VISION_ADMIT_WAIT_MAX_S`，边界不再自己判死自己）、单次/整单改 100/140（单次上限 105，pydantic validator 拒绝超额配置，整单上限 140）、等待口径写成典型 170 / 最坏 180（前端仍按 180）、文档数字同步；11 条新测试，282 passed；OpenAPI 已重导 | 人机 |
 | 2026-11-21 | v0.6.28 | **会话策略改多设备共存 + 改密接口**。按定案单 §3：登录/登出**不再** +1（手机+电脑互不踢；登出只清前端），只有改密/强制下线才 +1；新增 `POST /auth/change-password`（BE-029：验旧密码、8 位且 ≤72 字节、新旧不得相同、失败 5 次/分钟/账号限流）；`_bump_token_version` 改 `FOR UPDATE` 当前读（MySQL RR 下普通 SELECT 会读快照旧值，签出落后版本的 token 导致登录即 401）；logout 端点保留但服务端不吊销。会话测试按新口径重写 + 改密 6 条；OpenAPI 重导 | 人机 |
 | 2026-11-21 | v0.6.27 | **限流复核修复**：`TRUSTED_PROXIES` 支持 CIDR（Docker 下按网桥网段填，容器重建不失效；写错只忽略并在日志告警，不放行代理头）；注册额度改为**重名检查之后**扣（同 NAT 下打错用户名不占全班名额）；`clear()` 注明只在测试用（redis 下删 `LIMITS:*` 前缀，非整库 flush）；限流标识符加业务命名空间（同额度不串桶）、启动期拒绝 ≤0 额度/窗口；文档写清 30 是硬上限。5 条新测试 | 人机 |
+| 2026-11-21 | v0.6.26 | **识图任务化复核修复**：强刷冷却改为"提交只读判断 + 准入通过后才扣额度"（被队列拒掉不再吃 `VISION_REFRESH_COOLDOWN`）；准入均值加 20s 下限（8 并发实测 19.3s，避免小图拉低后"排了队再判死"）；轮询 `queued` 补 `queue_position`/`estimated_wait_s`；OpenAPI 补齐 202/404/429；`.env.example` 删掉"提到 12"的误导注释并拆开行内注释。3 条新测试 | 人机 |
+| 2026-11-21 | v0.6.25 | **识图任务化（B 档）**：新增 `vision_job` 表（迁移 `d6b8c2e4f901`）与 `POST /questions/from-image/jobs` + `GET …/jobs/{job_id}`，旧同步端点保留标 deprecated；提交命中缓存直接 200、否则 202 排队号；幂等键含 subject/force_refresh；每人 1 个 active（`active_slot` 唯一）；同时跑 8 / 全队 200 / 排队 40s（估算含 running）且预估超限提交即 429 + `Retry-After`；整单 deadline 140s（pipeline 协作式收紧，单次兜底 140s）；独立 vision worker + 启动自愈 + 终态 24h 清理；新增 4 个错误码；267 passed；OpenAPI 已重导 | 人机 |
 | 2026-11-20 | v0.6.24 | **限流引擎换 `limits`（MovingWindow）+ 注册限流**。`core/rate_limit.py` 薄壳：`hit`（记账并抛 429）/`check`（只看不记账）/`record`/`reset`，存储 `RATE_LIMIT_STORAGE_URL` 默认 `memory://`、多实例换 `redis://`（`limits[redis]`）；登录限流的行为不变（失败才记账、5 次/分钟/IP）；新增**注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT`/`REGISTER_RATE_WINDOW_S`；实验室共用 NAT 出口，3 会挡正常注册）；额度字符串在启动期 `validate_rate_limit_config()` 解析。选 MovingWindow 而非固定窗口：固定窗口边界两秒可放行 2×额度。新增依赖 `limits>=5.8`；257 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-20 | v0.6.23 | **修正 v0.6.22 只做了去重、位置太浅**：第 1 跳的「第 N 题…」警告被 `attach_transcript_warnings` 挂到条目后，service 仍把 `transcript["warnings"]` 全量拼回顶层，前端横幅和卡片各显示一次。改为函数**返回未下沉的剩余**，service 只拼返回值（与 `validate_extraction` 的 `kept` 语义一致）；题数对不上（第 2 跳丢/并条目）时一条也不下沉、全部留顶层。补 validator 返回值断言 + service 级用例（第 1 跳带「第 2 题…」→ 顶层没有、卡片上有），258 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-20 | v0.6.22 | **识图顶层警告去重**：两跳可能回同一句页面级说明（第 2 跳看得到第 1 跳的转录），`transcript + structure` 直接拼接会在前端显示两个相同 chip；改为按出现顺序 `dict.fromkeys` 去重。1 条新测试，257 passed；无迁移、无 OpenAPI 变化 | 人机 |

@@ -123,6 +123,22 @@ def _cache_load(session_factory: sessionmaker, key: _CacheKey) -> dict | None:
         return payload
 
 
+def _force_slot_remaining(session_factory: sessionmaker, key: _CacheKey) -> int:
+    """只读：冷却还剩多少秒（0 = 可以强刷）。**不占额度、不写库**。
+
+    提交路径先用它做判断，等准入通过后再调 `take_force_slot()` 真正占用——
+    否则被队列/上一单拒掉的人白丢一次额度，按 `Retry-After` 重试还会撞冷却。
+    """
+    with session_factory() as session:
+        last = session.scalar(
+            select(VisionExtractCache.last_forced_at).where(*_cache_where(key))
+        )
+    if last is None:
+        return 0
+    remaining = settings.vision_force_refresh_cooldown_s - (utcnow() - last).total_seconds()
+    return max(1, math.ceil(remaining)) if remaining > 0 else 0
+
+
 def _acquire_force_slot(session_factory: sessionmaker, key: _CacheKey) -> int:
     """占用一次强刷额度：0 = 占到了，>0 = 冷却剩余秒数。
 
@@ -229,6 +245,126 @@ def _cache_store(
             session.rollback()
 
 
+def _cache_decision(
+    session_factory: sessionmaker,
+    user_id: int,
+    image_path: str,
+    subject: str | None,
+    force_refresh: bool,
+    *,
+    force_slot: str = "take",
+) -> tuple[_CacheKey | None, dict | None]:
+    """归属校验 + 强刷冷却 + 缓存读，一处实现两种入口共用（同步端点 / 任务提交）。
+
+    返回 `(缓存键, 命中结果)`；未命中时结果为 None。`force_slot` 决定冷却额度怎么处理：
+
+    - `take`（同步端点）：当场占用，失败也计——一次重跑 17–90s，不能靠失败绕过；
+    - `peek`（任务提交）：只读判断，准入通过后再由 `take_force_slot()` 占用；
+    - `skip`（worker）：提交时已经占过，执行时不能再占，否则被自己的冷却挡住。
+    """
+    # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
+    image_service.resolve_user_file(user_id, image_path)
+    key = _cache_key(session_factory, user_id, image_path, subject)
+    if key is None:
+        return None, None
+    if force_refresh:
+        if force_slot != "skip":
+            try:
+                wait_s = (
+                    _acquire_force_slot(session_factory, key)
+                    if force_slot == "take"
+                    else _force_slot_remaining(session_factory, key)
+                )
+            except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
+                logger.warning("识图缓存冷却检查失败（user=%s）：%s", user_id, exc)
+                wait_s = 0
+            if wait_s > 0:
+                raise ApiError(
+                    ErrorCode.VISION_REFRESH_COOLDOWN,
+                    f"刚重新识别过，请 {wait_s} 秒后再试",
+                    429,
+                )
+        return key, None
+    try:
+        cached = _cache_load(session_factory, key)
+    except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
+        # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
+        logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
+        cached = None
+    if cached is not None:
+        logger.info(
+            "识图缓存命中（user=%s sha=%s subject=%r）",
+            user_id,
+            key.image_sha,
+            key.subject_key,
+        )
+        cached["image_path"] = image_path
+    return key, cached
+
+
+def prepare_submission(
+    session_factory: sessionmaker,
+    user_id: int,
+    image_path: str,
+    *,
+    subject: str | None = None,
+    force_refresh: bool = False,
+) -> tuple[_CacheKey | None, dict | None]:
+    """任务化提交的只读快路：归属校验 + 缓存读 + 强刷冷却判断，**不占额度**。
+
+    返回 `(缓存键, 命中结果)`；命中缓存时结果为 payload，否则 None（交给入队）。
+    """
+    return _cache_decision(
+        session_factory, user_id, image_path, subject, force_refresh, force_slot="peek"
+    )
+
+
+def take_force_slot(session_factory: sessionmaker, key: _CacheKey | None) -> bool:
+    """准入通过、入队之前占用强刷额度；冷却中抛 429。
+
+    与 `prepare_submission` 的 peek 分开，是为了让"被队列拒掉"的请求不消耗额度。
+    返回值表示这次调用是否占到了额度，入队冲突回滚时据此归还
+    （冷却检查内部异常按放行处理，返回 False）。
+    """
+    if key is None:
+        return False
+    try:
+        wait_s = _acquire_force_slot(session_factory, key)
+    except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
+        logger.warning("识图强刷额度占用失败（user=%s）：%s", key.user_id, exc)
+        return False
+    if wait_s > 0:
+        raise ApiError(
+            ErrorCode.VISION_REFRESH_COOLDOWN,
+            f"刚重新识别过，请 {wait_s} 秒后再试",
+            429,
+        )
+    return True
+
+
+def release_force_slot(session_factory: sessionmaker, key: _CacheKey | None) -> None:
+    """归还刚占的强刷额度（入队冲突回滚用）。
+
+    只可能归还自己刚占的那一次：`_acquire_force_slot` 对同一行是 60s 窗口内
+    独占的 CAS（窗口内第二个占用会撞冷却、根本走不到这里）；而 `last_forced_at`
+    的其它写入方（worker 完成后的覆盖写）要求该图有正在跑的任务、被每人 1 个
+    active 挡住。所以按键置 None 不会抹掉别人的占位。
+    归还失败最多是多给一次可用强刷，不能把 429 变 500。
+    """
+    if key is None:
+        return
+    try:
+        with session_factory() as session:
+            session.execute(
+                update(VisionExtractCache)
+                .where(*_cache_where(key))
+                .values(last_forced_at=None)
+            )
+            session.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("识图强刷额度归还失败（user=%s）：%s", key.user_id, exc)
+
+
 def extract_from_image(
     session_factory: sessionmaker,
     user_id: int,
@@ -236,6 +372,9 @@ def extract_from_image(
     *,
     subject: str | None = None,
     force_refresh: bool = False,
+    deadline: float | None = None,
+    call_timeout_s: float | None = None,
+    force_slot_taken: bool = False,
 ) -> dict:
     """返回 `{"image_path", "questions": [ExtractedQuestion], "warnings": [str],
     "cached": bool, "extracted_at": datetime}`。
@@ -246,38 +385,16 @@ def extract_from_image(
     连续强刷受冷却限制（429 `VISION_REFRESH_COOLDOWN`，额度在调用模型前占用，失败也计），
     否则一次重跑 17–90s 就是成本放大器。
     """
-    # 缓存不能变成绕过 404 的旁路：文件归属先校验（不存在/不属于本人仍旧 404）
-    image_service.resolve_user_file(user_id, image_path)
-    key = _cache_key(session_factory, user_id, image_path, subject)
-    if key is not None:
-        if force_refresh:
-            try:
-                wait_s = _acquire_force_slot(session_factory, key)
-            except Exception as exc:  # noqa: BLE001 冷却检查失败不能把识图打挂，按放行处理
-                logger.warning("识图缓存冷却检查失败（user=%s）：%s", user_id, exc)
-                wait_s = 0
-            if wait_s > 0:
-                raise ApiError(
-                    ErrorCode.VISION_REFRESH_COOLDOWN,
-                    f"刚重新识别过，请 {wait_s} 秒后再试",
-                    429,
-                )
-        else:
-            try:
-                cached = _cache_load(session_factory, key)
-            except Exception as exc:  # noqa: BLE001 缓存读失败不能拖垮识图，按未命中处理
-                # 典型场景是本地库没跑迁移（表不存在）：一行警告足够，别每个请求刷一次 traceback
-                logger.warning("识图缓存读取失败（user=%s）：%s", user_id, exc)
-                cached = None
-            if cached is not None:
-                logger.info(
-                    "识图缓存命中（user=%s sha=%s subject=%r）",
-                    user_id,
-                    key.image_sha,
-                    key.subject_key,
-                )
-                cached["image_path"] = image_path
-                return cached
+    key, cached = _cache_decision(
+        session_factory,
+        user_id,
+        image_path,
+        subject,
+        force_refresh,
+        force_slot="skip" if force_slot_taken else "take",
+    )
+    if cached is not None:
+        return cached
 
     extracted_at = datetime.now(UTC)
     data_url = image_service.data_url_for_llm(user_id, image_path)
@@ -294,6 +411,8 @@ def extract_from_image(
         max_tokens=24000,
         thinking="adaptive",
         validate=validator.validate_transcript,
+        deadline=deadline,
+        call_timeout_s=call_timeout_s,
     )
     if not transcript["questions"]:
         # 图里没题是正常结果，不再白花第二跳；只留一条转录日志。
@@ -321,6 +440,8 @@ def extract_from_image(
         validate=lambda raw: validator.validate_extraction(
             validator.normalize_blank_markers(raw)
         ),
+        deadline=deadline,
+        call_timeout_s=call_timeout_s,
     )
 
     chapter = transcript["chapter"]
@@ -367,6 +488,8 @@ def _hop(
     max_tokens: int,
     thinking: str,
     validate,
+    deadline: float | None = None,
+    call_timeout_s: float | None = None,
 ):
     """跑一跳：调用、校验、失败写一行日志（prompt_version 按跳分开）。"""
     try:
@@ -378,6 +501,8 @@ def _hop(
             retry_limit=1,
             max_tokens=max_tokens,
             thinking=thinking,
+            deadline=deadline,
+            call_timeout_s=call_timeout_s,
         )
     except AITruncatedError as exc:
         # 实测一张真实教材照片 4 道题就吃掉 6776 输出 token；一页更密的题确实会顶到。

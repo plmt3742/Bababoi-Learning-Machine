@@ -1,6 +1,7 @@
 """应用装配：只做组装，不放业务。"""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,7 +20,9 @@ from app.core.errors import register_exception_handlers
 from app.core.observability import register_observability, setup_logging
 from app.core.rate_limit import validate_rate_limit_config
 from app.db.session import SessionLocal
-from app.services import task_worker
+from app.services import task_worker, vision_job_service, vision_worker
+
+logger = logging.getLogger(__name__)
 
 setup_logging()
 
@@ -38,9 +41,17 @@ async def lifespan(app: FastAPI):
         stop_event, threads = task_worker.start_workers(
             SessionLocal, settings.task_max_concurrency
         )
+        # 识图任务：启动自愈 + 独立线程组（与生题互不饿死）
+        recovered = vision_job_service.recover_stale(SessionLocal)
+        if recovered:
+            logger.warning("重置/终止了 %d 个卡住的识图任务", recovered)
+        vision_stop, vision_threads = vision_worker.start_workers(
+            SessionLocal, settings.vision_max_concurrency
+        )
     yield
     if settings.task_workers_enabled:
         task_worker.stop_workers(stop_event, threads)
+        vision_worker.stop_workers(vision_stop, vision_threads)
 
 
 app = FastAPI(title=settings.project_name, version=settings.version, lifespan=lifespan)
@@ -51,6 +62,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    # 跨源直连时浏览器默认读不到 Retry-After（同源/nginx 代理部署不受影响）
+    expose_headers=["Retry-After"],
 )
 
 register_observability(app)

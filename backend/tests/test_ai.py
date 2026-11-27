@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import time
 from functools import partial
 
 import pytest
@@ -16,10 +17,11 @@ from app.ai.client import (
     _MOCK_QUIZ_SEGMENTS,
     OPERATION_ANALYSIS,
     OPERATION_QUIZ,
+    LLMResponse,
     MockLLMClient,
     build_llm_client,
 )
-from app.ai.errors import AIInvalidOutputError
+from app.ai.errors import AIInvalidOutputError, AITimeoutError
 from app.ai.pipeline import run
 from app.core.config import settings
 
@@ -740,3 +742,43 @@ def test_step1_warnings_are_attached_by_question_number() -> None:
     )
     assert drifted[0].incomplete is False and drifted[0].warnings == []
     assert kept_drifted == ["第2题的公式被页边裁掉"]
+
+
+def test_pipeline_deadline_tightens_call_timeout() -> None:
+    """整单 deadline 会收紧单次调用超时；剩余不足 5 秒就不再发起调用。"""
+
+    class RecordingClient:
+        def __init__(self) -> None:
+            self.calls: list[float | None] = []
+
+        def complete(self, operation, messages, **kwargs):
+            self.calls.append(kwargs.get("timeout_s"))
+            return LLMResponse(
+                text=json.dumps({"ok": True}),
+                model="mock",
+                prompt_tokens=0,
+                completion_tokens=0,
+                latency_ms=0,
+                finish_reason="stop",
+            )
+
+    client = RecordingClient()
+    run(
+        client,
+        OPERATION_ANALYSIS,
+        [{"role": "user", "content": "x"}],
+        custom_validate=lambda raw: raw,
+        deadline=time.monotonic() + 30,
+        call_timeout_s=120,
+    )
+    assert client.calls and 20 <= client.calls[0] <= 25, client.calls
+
+    with pytest.raises(AITimeoutError):
+        run(
+            client,
+            OPERATION_ANALYSIS,
+            [{"role": "user", "content": "x"}],
+            custom_validate=lambda raw: raw,
+            deadline=time.monotonic() - 1,
+        )
+    assert len(client.calls) == 1, "deadline 已到不应再发起调用"
