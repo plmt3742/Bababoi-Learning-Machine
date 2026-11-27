@@ -109,19 +109,19 @@ ID:
 
 ### 1.6 管理端 admin（进入 11.29 演示；范围见 ADR-009 / 28 号文档）
 
-> 决策：ADR-005 + ADR-009。演示档位按 ADR-009：必须 = 登录/403、总览、任务/AI 日志只读、审计列表、系统健康；目标 = 密码申请审批 + 强制改密；演示后 = 导出、告警、内容标记等。密码流程见 `28-admin-console.md` §5。`admin/` 前端应用见 PR #120；后端地基见 PR #123。
+> 决策：ADR-005 + ADR-009。演示档位按 ADR-009：必须 = 登录/403、总览、任务/AI 日志只读、审计列表、系统健康；目标 = 密码申请审批 + 强制改密；演示后 = 导出、告警、内容标记等。密码流程见 `28-admin-console.md` §5。`admin/` 前端应用见 PR #120；后端地基 #123 已合，只读与复核修复在 #124。
 
 | ID | 任务 | 负责人 | 优先级 | 演示档位 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|---|
 | ADM-001 | ADR-005 + `admin/README.md` + 文档同步 | 霹雳马桶 | P1 | 必须（基础） | 无 | ADR Accepted；01/06/README/AGENTS 同步；不写业务代码 | DONE |
-| ADM-002 | `users.role` + migration + `require_admin` + seed admin | 人机 | P1 | 必须（基础） | ADM-001 | student token 403；admin 200；无默认密码 | DOING（PR #123） |
+| ADM-002 | `users.role` + migration + `require_admin` + seed admin | 人机 | P1 | 必须（基础） | ADM-001 | student token 403；admin 200；无默认密码 | DONE（PR #123） |
 | ADM-003 | `GET /admin/overview` | 人机 | P1 | 必须 | ADM-002 | 用户/错题/生成题/练习数、AI 成功率、失败任务数与 DB 一致 | DOING（PR #124） |
 | ADM-004 | admin app 脚手架 + 登录 + AdminShell | 霹雳马桶 | P1 | 必须 | ADM-001/002 | 独立 `admin/`；`base=/admin/`；登录/路由守卫；CI build | DOING（PR #120） |
 | ADM-005 | 用户列表/搜索/禁用/强制下线 | 两人 | P1 | 目标（列表/禁用） | ADM-003/004 | 分页、搜索、禁用、强制下线；不返回 password_hash | DOING（列表/详情 PR #124；写操作待做） |
 | ADM-006 | 错题/生成题列表 + 软删除 | 两人 | P1 | 演示后 | ADM-003/004 | 列表/详情/软删；无富文本编辑 | TODO |
 | ADM-007 | 任务/AI logs 列表 + 失败重试 | 人机 | P1 | 必须 | ADM-003/004 | 筛选、重试、错误码/延迟/tokens 可见 | DOING（只读 PR #124；重试/取消/raw 待做） |
 | ADM-008 | 审计列表/导出 | 人机 | P1 | 必须（列表）/演示后（导出） | ADM-005/006/007 | 删除/重试/禁用/审批/敏感读取留痕；导出脱敏 | DOING（列表 PR #124；导出待做） |
-| ADM-009 | `users.disabled_at` + `admin_audit_logs` + audit service | 人机 | P1 | 必须（基础） | ADM-002 | 写操作与审计同事务；审计失败回滚 | DOING（PR #123） |
+| ADM-009 | `users.disabled_at` + `admin_audit_logs` + audit service | 人机 | P1 | 必须（基础） | ADM-002 | 写操作与审计同事务；审计失败回滚 | DONE（PR #123；写操作随 #124） |
 | ADM-010 | 管理端密码申请审批页面 | 霹雳马桶 | P1 | 目标 | BE-030/ADM-004 | 待审批列表/详情、通过/拒绝、临时密码一次性展示与重新生成；审计 | TODO |
 | ADM-011 | 监控指标 + 健康/告警 | 人机 | P1 | 必须（指标/健康）/演示后（告警） | ADM-003 | AI 成功率/延迟/tokens、队列、`/health` 与 DB 一致 | DOING（PR #124；告警 ack 待做） |
 | ADM-012 | 内容标记 + 用户强制下线 | 两人 | P1 | 演示后（内容标记）/目标（强制下线） | ADM-005/006/009 | 软删/恢复/标记；强制下线 token_version+1；审计 | TODO |
