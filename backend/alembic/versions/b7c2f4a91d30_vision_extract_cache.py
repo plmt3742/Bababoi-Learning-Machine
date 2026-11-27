@@ -54,5 +54,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_vision_extract_cache_user_id", table_name="vision_extract_cache")
+    # 直接删表：ix_vision_extract_cache_user_id 是外键依赖的索引，MySQL 不允许单独删（1553）
     op.drop_table("vision_extract_cache")

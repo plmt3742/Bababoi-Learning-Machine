@@ -6,6 +6,9 @@ Create Date: 2026-11-21
 
 纯新增表，不动老表：识图改成"提交拿单号 → 轮询取结果"后，任务要在重启/多标签页
 之间可恢复，且每人同时只能挂 1 个未完成任务（`active_slot` 可空唯一）。
+
+2026-11-27 例外：降级改为直接 `drop_table`（MySQL 不允许先删外键依赖的索引，会报 1553）。
+MySQL 上线后再发现迁移问题，必须新开前向迁移，不许再就地改本条。
 """
 from __future__ import annotations
 
@@ -61,7 +64,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_vjob_expires", table_name="vision_job")
-    op.drop_index("ix_vjob_user_status", table_name="vision_job")
-    op.drop_index("ix_vjob_status_created", table_name="vision_job")
+    # 直接删表：索引与外键随表一起删。MySQL 下先 drop_index 会报 1553
+    # （ix_vjob_user_status 是外键 user_id 依赖的索引，不能单独删）；SQLite 没有这个限制。
     op.drop_table("vision_job")

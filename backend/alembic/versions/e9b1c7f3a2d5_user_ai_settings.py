@@ -51,5 +51,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     with op.batch_alter_table("ai_call_logs", schema=None) as batch_op:
         batch_op.drop_column("key_source")
-    op.drop_index(op.f("ix_user_ai_settings_created_at"), table_name="user_ai_settings")
     op.drop_table("user_ai_settings")
