@@ -1,4 +1,10 @@
-import type { GeneratedQuestion, MasteryStatus, QuestionType } from '../api/types'
+import type {
+  GeneratedQuestion,
+  MasteryStatus,
+  PracticeDueReason,
+  QuestionType,
+} from '../api/types'
+import { parseApiTime } from './time'
 
 export interface PracticeAnswerDraft {
   choice: string
@@ -40,6 +46,16 @@ export function resolvePracticeQuestionType(
 
 export function blankAnswerCount(question: Pick<GeneratedQuestion, 'blanks'>): number {
   return Math.max(1, question.blanks?.length ?? 0)
+}
+
+const CHOICE_LABEL_PREFIX = /^(?:选\s*|答案[：:]?\s*|故选\s*|选项\s*)?([A-F])(?=$|[\s.。，,、:：)）])/i
+
+/** Pull the single-choice letter out of an answer like `选 A`, `答案：B`, or `**C**`. */
+export function extractChoiceAnswerLabel(answerMd: string | null | undefined): string {
+  if (!answerMd) return ''
+  const cleaned = answerMd.replace(/[*_`$]/g, '').trim()
+  const match = CHOICE_LABEL_PREFIX.exec(cleaned)
+  return match ? match[1].toUpperCase() : ''
 }
 
 export function buildPracticeUserAnswer(
@@ -99,4 +115,84 @@ export function masteryStatusForResults(
   if (correct === results.length) return 'mastered'
   if (correct === 0) return 'unmastered'
   return 'reviewing'
+}
+
+export const DUE_REVIEW_DAYS: Record<MasteryStatus, number> = {
+  unmastered: 1,
+  reviewing: 3,
+  mastered: 7,
+}
+
+const DUE_REASON_BY_STATUS: Record<MasteryStatus, PracticeDueReason> = {
+  unmastered: 'unmastered_1d',
+  reviewing: 'reviewing_3d',
+  mastered: 'mastered_7d',
+}
+
+export function resolveDueReason(
+  mastery: MasteryStatus,
+  lastPracticedAt: string | null | undefined,
+  now: Date = new Date(),
+): PracticeDueReason | null {
+  if (!lastPracticedAt) return 'never'
+
+  const last = parseApiTime(lastPracticedAt)
+  if (Number.isNaN(last.getTime())) return 'never'
+
+  const days = (now.getTime() - last.getTime()) / 86_400_000
+  return days >= DUE_REVIEW_DAYS[mastery] ? DUE_REASON_BY_STATUS[mastery] : null
+}
+
+export function dueReasonLabel(reason: PracticeDueReason): string {
+  switch (reason) {
+    case 'never':
+      return '还没练过'
+    case 'unmastered_1d':
+      return '已隔 1 天'
+    case 'reviewing_3d':
+      return '已隔 3 天'
+    case 'mastered_7d':
+      return '已隔 7 天'
+  }
+}
+
+export type PracticeShortcut =
+  | { type: 'choice'; label: string }
+  | { type: 'reveal' }
+  | { type: 'grade'; correct: boolean }
+
+export interface PracticeShortcutInput {
+  key: string
+  code: string
+  revealed: boolean
+  submitting: boolean
+  choiceLabels: string[]
+  editable: boolean
+  activatable: boolean
+  defaultPrevented?: boolean
+  metaKey?: boolean
+  ctrlKey?: boolean
+  altKey?: boolean
+}
+
+export function resolvePracticeShortcut(
+  input: PracticeShortcutInput,
+): PracticeShortcut | null {
+  if (input.defaultPrevented || input.metaKey || input.ctrlKey || input.altKey) return null
+  if (input.editable) return null
+  if (input.activatable && (input.key === ' ' || input.key === 'Enter')) return null
+
+  if (!input.revealed && /^[a-f]$/i.test(input.key)) {
+    const label = input.key.toUpperCase()
+    if (input.choiceLabels.includes(label)) return { type: 'choice', label }
+  }
+
+  if (input.code === 'Space') return { type: 'reveal' }
+
+  if (input.revealed && !input.submitting) {
+    if (input.key === '1') return { type: 'grade', correct: false }
+    if (input.key === '2') return { type: 'grade', correct: true }
+  }
+
+  return null
 }

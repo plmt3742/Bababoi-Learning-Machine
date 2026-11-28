@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import type { GeneratedQuestion } from '../../api/types'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { Analysis, GeneratedQuestion } from '../../api/types'
 import { difficultyLabel, questionTypeLabel } from '../../utils/question'
 import {
   blankAnswerCount,
   buildPracticeUserAnswer,
+  extractChoiceAnswerLabel,
   resolvePracticeQuestionType,
+  resolvePracticeShortcut,
 } from '../../utils/practice'
 import MarkdownRenderer from '../common/MarkdownRenderer.vue'
 
 const props = defineProps<{
   question: GeneratedQuestion
+  analysis?: Analysis | null
   index: number
   total: number
   submitting: boolean
@@ -27,7 +30,7 @@ const blankAnswers = ref<string[]>(
   Array.from({ length: blankAnswerCount(props.question) }, () => ''),
 )
 const solveAnswer = ref('')
-const revealed = ref(false)
+const revealStage = ref<0 | 1 | 2 | 3>(0)
 
 const effectiveType = computed(() => resolvePracticeQuestionType(props.question))
 const typeLabel = computed(() => questionTypeLabel(effectiveType.value))
@@ -45,20 +48,131 @@ const blankFields = computed(() =>
 const answerText = computed(() => props.question.answer_md?.trim() ?? '')
 const explanationText = computed(() => props.question.explanation_md?.trim() ?? '')
 const hasAnswerContent = computed(() => Boolean(answerText.value) || blanks.value.length > 0)
+const hasReference = computed(
+  () => hasAnswerContent.value || Boolean(explanationText.value.trim()),
+)
+const revealed = computed(() => revealStage.value > 0)
+const expectedChoiceLabel = computed(() =>
+  effectiveType.value === 'choice' ? extractChoiceAnswerLabel(answerText.value) : '',
+)
+const hintPoints = computed(() => props.analysis?.knowledge_points ?? [])
+const hintSummary = computed(() => props.analysis?.solution_summary?.trim() ?? '')
+const hasIdeaHint = computed(() => hintPoints.value.length > 0 || Boolean(hintSummary.value))
+const referenceReady = computed(() => {
+  if (!hasReference.value) return true
+  if (hasAnswerContent.value) return revealStage.value >= 2
+  return revealStage.value >= 3
+})
+const gradeAvailable = computed(() => referenceReady.value)
+const gradeHint = computed(() => {
+  if (!hasReference.value) return '暂无参考答案，可直接自评'
+  if (referenceReady.value) return '对照答案，诚实自评'
+  if (revealStage.value === 0) {
+    return hasIdeaHint.value ? '先看思路提示，再逐步对照答案' : '先查看答案，再自评「会 / 不会」'
+  }
+  return '继续查看参考答案，再自评「会 / 不会」'
+})
+const revealLabel = computed(() => {
+  if (revealStage.value === 3) return '收起'
+  if (revealStage.value === 2) return explanationText.value ? '看完整解析' : '收起'
+  if (revealStage.value === 1) {
+    if (hasAnswerContent.value) return '看参考答案'
+    return explanationText.value ? '看完整解析' : '收起'
+  }
+  if (hasIdeaHint.value) return '看思路提示'
+  if (hasAnswerContent.value) return '看参考答案'
+  return explanationText.value ? '看完整解析' : '查看答案'
+})
 
 function resetAnswer(): void {
   choiceAnswer.value = ''
   blankAnswers.value = Array.from({ length: blankAnswerCount(props.question) }, () => '')
   solveAnswer.value = ''
-  revealed.value = false
+  revealStage.value = 0
 }
 
-function toggleReveal(): void {
-  revealed.value = !revealed.value
+function advanceReveal(): void {
+  if (revealStage.value === 0) {
+    if (hasIdeaHint.value) revealStage.value = 1
+    else if (hasAnswerContent.value) revealStage.value = 2
+    else if (explanationText.value) revealStage.value = 3
+    else revealStage.value = 1
+    return
+  }
+
+  if (revealStage.value === 1) {
+    if (hasAnswerContent.value) revealStage.value = 2
+    else if (explanationText.value) revealStage.value = 3
+    else revealStage.value = 0
+    return
+  }
+
+  if (revealStage.value === 2) {
+    if (explanationText.value) revealStage.value = 3
+    else revealStage.value = 0
+    return
+  }
+
+  revealStage.value = 0
 }
+
+function revealAll(): void {
+  if (explanationText.value) revealStage.value = 3
+  else if (hasAnswerContent.value) revealStage.value = 2
+  else revealStage.value = 1
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  if (!element) return false
+  return (
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.tagName === 'SELECT' ||
+    element.isContentEditable
+  )
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null
+  const shortcut = resolvePracticeShortcut({
+    key: event.key,
+    code: event.code,
+    revealed: revealed.value,
+    submitting: props.submitting,
+    choiceLabels: choiceOptions.value.map((option) => option.label),
+    editable: isEditableTarget(event.target),
+    activatable:
+      target?.tagName === 'BUTTON' || target?.tagName === 'A' || target?.tagName === 'SUMMARY',
+    defaultPrevented: event.defaultPrevented,
+    metaKey: event.metaKey,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+  })
+
+  if (!shortcut) return
+
+  if (shortcut.type === 'choice') {
+    event.preventDefault()
+    choiceAnswer.value = shortcut.label
+    return
+  }
+
+  if (shortcut.type === 'reveal') {
+    event.preventDefault()
+    advanceReveal()
+    return
+  }
+
+  event.preventDefault()
+  grade(shortcut.correct)
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 
 function grade(isCorrect: boolean): void {
-  if (props.submitting) return
+  if (props.submitting || !gradeAvailable.value) return
 
   emit(
     'grade',
@@ -103,7 +217,15 @@ watch(() => props.question.id, resetAnswer)
               v-for="option in choiceOptions"
               :key="option.label"
               class="option"
-              :class="{ 'option--selected': choiceAnswer === option.label }"
+              :class="{
+                'option--selected': choiceAnswer === option.label,
+                'option--correct': revealed && expectedChoiceLabel === option.label,
+                'option--wrong':
+                  revealed &&
+                  choiceAnswer === option.label &&
+                  Boolean(expectedChoiceLabel) &&
+                  option.label !== expectedChoiceLabel,
+              }"
             >
               <input
                 v-model="choiceAnswer"
@@ -116,6 +238,20 @@ watch(() => props.question.id, resetAnswer)
               <div class="option__content">
                 <MarkdownRenderer :content="option.content_md" compact />
               </div>
+              <span v-if="revealed && expectedChoiceLabel === option.label" class="sr-only">
+                正确答案
+              </span>
+              <span
+                v-if="
+                  revealed &&
+                  choiceAnswer === option.label &&
+                  Boolean(expectedChoiceLabel) &&
+                  option.label !== expectedChoiceLabel
+                "
+                class="sr-only"
+              >
+                你的选择错误
+              </span>
             </label>
           </div>
 
@@ -145,37 +281,47 @@ watch(() => props.question.id, resetAnswer)
       </div>
 
       <div class="practice-card__foot">
-        <button
-          class="btn btn--outline reveal-btn"
-          type="button"
-          :aria-expanded="revealed"
-          @click="toggleReveal"
-        >
-          <svg
-            class="icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+        <div class="reveal-actions">
+          <button
+            class="btn btn--outline reveal-btn"
+            type="button"
+            :aria-expanded="revealed"
+            aria-keyshortcuts="Space"
+            @click="advanceReveal"
           >
-            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-            <circle cx="12" cy="12" r="2.6" />
-          </svg>
-          {{ revealed ? '收起答案' : '查看答案' }}
-        </button>
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+              <circle cx="12" cy="12" r="2.6" />
+            </svg>
+            {{ revealLabel }}
+          </button>
+          <button
+            v-if="revealStage < 2 && (hasAnswerContent || explanationText)"
+            class="btn btn--quiet btn--sm reveal-all"
+            type="button"
+            @click="revealAll"
+          >
+            直接看完整解析
+          </button>
+        </div>
 
         <div class="grade-group">
-          <p class="grade-hint">
-            {{ revealed ? '对照答案，诚实自评' : '完成后自评，提交即记录' }}
-          </p>
+          <p class="grade-hint">{{ gradeHint }}</p>
           <div class="grade-actions">
             <button
               class="btn btn--outline grade-btn"
               type="button"
-              :disabled="submitting"
+              :disabled="submitting || !gradeAvailable"
+              aria-keyshortcuts="1"
               @click="grade(false)"
             >
               不会
@@ -183,13 +329,18 @@ watch(() => props.question.id, resetAnswer)
             <button
               class="btn btn--primary grade-btn"
               type="button"
-              :disabled="submitting"
+              :disabled="submitting || !gradeAvailable"
+              aria-keyshortcuts="2"
               @click="grade(true)"
             >
               会
             </button>
           </div>
         </div>
+
+        <p class="keyboard-hint" aria-hidden="true">
+          <kbd>A–F</kbd> 选择 · <kbd>Space</kbd> 逐步展开 · <kbd>1</kbd>/<kbd>2</kbd> 自评
+        </p>
       </div>
 
       <div v-if="submitting" class="practice-card__status" role="status">正在保存练习记录…</div>
@@ -210,11 +361,21 @@ watch(() => props.question.id, resetAnswer)
     <Transition name="answer-reveal">
       <section v-if="revealed" class="paper answer-panel" aria-live="polite">
         <div class="paper__head">
-          <h2>参考答案</h2>
+          <h2>参考答案与提示</h2>
           <span class="paper__meta">{{ typeLabel }}</span>
         </div>
         <div class="paper__body">
-          <div v-if="hasAnswerContent" class="answer-block">
+          <div v-if="hasIdeaHint && revealStage >= 1" class="answer-block hint-block">
+            <p class="answer-block__label">思路提示</p>
+            <ul v-if="hintPoints.length" class="hint-points">
+              <li v-for="point in hintPoints" :key="point" class="tag tag--point">{{ point }}</li>
+            </ul>
+            <div v-if="hintSummary" class="hint-summary">
+              <MarkdownRenderer :content="hintSummary" />
+            </div>
+          </div>
+
+          <div v-if="hasAnswerContent && revealStage >= 2" class="answer-block">
             <p class="answer-block__label">答案</p>
             <MarkdownRenderer v-if="answerText" :content="answerText" />
             <ul v-if="blanks.length" class="blank-answers">
@@ -225,12 +386,12 @@ watch(() => props.question.id, resetAnswer)
             </ul>
           </div>
 
-          <div v-if="explanationText" class="answer-block">
+          <div v-if="explanationText && revealStage >= 3" class="answer-block">
             <p class="answer-block__label">解析</p>
             <MarkdownRenderer :content="explanationText" />
           </div>
 
-          <p v-if="!hasAnswerContent && !explanationText" class="answer-empty">
+          <p v-if="!hasIdeaHint && !hasAnswerContent && !explanationText" class="answer-empty">
             暂无答案与解析，可以直接自评。
           </p>
         </div>
@@ -368,6 +529,28 @@ watch(() => props.question.id, resetAnswer)
   color: var(--color-on-primary);
 }
 
+.option--correct {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+
+.option--correct .option__key {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-on-primary);
+}
+
+.option--wrong {
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-soft);
+}
+
+.option--wrong .option__key {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+}
+
 .option__content {
   flex: 1;
   min-width: 0;
@@ -428,8 +611,20 @@ watch(() => props.question.id, resetAnswer)
   background: var(--color-surface-subtle);
 }
 
+.reveal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .reveal-btn {
   background: var(--color-surface);
+}
+
+.reveal-all {
+  padding-inline: 2px;
+  color: var(--color-text-3);
 }
 
 .grade-group {
@@ -453,6 +648,27 @@ watch(() => props.question.id, resetAnswer)
 
 .grade-btn {
   min-width: 74px;
+}
+
+.keyboard-hint {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.keyboard-hint kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .practice-card__status {
@@ -500,6 +716,27 @@ watch(() => props.question.id, resetAnswer)
   line-height: var(--text-sm-leading);
   font-weight: 600;
   letter-spacing: 0.04em;
+}
+
+.hint-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hint-summary {
+  margin-top: var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-base);
+  line-height: var(--text-base-leading);
+  text-wrap: pretty;
+}
+
+.hint-summary :deep(.markdown-renderer p) {
+  margin-bottom: 0;
 }
 
 .blank-answers {
@@ -566,6 +803,14 @@ watch(() => props.question.id, resetAnswer)
 
   .reveal-btn {
     width: 100%;
+  }
+
+  .reveal-actions {
+    width: 100%;
+  }
+
+  .keyboard-hint {
+    display: none;
   }
 
   .grade-group {

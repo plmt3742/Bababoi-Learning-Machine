@@ -1,6 +1,8 @@
 import apiClient from './client'
 import type {
   PaginatedResponse,
+  PracticeDueQuery,
+  PracticeDueResponse,
   PracticeRecord,
   PracticeRecordCreate,
   PracticeRecordListQuery,
@@ -8,6 +10,13 @@ import type {
 
 export async function createPracticeRecord(payload: PracticeRecordCreate): Promise<PracticeRecord> {
   const { data } = await apiClient.post<PracticeRecord>('/practice-records', payload)
+  return data
+}
+
+export async function getDuePractice(
+  params: PracticeDueQuery = {},
+): Promise<PracticeDueResponse> {
+  const { data } = await apiClient.get<PracticeDueResponse>('/practice/due', { params })
   return data
 }
 

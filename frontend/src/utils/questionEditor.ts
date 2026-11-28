@@ -85,6 +85,29 @@ export function insertBlankMarker(content: string): string {
   return /[\s]$/.test(content) ? `${content}___` : `${content} ___`
 }
 
+export interface LatexInsertion {
+  value: string
+  caret: number
+}
+
+/** Insert a LaTeX template over the current selection and place the caret inside it. */
+export function insertLatexTemplate(
+  value: string,
+  start: number,
+  end: number,
+  template: string,
+  caretOffset: number,
+): LatexInsertion {
+  const safeStart = Math.min(Math.max(0, start), value.length)
+  const safeEnd = Math.min(Math.max(safeStart, end), value.length)
+  const caret = Math.min(safeStart + Math.max(0, caretOffset), safeStart + template.length)
+
+  return {
+    value: value.slice(0, safeStart) + template + value.slice(safeEnd),
+    caret,
+  }
+}
+
 function findBlankRanges(content: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = []
   const pattern = new RegExp(MARKER_RUN.source, 'g')

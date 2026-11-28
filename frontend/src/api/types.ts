@@ -158,6 +158,10 @@ export interface GeneratedQuestion {
   prompt_version: string | null
   validation_status: ValidationStatus
   created_at: string
+  /** Aggregated practice status when the backend provides it (v0.5 field group). */
+  practice_count?: number
+  correct_count?: number
+  last_practiced_at?: string | null
 }
 
 export interface Task {
@@ -221,6 +225,32 @@ export interface PracticeRecordCreate {
   duration_seconds: number
 }
 
+export type PracticeDueReason = 'never' | 'unmastered_1d' | 'reviewing_3d' | 'mastered_7d'
+
+export interface PracticeDueParent {
+  id: number
+  subject: string
+  excerpt: string
+  mastery_status: MasteryStatus
+}
+
+export interface PracticeDueItem {
+  generated_question: GeneratedQuestion
+  parent: PracticeDueParent
+  last_practiced_at: string | null
+  due_reason: PracticeDueReason
+}
+
+export interface PracticeDueResponse {
+  items: PracticeDueItem[]
+  total: number
+}
+
+export interface PracticeDueQuery {
+  limit?: number
+  subject?: string
+}
+
 export interface QuestionListQuery {
   page?: number
   page_size?: number
@@ -268,6 +298,9 @@ export interface StatsOverview {
   weak_knowledge_points: StatsWeakKnowledgePoint[]
   recent_trend: StatsTrendPoint[]
   updated_at: string
+  /** v0.5 field group; absent until the backend provides them. */
+  total_duration_seconds?: number
+  average_duration_seconds?: number
 }
 
 export interface ApiErrorDetail {

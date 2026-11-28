@@ -690,3 +690,41 @@ kbd {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Print / export PDF
+   The worksheet page renders inside the regular app shell, so the shell
+   furniture is removed only while printing. Page-specific print rules live in
+   QuestionPrintView.vue.
+   -------------------------------------------------------------------------- */
+@page {
+  size: A4;
+  margin: 16mm 14mm;
+}
+
+@media print {
+  .skip-link,
+  .appbar,
+  .mobile-nav {
+    display: none !important;
+  }
+
+  /* The shell styles are scoped components, so print overrides need !important. */
+  .app-shell,
+  .app-frame,
+  .app-viewport {
+    min-height: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: var(--color-surface) !important;
+    box-shadow: none !important;
+  }
+
+  body {
+    background: var(--color-surface) !important;
+  }
+}

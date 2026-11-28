@@ -11,6 +11,7 @@ import type {
   Draft,
   DraftSavePayload,
   GenerateTaskRef,
+  GeneratedQuestion,
   GenerationTargetIndex,
   ImageExtractionResult,
   ImageUploadResult,
@@ -19,6 +20,8 @@ import type {
   PreferenceSettings,
   PracticeRecord,
   PracticeRecordCreate,
+  PracticeDueItem,
+  PracticeDueResponse,
   Question,
   QuestionBlank,
   QuestionCreate,
@@ -38,6 +41,7 @@ import type {
 import { createMockState, makeExcerpt } from './data'
 import type { MockState, MockUser } from './data'
 import { MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, utf8ByteLength } from '../../utils/password'
+import { resolveDueReason } from '../../utils/practice'
 
 const LATENCY_MS = 320
 const QUESTION_TYPES: QuestionType[] = ['choice', 'blank', 'solve']
@@ -433,8 +437,27 @@ function buildDetail(
     ...question,
     tasks: state.tasks.filter((task) => task.question_id === question.id),
     generated_questions: includeGenerated
-      ? state.generatedQuestions.filter((item) => item.parent_question_id === question.id)
+      ? state.generatedQuestions
+          .filter((item) => item.parent_question_id === question.id)
+          .map((item) => withPracticeStats(item, state))
       : [],
+  }
+}
+
+function withPracticeStats(item: GeneratedQuestion, state: MockState): GeneratedQuestion {
+  const records = state.practiceRecords.filter(
+    (record) => record.generated_question_id === item.id,
+  )
+  const lastPracticedAt = records.length
+    ? ([...records].sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1)
+        ?.created_at ?? null)
+    : null
+
+  return {
+    ...item,
+    practice_count: records.length,
+    correct_count: records.filter((record) => record.is_correct).length,
+    last_practiced_at: lastPracticedAt,
   }
 }
 
@@ -544,6 +567,10 @@ function latestStateTimestamp(state: MockState): string {
 function buildStatsOverview(state: MockState): StatsOverview {
   const totalPracticeRecords = state.practiceRecords.length
   const correctPracticeRecords = state.practiceRecords.filter((record) => record.is_correct).length
+  const totalDuration = state.practiceRecords.reduce(
+    (sum, record) => sum + Math.max(0, record.duration_seconds),
+    0,
+  )
   const activeParentIds = new Set(state.questions.map((question) => question.id))
   const countByMastery = (status: MasteryStatus): number =>
     state.questions.filter((question) => question.mastery_status === status).length
@@ -564,6 +591,9 @@ function buildStatsOverview(state: MockState): StatsOverview {
     weak_knowledge_points: buildWeakKnowledgePoints(state),
     recent_trend: buildRecentTrend(state.practiceRecords),
     updated_at: latestStateTimestamp(state),
+    total_duration_seconds: totalDuration,
+    average_duration_seconds:
+      totalPracticeRecords > 0 ? Math.round(totalDuration / totalPracticeRecords) : 0,
   }
 }
 
@@ -752,7 +782,7 @@ function scheduleTaskProgress(task: Task, state: MockState, question?: Question)
       task.status = 'failed'
       task.finished_at = nowIso()
       task.error_code = 'AI_INVALID_OUTPUT'
-      task.error_message = '该段生成结果未通过校验（Mock 首次失败，重试可通过）。'
+      task.error_message = '该段生成结果暂不可用（Mock 首次失败，重试可通过）。'
       question.updated_at = nowIso()
       return
     }
@@ -1543,6 +1573,75 @@ export function setupMocks(): void {
     state.practiceRecords.push(record)
 
     return [201, record]
+  })
+
+  adapter.onGet('/practice/due').reply((config) => {
+    if (!authorizedUser(config, state)) return unauthorized()
+
+    const limit = Math.min(readPositiveInt(config, 'limit', 6), 20)
+    const subject = readQuery(config, 'subject')
+    const now = new Date()
+    const recordsByGenerated = new Map<number, PracticeRecord[]>()
+
+    for (const record of state.practiceRecords) {
+      const list = recordsByGenerated.get(record.generated_question_id) ?? []
+      list.push(record)
+      recordsByGenerated.set(record.generated_question_id, list)
+    }
+
+    const candidates = state.questions
+      .filter((question) => !subject || question.subject === subject)
+      .map((question): PracticeDueItem | null => {
+        const generated = state.generatedQuestions.filter(
+          (item) => item.parent_question_id === question.id,
+        )
+        if (generated.length === 0) return null
+
+        const records = generated.flatMap((item) => recordsByGenerated.get(item.id) ?? [])
+        const lastPracticedAt = records.length
+          ? ([...records].sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1)
+              ?.created_at ?? null)
+          : null
+        const dueReason = resolveDueReason(question.mastery_status, lastPracticedAt, now)
+        if (!dueReason) return null
+
+        const picked = [...generated].sort((a, b) => {
+          const aRecords = recordsByGenerated.get(a.id) ?? []
+          const bRecords = recordsByGenerated.get(b.id) ?? []
+          const aWrong = aRecords.filter((record) => !record.is_correct).length
+          const bWrong = bRecords.filter((record) => !record.is_correct).length
+          if (aWrong !== bWrong) return bWrong - aWrong
+          if (aRecords.length !== bRecords.length) return aRecords.length - bRecords.length
+          return a.id - b.id
+        })[0]
+
+        return {
+          generated_question: picked,
+          parent: {
+            id: question.id,
+            subject: question.subject,
+            excerpt: makeExcerpt(question.content_md),
+            mastery_status: question.mastery_status,
+          },
+          last_practiced_at: lastPracticedAt,
+          due_reason: dueReason,
+        }
+      })
+      .filter((item): item is PracticeDueItem => item !== null)
+      .sort((a, b) => {
+        const rank = { never: 0, unmastered_1d: 1, reviewing_3d: 2, mastered_7d: 3 }
+        return (
+          rank[a.due_reason] - rank[b.due_reason] ||
+          (a.last_practiced_at ?? '').localeCompare(b.last_practiced_at ?? '') ||
+          a.parent.id - b.parent.id
+        )
+      })
+
+    const result: PracticeDueResponse = {
+      items: candidates.slice(0, limit),
+      total: candidates.length,
+    }
+    return [200, result]
   })
 
   adapter.onGet('/stats/overview').reply((config) => {

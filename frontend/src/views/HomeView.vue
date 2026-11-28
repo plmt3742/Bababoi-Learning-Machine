@@ -5,10 +5,10 @@ import ErrorState from '../components/common/ErrorState.vue'
 import PageHeader from '../components/common/PageHeader.vue'
 import HomeDashboardSkeleton from '../components/home/HomeDashboardSkeleton.vue'
 import HomeRecentQuestions from '../components/home/HomeRecentQuestions.vue'
+import HomeReviewCard from '../components/home/HomeReviewCard.vue'
 import HomeStatusStrip from '../components/home/HomeStatusStrip.vue'
 import HomeTasks from '../components/home/HomeTasks.vue'
 import HomeWeakPoints from '../components/home/HomeWeakPoints.vue'
-import StatsStatCard from '../components/stats/StatsStatCard.vue'
 import { useHomeOverview } from '../composables/useHomeOverview'
 import { formatStatsTime } from '../utils/stats'
 import { buildHomeKpis, draftSummary, formatHomeDate, sectionErrorText } from '../utils/home'
@@ -77,7 +77,7 @@ function handleRefresh(): void {
 
 <template>
   <div class="home">
-    <PageHeader eyebrow="Overview" title="学习概览" :description="description">
+    <PageHeader title="学习首页" :description="description">
       <template #actions>
         <button
           class="btn btn--outline home-refresh"
@@ -109,6 +109,8 @@ function handleRefresh(): void {
           :failed-count="failedCount"
           :draft-state="draftState"
         />
+
+        <HomeReviewCard />
 
         <RouterLink v-if="draft" class="draft-bar" to="/questions/new">
           <span class="tag tag--draft">草稿</span>
@@ -142,15 +144,14 @@ function handleRefresh(): void {
           <button class="btn btn--quiet btn--sm" type="button" @click="handleRefresh">重试</button>
         </div>
 
-        <section class="kpi-grid" aria-label="学习数据概览">
+        <section class="stat-line" aria-label="学习数据概览">
           <h2 class="sr-only">学习数据概览</h2>
-          <StatsStatCard
-            v-for="kpi in kpis"
-            :key="kpi.label"
-            :label="kpi.label"
-            :value="kpi.value"
-            :hint="kpi.hint"
-          />
+          <dl class="stat-line__items">
+            <div v-for="kpi in kpis" :key="kpi.label" class="stat-line__item">
+              <dt>{{ kpi.label }}</dt>
+              <dd>{{ kpi.value }}</dd>
+            </div>
+          </dl>
         </section>
 
         <div class="kpi-meta">
@@ -355,10 +356,42 @@ function handleRefresh(): void {
   line-height: var(--text-sm-leading);
 }
 
-.kpi-grid {
+.stat-line {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.stat-line__items {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-4);
+  margin: 0;
+}
+
+.stat-line__item {
+  min-width: 0;
+  padding: 11px var(--space-5) 12px;
+}
+
+.stat-line__item + .stat-line__item {
+  border-left: 1px solid var(--color-border);
+}
+
+.stat-line dt {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: 20px;
+}
+
+.stat-line dd {
+  margin: 3px 0 0;
+  color: var(--color-text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  line-height: var(--text-xl-leading);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .kpi-meta {
@@ -434,8 +467,20 @@ function handleRefresh(): void {
 }
 
 @media (max-width: 1023px) {
-  .kpi-grid {
+  .stat-line__items {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat-line__item + .stat-line__item {
+    border-left: 0;
+  }
+
+  .stat-line__item:nth-child(even) {
+    border-left: 1px solid var(--color-border);
+  }
+
+  .stat-line__item:nth-child(n + 3) {
+    border-top: 1px solid var(--color-border);
   }
 
   .home-grid {
@@ -462,7 +507,6 @@ function handleRefresh(): void {
     margin-left: 0;
   }
 
-  .kpi-grid,
   .home-grid {
     gap: var(--space-3);
   }

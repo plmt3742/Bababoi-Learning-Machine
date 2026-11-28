@@ -23,6 +23,7 @@ Vue 3 + Vite + TypeScript + Arco Design Vue。
 | axios-mock-adapter | 2.1.0（devDependency）         |
 | markdown-it        | 15.0.3                         |
 | KaTeX              | 0.19.1                         |
+| Mermaid            | 12.3.0（仅 mermaid 围栏时动态加载） |
 | DOMPurify          | 3.4.17                         |
 | ESLint             | 10.14.0（flat config）         |
 | Prettier           | 3.9.10                         |
@@ -133,6 +134,7 @@ VITE_USE_MOCK=true
 - `src/components/common/MarkdownRenderer.vue` 封装
   `markdown-it + KaTeX + DOMPurify`，`html: false`，渲染结果统一过 DOMPurify。
 - 支持行内 `$...$` 与块级 `$$...$$`；KaTeX 解析失败时保留可读源码，不出现空白。
+- 支持 ```mermaid 围栏按需渲染为 SVG（`securityLevel: strict` + DOMPurify）；失败时保留源码与提示，不影响正文。主包不加载 Mermaid。
 - 外链自动加 `target="_blank"` 与 `rel="noopener noreferrer"`。
 - 样式覆盖集中在组件 scoped `:deep()` 中，组件样式只消费 `var(--token)`。
 

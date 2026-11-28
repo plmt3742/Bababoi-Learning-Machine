@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_CHOICE_OPTIONS,
   countBlankMarkers,
+  insertLatexTemplate,
   optionLabel,
   syncBlankAnswers,
   validateBlankAnswers,
@@ -35,5 +36,17 @@ describe('question editor helpers', () => {
     expect(validateChoiceOptions([{ content_md: 'A' }, { content_md: '' }])).toContain(
       '还没有填写内容',
     )
+  })
+
+  it('inserts a LaTeX template at the selection and moves the caret inside', () => {
+    expect(insertLatexTemplate('ab', 1, 1, '\\frac{}{}', 6)).toEqual({
+      value: 'a\\frac{}{}b',
+      caret: 7,
+    })
+    expect(insertLatexTemplate('abcd', 1, 3, '\\sqrt{}', 6)).toEqual({
+      value: 'a\\sqrt{}d',
+      caret: 7,
+    })
+    expect(insertLatexTemplate('ab', 99, 99, '$ $', 1)).toEqual({ value: 'ab$ $', caret: 3 })
   })
 })

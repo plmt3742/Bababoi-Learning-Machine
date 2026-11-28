@@ -9,6 +9,7 @@ import QuestionCard from '../components/question/QuestionCard.vue'
 import { listQuestions } from '../api/questions'
 import { normalizeApiError } from '../api/errors'
 import type { MasteryStatus, QuestionListItem } from '../api/types'
+import { buildPrintQuery } from '../utils/printWorksheet'
 
 const PAGE_SIZE = 20
 const SUBJECT_OPTIONS = ['高等数学', '线性代数', '概率论与数理统计', '大学物理']
@@ -26,6 +27,7 @@ const subject = ref('')
 const tag = ref('')
 const masteryStatus = ref<MasteryStatus | ''>('')
 const page = ref(1)
+const filterPanelOpen = ref(true)
 
 const items = ref<QuestionListItem[]>([])
 const total = ref(0)
@@ -201,6 +203,23 @@ function goCreate(): void {
   void router.push('/questions/new')
 }
 
+function goPrint(): void {
+  void router.push({
+    name: 'question-print',
+    query: buildPrintQuery({
+      q: keyword.value,
+      subject: subject.value,
+      tag: tag.value,
+      mastery_status: masteryStatus.value,
+    }),
+  })
+}
+
+function handleFilterToggle(event: Event): void {
+  const target = event.target as HTMLDetailsElement | null
+  if (target) filterPanelOpen.value = target.open
+}
+
 function handlePageChange(current: number): void {
   page.value = current
 }
@@ -231,6 +250,7 @@ watch(
 )
 
 onMounted(() => {
+  filterPanelOpen.value = !window.matchMedia('(max-width: 767px)').matches
   syncFromRoute()
   void fetchQuestions()
 })
@@ -244,7 +264,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="page">
     <PageHeader
-      eyebrow="Question book"
       title="错题本"
       description="按学科、标签或掌握状态找到错题；点击卡片查看分析、答案与相似题。"
     >
@@ -266,7 +285,7 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
 
-    <details class="filter-panel" open>
+    <details class="filter-panel" :open="filterPanelOpen" @toggle="handleFilterToggle">
       <summary class="filter-panel__summary">
         <svg
           class="icon"
@@ -280,7 +299,6 @@ onBeforeUnmount(() => {
           <path d="M4 7h16M7 12h10M10 17h4" />
         </svg>
         筛选与搜索
-        <span class="filter-panel__state">{{ total }} 条结果</span>
         <svg
           class="chev"
           viewBox="0 0 24 24"
@@ -381,10 +399,27 @@ onBeforeUnmount(() => {
     </details>
 
     <div class="list-head">
-      <h2>
-        全部错题 <span>{{ total }}</span>
-      </h2>
-      <p>按最近录入排序</p>
+      <p class="list-head__count">共 {{ total }} 道错题</p>
+      <div class="list-head__tools">
+        <p>按最近录入排序</p>
+        <button class="btn btn--outline btn--sm" type="button" @click="goPrint">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9V3h12v6" />
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+            <path d="M6 14h12v7H6z" />
+          </svg>
+          导出打印卷
+        </button>
+      </div>
     </div>
 
     <LoadingSkeleton v-if="loading" variant="list" :rows="3" label="正在加载错题列表" />
@@ -420,7 +455,7 @@ onBeforeUnmount(() => {
       </div>
 
       <nav class="pagination" aria-label="错题分页">
-        <p>共 {{ total }} 条 · 第 {{ page }} / {{ pageCount }} 页</p>
+        <p>第 {{ page }} / {{ pageCount }} 页</p>
         <div class="pagination__controls">
           <button
             class="page-btn"
@@ -522,7 +557,7 @@ onBeforeUnmount(() => {
 .filter-panel__summary .chev {
   width: 16px;
   height: 16px;
-  margin-left: 2px;
+  margin-left: auto;
   color: var(--color-text-3);
   transition: transform 0.15s ease;
 }
@@ -533,13 +568,6 @@ onBeforeUnmount(() => {
 
 .filter-panel[open] .filter-panel__summary .chev {
   transform: rotate(180deg);
-}
-
-.filter-panel__state {
-  margin-left: auto;
-  color: var(--color-text-3);
-  font-size: var(--text-sm);
-  font-weight: 400;
 }
 
 .filter-panel__body {
@@ -560,28 +588,32 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin: var(--space-5) 2px var(--space-3);
 }
 
-.list-head h2 {
-  font-size: var(--text-base);
-  line-height: 24px;
-  font-weight: 650;
+.list-head__tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 
-.list-head h2 span {
-  margin-left: 6px;
-  color: var(--color-text-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 400;
+.list-head__tools .btn {
+  color: var(--color-text-2);
 }
 
 .list-head p {
   color: var(--color-text-3);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
+}
+
+.list-head__count {
+  color: var(--color-text-1);
+  font-size: var(--text-base);
+  font-weight: 650;
 }
 
 .question-list {
