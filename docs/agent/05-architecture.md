@@ -1,13 +1,13 @@
 ---
 owner: 人机 / 霹雳马桶
-last_updated: 2026-11-12
-status: draft
+last_updated: 2026-11-28
+status: active
 read_when: 写前后端代码前；改 API/数据模型前；联调前
 ---
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.15 草案**。11.7 前两人必须逐节确认；确认后把 `status` 改为 `active`，之后改接口先改本文档。
+> 状态：**v0.6.33**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -16,7 +16,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 ## 0. 速览（给评审/新 agent）
 
-### 0.1 数据表（10 张）
+### 0.1 数据表（现有 10 张 + admin 待建 3 张）
 
 | 表 | 一句话 | 关键字段 |
 |---|---|---|
@@ -181,6 +181,10 @@ erDiagram
 | created_at / updated_at | DATETIME | UTC |
 | last_login_at | DATETIME NULL | 可选 |
 | token_version | INT NOT NULL DEFAULT 0 | BE-028：会话版本号；**改密/强制下线** +1，JWT 的 `ver` 不一致即 401（登录、登出不动，多设备共存） |
+| role | VARCHAR(16) NOT NULL DEFAULT 'student' | ADM-002：`student` / `admin`；注册只产生 student，admin 只由 `scripts/seed_admin.py` 创建；鉴权每次查 DB |
+| disabled_at / disabled_reason | DATETIME NULL / VARCHAR(255) NULL | ADM-009：软禁用；所有登录态接口 403 `ACCOUNT_DISABLED`，登录也拒绝 |
+| must_change_password | BOOLEAN NOT NULL DEFAULT false | BE-030：临时密码登录后强制改密（门禁见 §6.2 `PASSWORD_CHANGE_REQUIRED`） |
+| temp_password_expires_at | DATETIME NULL | BE-030：临时密码 24h 有效期 |
 
 #### questions
 
@@ -373,6 +377,9 @@ erDiagram
 | 404 | `QUESTION_NOT_FOUND` | 错题不存在/已删除 |
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
 | 403 | `FORBIDDEN` | 框架层 403（鉴权中间件等），与业务态 `QUESTION_FORBIDDEN` 区分；issue #11 新增 |
+| 403 | `ACCOUNT_DISABLED` | 账号被管理员禁用；登录、`get_current_user` 与 `/admin/*` 统一拒绝（ADM-009） |
+| 403 | `ADMIN_REQUIRED` | 非管理员访问 `/api/v1/admin/*`，含用学生账号登录管理端（ADM-002） |
+| 403 | `PASSWORD_CHANGE_REQUIRED` | 临时密码登录后未改密，仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`（ADR-010 / 28 §5.4） |
 | 405 | `METHOD_NOT_ALLOWED` | 方法用错；以前被统统标成 `VALIDATION_ERROR`，前端会误查表单字段；issue #11 新增 |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
 | 409 | `DRAFT_VERSION_CONFLICT` | 草稿版本冲突 |
@@ -399,13 +406,15 @@ erDiagram
 | 方法 | 路径 | 请求 | 响应 |
 |---|---|---|---|
 | POST | `/auth/register` | `{username, password, email?}` | `{access_token, token_type, user}` |
-| POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user}` |
+| POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user, must_change_password?}` |
 | POST | `/auth/logout` | — | `204`；**只清前端**，服务端不吊销（多设备共存） |
 | POST | `/auth/change-password` | 已登录；`{current_password, new_password}` | `204`；旧密码错 401 `AUTH_INVALID_CREDENTIALS`；新旧相同/长度不合规 400 `VALIDATION_ERROR`；频繁 429 `AUTH_RATE_LIMITED`；新密码至少 8 位且 ≤72 字节（BE-029） |
-| GET | `/auth/me` | — | `{id, username, email, created_at}` |
+| GET | `/auth/me` | — | `{id, username, email, created_at, must_change_password}` |
 
 - 密码最少 8 位（按 UTF-8 字节不超过 72，bcrypt 上限）；用户名 3–32 位，字母/数字/下划线/中文。
-- 不做邮箱自助找回；忘记密码由管理员授权重置（管理端 P1，BE-030；当前人工处理）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
+- 不做邮箱自助找回；忘记密码走学生线上申请 → 管理员审批 → 临时密码（BE-030；ADR-010 / 28 §5）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
+- 公开 `POST /auth/password-reset-requests` 固定返回 202 泛化响应，不返回 `request_id`、不区分账号是否存在；用户名不存在不落库，已有 pending 不重复建单（幂等 202）。
+- 临时密码登录时 `POST /auth/login` 响应额外带 `must_change_password: true`；`GET /auth/me` 也返回该字段，供刷新/恢复会话后的路由守卫使用。改密前只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`，其他业务接口 403 `PASSWORD_CHANGE_REQUIRED`（28 §5.4）。
 - JWT `sub=user_id`、`ver=token_version`，`exp=7d`；MVP 不做 refresh token。
 - **多设备共存（BE-028，2026-11-21 定案单 §3）**：`users.token_version` 只在**全踢**动作时 +1——改密（BE-029）、未来的管理员强制下线。**登录不 +1**（手机拍题 + 电脑做题互不打扰），**登出也不 +1**（否则手机上退出会把电脑踢下线）。`get_current_user` 发现 `ver` 与库里不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。改密成功后**所有设备（含当前）都要重新登录**，这正是"密码被同学知道后自救"的机制。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户第一次改密后旧 token 才失效。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。标识符带**业务命名空间**（`login` / `register` 前缀）：两个限流器即使配成同一额度，共享存储下也不会共用一个桶。
@@ -777,6 +786,30 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 - 生成/分析取 Key 顺序：用户配置 → 系统 `.env` → **`AI_PROVIDER_ERROR`**；mock 只由 `LLM_MOCK` 决定，不再静默回退。`ai_call_logs` 记录 `key_source=user|system|mock`，不记录 Key。
 - 用户 Key 失效/额度不足要返回明确错误，不静默回退。
 - **实现口径（BE-020）**：`base_url` 先只允许 `https` + 白名单 host（`api.deepseek.com` / `api.openai.com`，端口 443），自定义地址等 SSRF 防护做完再放开；Key 用 Fernet 加密，`SETTINGS_ENCRYPTION_KEY` 缺失时 PUT 返回 503 `AI_PROVIDER_ERROR`（不静默退回系统 Key）；连接池按 Key 哈希缓存，Key 在**执行时**解析（排队期间换 Key 生效）；`LLM_MOCK=true` 时短路，不要求任何 Key。`ai_call_logs.key_source` 三值：`user` / `system` / `mock`。识图缓存键**不含** `key_source`：同一用户先用系统 Key、后配自带 Key，同图仍会命中已有缓存（省钱，但按 `key_source=user` 统计调用数不会涨）；缓存键里的 `model` 取**用户配置的 model**（只读该列、不解密，命中仍不需要 Key），BYOK 换模型同样不命中。`SETTINGS_ENCRYPTION_KEY` 与数据同寿命，更换前先清空 `user_ai_settings`，否则所有密文解不开。
+
+### 6.10 Admin API（P1 / ADR-009）
+
+> 管理端进入 11.29 演示（ADR-009）。完整功能、数据模型、审计与线上密码重置流程见 `docs/agent/28-admin-console.md`；本节只保留 05 的契约入口，字段以 28 号文档和 OpenAPI 为准。
+
+- Base URL：`/api/v1/admin`；除 `POST /admin/auth/login` 与公开的 `POST /auth/password-reset-requests` 外，全部依赖 `require_admin`。
+- 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403 `ADMIN_REQUIRED`，禁用账号 403 `ACCOUNT_DISABLED`。
+- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验，有效期单独 8h。
+- 实现真源：前端实际调用 `admin/src/api/admin.ts`（见 PR #120 分支）+ 28 号文档 §5/§6 + `admin/API_CONTRACT.md`。本节表格按 admin.ts 校正过，不再保留早期草稿里的 `/metrics/*`、`PATCH users`、`content_flags` 等叫法。
+
+| 模块 | 端点 |
+|---|---|
+| 认证 | `POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`（登录/登出写审计） |
+| 监控 | `GET /admin/overview`、`GET /admin/alerts`（告警由真实数据推导，裸数组） |
+| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`POST /admin/users/{id}/status`（active/disabled）、`POST /admin/users/{id}/force-logout` |
+| 密码申请 | 公开 `POST /auth/password-reset-requests`（固定 202 泛化响应）；管理端 `GET /admin/password-requests`、`GET /admin/password-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password` |
+| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`POST /admin/questions/{id}/moderation`（`hide/restore/flag/unflag`） |
+| 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
+| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`POST /admin/ai-logs/{id}/raw`（`reason` 必填 + 审计 + `Cache-Control: no-store`） |
+| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export.csv` |
+| 告警确认 | `POST /admin/alerts/{key}/ack`、`POST /admin/alerts/{key}/unack` |
+| 系统 | `GET /admin/system` |
+
+数据模型：`users.role/disabled_at/disabled_reason/must_change_password/temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`（含 `used_at`）、`admin_alert_acks` 已随 ADM-002 迁移建表；内容审核字段（`questions.hidden_at/hidden_reason/flagged_at/flag_reason`，以 28 §5.4 与交接单为准，不用 `content_flags`）与 `ai_call_logs.task_id` 随后续 ADM 任务补迁移。列表统一 `{items,total,page,page_size}`（告警是裸数组），错误统一 `{detail:{code,message,request_id}}`。
 
 ## 7. AI 流水线
 
@@ -1264,6 +1297,9 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.33 | **#114 越权软删 + #115 搜索大小写**（含安全向复核整改）：整组生题入口把归属校验提到任何写操作之前（越权请求 403 时不再先软删别人的生成题）；软删 UPDATE、worker 按格替换的软删、去重与 `has_active` 查询都带 `user_id` 作纵深防御；同题已有 active 段时不重复软删旧组（三格照常入队、已完成格保留到该格新任务按格替换），软删与 3 段入队合并为单次提交；搜索 `q` 先 `lower()`，LIKE 区分大小写的库不再漏掉含大写的关键词；`/static` 手工测试台改为**仅 `APP_ENV=development/local` 挂载**（部署模板是 staging，黑名单等于没关）；README 同步到当前进度。新增 6 条测试，312 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
+| 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |
@@ -1297,7 +1333,6 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-12 | v0.6.14 | **BE-024 识图结果缓存**：新增 `vision_extract_cache`（迁移 `b7c2f4a91d30`），键 = user + 图内容 sha + subject + 两跳版本；只缓存两跳成功且有题的结果（含 `incomplete`），空结果/失败不缓存；命中不写 `ai_call_logs`、响应形状不变；读前仍校验文件归属（404 语义不被绕过）；脏 payload 当未命中并删除；并发写靠唯一键只留一行。8 条缓存测试，204 passed。⚠️ 合并时若 #58 已合入，迁移 `down_revision` 需从 `3f9c1a7e5b24` 改为 `c8e1b6a4d902`（否则双 head） | 人机 |
 | 2026-11-10 | v0.6.12 | **BE-026 strict 对齐**：按前端 review 补 `generate_v3`（strict 模式 prompt 第 2 条写死「题型必须与原题一致」，`prompt_version` 按策略分叉：strict=`generate_v3`、soft=`generate_v2`，`ai_call_logs` 与 `generated_questions` 都跟着走）；新增复跑脚本 `backend/scripts/measure_type_consistency.py`，真模型 solve/choice/blank 各 3 轮 ×3 段 **27/27 题型一致、27/27 校验通过**，默认维持开启；`MockLLMClient` 假卡按「题型 × 难度」各备 9 张并跟随原题题型，strict 下队列测试不再显式关开关（176 passed） | 人机 / agent |
 | 2026-11-05 | v0.2 | Python 统一 3.13；图片录入增加“AI 框题 → 用户确认 → 裁剪识图”；P0 不做拖拽画框 | 霹雳马桶 / agent |
-| 2026-11-28 | v0.6.31 | **#114 越权软删 + #115 搜索大小写**（含安全向复核整改）：整组生题入口把归属校验提到任何写操作之前（越权请求 403 时不再先软删别人的生成题）；软删 UPDATE、worker 按格替换的软删、去重与 `has_active` 查询都带 `user_id` 作纵深防御；同题已有 active 段时不重复软删旧组（三格照常入队、已完成格保留到该格新任务按格替换），软删与 3 段入队合并为单次提交；搜索 `q` 先 `lower()`，LIKE 区分大小写的库不再漏掉含大写的关键词；`/static` 手工测试台改为**仅 `APP_ENV=development/local` 挂载**（部署模板是 staging，黑名单等于没关）；README 同步到当前进度。新增 6 条测试，312 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-27 | v0.6.30 | **MySQL 迁移兼容修复**：`c4e8a1d62f37` 在 MySQL 上唯一键被反射成 unique Index，`batch.drop_constraint(type_="unique")` 会报 `No such constraint`——MySQL 分支改走 `DROP INDEX` + `CREATE UNIQUE`（SQLite 仍走 batch 重建，行为不变）；降级里 `d6b8`/初始 schema/`b7c2`/`e9b1` 的「先删外键依赖索引」在 MySQL 报 1553，统一改为直接删表。新增 CI `migrations-mysql`（mysql:8.4 真库 upgrade→downgrade→upgrade→单 head）。已在 MySQL 8.4.13 临时实例验证：全新库 upgrade head 到 `d6b8c2e4f901` 成功、普通 SELECT 读快照旧值 / `FOR UPDATE` 当前读、并发自增无丢更新。306 passed；SQLite 现有库无需迁移 | 人机 |
 | 2026-11-24 | v0.6.29 | **识图任务化复核修复（#100 review）**：排队超时分支改条件 UPDATE，堵住"临界点判超时覆盖已认领的 running、`mark_done` 静默丢结果"的竞态；`mark_done/mark_failed` rowcount=0 留日志 + 锁冲突重试一次；独立 janitor 线程每 30s 扫 deadline 超 30s 仍 running 的行做运行期自愈（`attempts>=2` → failed，否则回队列）；终态清理也挪进该线程（原来塞在消费循环里会被长任务拖住）；强刷冷却撞同参并发/双击改为复用单号，入队冲突归还额度；深度闸默认 200→50（正常参数下准入闸先触发，只作硬兜底）；CORS 暴露 `Retry-After`、旧同步端点在 OpenAPI 标 deprecated；准入/判死解耦为 30/40（新增 `VISION_ADMIT_WAIT_MAX_S`，边界不再自己判死自己）、单次/整单改 100/140（单次上限 105，pydantic validator 拒绝超额配置，整单上限 140）、等待口径写成典型 170 / 最坏 180（前端仍按 180）、文档数字同步；11 条新测试，282 passed；OpenAPI 已重导 | 人机 |
 | 2026-11-21 | v0.6.28 | **会话策略改多设备共存 + 改密接口**。按定案单 §3：登录/登出**不再** +1（手机+电脑互不踢；登出只清前端），只有改密/强制下线才 +1；新增 `POST /auth/change-password`（BE-029：验旧密码、8 位且 ≤72 字节、新旧不得相同、失败 5 次/分钟/账号限流）；`_bump_token_version` 改 `FOR UPDATE` 当前读（MySQL RR 下普通 SELECT 会读快照旧值，签出落后版本的 token 导致登录即 401）；logout 端点保留但服务端不吊销。会话测试按新口径重写 + 改密 6 条；OpenAPI 重导 | 人机 |

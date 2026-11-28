@@ -231,7 +231,7 @@ cd repo && BABABOI_ENV_FILE=/srv/bababoi/.env \
 - **BYOK 保存仍强制重填 Key**：后端已支持省略（保留原 Key），前端待改。
 - **503 未按“未启用”降级**：服务端缺加密密钥时，设置页显示普通错误。
 - **SSE 没有**：当前用 `GET /tasks` 轮询，够用。
-- **admin 管理端**：P1，不在 11.29 演示路径。
+- **admin 管理端**：2026-11-27 由 ADR-009 修订为进入 11.29 演示，范围见 `28-admin-console.md`；本文其余 staging 口径不变。
 - **HTTPS/域名没有**：现在是纯 IP/HTTP；手机拍照用 `<input capture>` 可以工作，但如果以后改 `getUserMedia` 就必须 HTTPS。
 - **413 是 nginx 直接返回**：不走统一错误信封，前端只能给通用文案。
 - **单进程/SQLite**：容器固定 `--workers 1`；不要多副本。

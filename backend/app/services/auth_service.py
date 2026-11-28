@@ -97,6 +97,9 @@ def login(session: Session, ip: str, username: str, password: str) -> User:
         )
 
     login_limiter.reset(ip)
+    if user.disabled_at is not None:
+        # ADM-009：被禁用的账号密码正确也不发 token；前端按 code 提示联系管理员
+        raise ApiError(ErrorCode.ACCOUNT_DISABLED, "账号已被禁用", 403)
     user.last_login_at = utcnow()
     # 登录**不动** token_version：手机拍题 + 电脑做题是学生的真实形态，
     # 登录就 +1 会让两台设备互相踢下线（定案单 2026-11-21 §3）。

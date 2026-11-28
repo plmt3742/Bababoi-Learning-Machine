@@ -26,6 +26,9 @@ EXPECTED_TABLES = {
     "vision_extract_cache",
     "vision_job",
     "user_ai_settings",
+    "admin_audit_logs",
+    "password_reset_requests",
+    "admin_alert_acks",
 }
 
 
@@ -153,10 +156,13 @@ def test_metadata_and_migration_stay_in_sync(tmp_path, monkeypatch) -> None:
 
     from app.db.base import Base
     from app.models import (  # noqa: F401  确保所有模型已注册
+        AdminAlertAck,
+        AdminAuditLog,
         AiCallLog,
         Draft,
         GeneratedQuestion,
         GenerationTask,
+        PasswordResetRequest,
         PracticeRecord,
         Question,
         QuestionTag,

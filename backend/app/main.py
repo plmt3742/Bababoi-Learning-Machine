@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import auth, drafts, health, images, practice, questions, stats, tasks
+from app.api.v1 import admin, auth, drafts, health, images, practice, questions, stats, tasks
 
 # 取 router 别名而不是 import app.api.v1.settings：这个名字下面一行就要给
 # app.core.config.settings 用，两个都叫 settings 会互相覆盖，
@@ -71,6 +71,9 @@ register_exception_handlers(app)
 
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(auth.router, prefix=settings.api_prefix)
+# admin 必须在 auth 之后 include：/admin/* 是独立前缀，顺序不影响匹配，
+# 但 tags 与 OpenAPI 分组按 include 顺序，放前面会割裂认证相关端点
+app.include_router(admin.router, prefix=settings.api_prefix)
 app.include_router(questions.router, prefix=settings.api_prefix)
 # images 里也有 /questions/from-image，放在 questions 之后，避免抢走 /questions/{id} 的形状
 app.include_router(images.router, prefix=settings.api_prefix)
