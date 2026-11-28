@@ -501,9 +501,10 @@ erDiagram
 > 今日待复习（W2 / #107，后端任务 #126；前端在接口上线前走 mock，不把 mock 当完成）：
 >
 > - 只取未删除错题，且该错题名下存在未删除生成题；`limit` 1–20，默认 6；`subject` 可选。
-> - 到期规则：未练过优先；`unmastered` 距最近练习 ≥1 天、`reviewing` ≥3 天、`mastered` ≥7 天；再按最久未练、id 排序。
-> - 每道到期原题只返回 1 道生成题（优先最近答错、其次练习次数少）。
-> - `due_reason` 枚举：`never` / `unmastered_1d` / `reviewing_3d` / `mastered_7d`；`last_practiced_at` 沿用现有时间口径。
+> - 到期规则：未练过优先；`unmastered` 距最近练习 ≥1 天、`reviewing` ≥3 天、`mastered` ≥7 天（滚动 24h）。
+> - 排序（口径 B，2026-11-28 定案）：未练过 → 掌握度越薄弱越前（unmastered > reviewing > mastered）→ 同档内最久未练 → 原题 id。
+> - 每道到期原题只返回 1 道生成题（最近答错 → 练习次数少 → id）；返回哪道题只用未软删的生成题。
+> - `due_reason` 枚举：`never` / `unmastered_1d` / `reviewing_3d` / `mastered_7d`；`last_practiced_at` 为 UTC 带 `Z`，未练过为 `null`，且按全部生成题（含已软删）的流水计算。
 
 ### 6.5b 草稿与任务
 
