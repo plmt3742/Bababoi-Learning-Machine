@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-07
+last_updated: 2026-11-28
 status: active
 read_when: 新建文件/目录前；review 目录结构时；agent 不确定文件该放哪时
 ---
@@ -9,7 +9,7 @@ read_when: 新建文件/目录前；review 目录结构时；agent 不确定文�
 
 ## 1. 当前状态
 
-> 2026-11-07 更新：`frontend/` 已完成 FE-001~026；FE-027 新增题目编辑（复用 `views/QuestionCreateView.vue` 的 `/questions/:id/edit`）、设置页生成偏好、图片 `incomplete` 拦截、`vitest.config.ts` 与 `tests/*.test.ts`。`components/` 新增 `home/`、`practice/`、`stats/`、`ai/GenerationSegments`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。新增 `admin/` 占位（ADR-005，P1）；BYOK 见 ADR-007（P1）；题型一致性开关见 ADR-008。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
+> 2026-11-07 更新：`frontend/` 已完成 FE-001~026；FE-027 新增题目编辑（复用 `views/QuestionCreateView.vue` 的 `/questions/:id/edit`）、设置页生成偏好、图片 `incomplete` 拦截、`vitest.config.ts` 与 `tests/*.test.ts`。`components/` 新增 `home/`、`practice/`、`stats/`、`ai/GenerationSegments`、`question/editor/`、`question/image/`、`upload/`；`components/layout/` 为 `AppShell/AppTopBar/BrandMark/navigation`。新增 `admin/` 占位（ADR-005/009，进入 11.29 演示，结构与演示档位见 `admin/README.md` 与 `28-admin-console.md`）；BYOK 见 ADR-007（P1）；题型一致性开关见 ADR-008。下面的早期骨架树仅保留历史参考，实际文件以 `git ls-files` 为准。
 >
 > 以 `git ls-files` 为准；`Resource/`、`tools/`、`docs/learning/` 为本地目录，已 gitignore。
 
@@ -172,17 +172,18 @@ BababoiLearningMachine/
 │   │   └── views/                 # 页面
 │   ├── tests/                     # Vitest 单测
 │   └── e2e/                       # Playwright
-├── admin/                         # P1 内部运维台（独立 Vue 3 + Vite + TS + Arco）
+├── admin/                         # 内部运维台（独立 Vue 3 + Vite + TS + Arco；ADR-005/009）
 │   ├── package.json
 │   ├── vite.config.ts             # base: '/admin/'；dev 5174；代理 /api
 │   ├── index.html
 │   ├── .env.example
 │   ├── src/
 │   │   ├── api/                   # client/admin/types
-│   │   ├── router/                # /admin/login、/admin、/admin/users...
-│   │   ├── stores/                # 独立 admin auth
+│   │   ├── router/                # base=/admin/；route: /login、/、/users、/password-requests、/questions、/tasks、/ai-logs、/audit、/alerts、/system
+│   │   ├── stores/                # 独立 admin auth（bababoi:admin-token）
 │   │   ├── layouts/               # AdminShell
-│   │   └── views/                 # Dashboard/Users/Questions/Tasks/AiLogs
+│   │   ├── components/            # KPI card/DataTable/StatusTag/ConfirmWithReason
+│   │   └── views/                 # Login/Dashboard/Users/PasswordRequests/Questions/Tasks/AiLogs/Audit/Alerts/System
 │   └── README.md
 ├── backend/
 │   ├── pyproject.toml
