@@ -9,6 +9,8 @@ import json
 import time
 from functools import partial
 
+import httpx
+import openai
 import pytest
 from pydantic import ValidationError
 
@@ -17,11 +19,12 @@ from app.ai.client import (
     _MOCK_QUIZ_SEGMENTS,
     OPERATION_ANALYSIS,
     OPERATION_QUIZ,
+    DeepSeekClient,
     LLMResponse,
     MockLLMClient,
     build_llm_client,
 )
-from app.ai.errors import AIInvalidOutputError, AITimeoutError
+from app.ai.errors import AIInvalidKeyError, AIInvalidOutputError, AITimeoutError
 from app.ai.pipeline import run
 from app.core.config import settings
 
@@ -782,3 +785,27 @@ def test_pipeline_deadline_tightens_call_timeout() -> None:
             deadline=time.monotonic() - 1,
         )
     assert len(client.calls) == 1, "deadline 已到不应再发起调用"
+
+
+@pytest.mark.parametrize(
+    "error_cls",
+    [openai.AuthenticationError, openai.PermissionDeniedError],
+)
+def test_provider_auth_failure_maps_to_invalid_key(monkeypatch, error_cls) -> None:
+    """#128：供应商 401/403 是 Key 问题，要发 AI_INVALID_KEY，不能混进 AI_PROVIDER_ERROR。"""
+    client = DeepSeekClient(
+        api_key="sk-invalid", base_url="https://api.deepseek.com/v1", model="deepseek-flash"
+    )
+    request = httpx.Request("POST", "https://api.deepseek.com/v1/chat/completions")
+    response = httpx.Response(401, request=request)
+
+    def boom(**_kwargs):
+        raise error_cls("invalid api key", response=response, body=None)
+
+    monkeypatch.setattr(client._client.chat.completions, "create", boom)
+
+    with pytest.raises(AIInvalidKeyError) as excinfo:
+        client.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
+
+    assert excinfo.value.error_code == "AI_INVALID_KEY"
+    assert "sk-invalid" not in str(excinfo.value)

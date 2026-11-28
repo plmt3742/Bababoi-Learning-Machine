@@ -16,7 +16,7 @@ from typing import Protocol
 import httpx
 import openai
 
-from app.ai.errors import AIProviderError, AITimeoutError
+from app.ai.errors import AIInvalidKeyError, AIProviderError, AITimeoutError
 from app.ai.llm_config import LLMConfig, system_config
 from app.core.config import settings
 
@@ -197,6 +197,9 @@ class DeepSeekClient:
             )
         except openai.APITimeoutError as exc:
             raise AITimeoutError(str(exc)) from None
+        except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
+            # 401/403 是 Key 的问题，用户能自己修；必须在 APIError 之前接住
+            raise AIInvalidKeyError(str(exc)) from None
         except openai.APIError as exc:
             raise AIProviderError(str(exc)) from None
 

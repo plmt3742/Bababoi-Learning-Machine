@@ -27,6 +27,8 @@ router = APIRouter(tags=["images"])
 _AI_STATUS = {
     "AI_TIMEOUT": 504,
     "AI_PROVIDER_ERROR": 502,
+    # Key 问题是服务端/用户配置问题，不能回 401：前端 401 会当成登录失效清 token
+    "AI_INVALID_KEY": 502,
     "AI_INVALID_IMAGE": 422,
     "AI_INVALID_OUTPUT": 422,
 }

@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.34**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -394,12 +394,13 @@ erDiagram
 | 429 | `VISION_PREVIOUS_PENDING` | 同人已有不同参数的识图任务在排队/运行（B 档任务化） |
 | 404 | `VISION_JOB_NOT_FOUND` | 识图任务不存在或不属于本人（B 档任务化） |
 | 502 | `AI_PROVIDER_ERROR` | LLM 供应商错误 |
+| 502 | `AI_INVALID_KEY` | 供应商鉴权失败（401/403）：Key 无效/过期/被禁用；任务级 `error_code` 同名，前端指引去设置检查（#128） |
 | 504 | `AI_TIMEOUT` | LLM 超时 |
 | 422 | `AI_INVALID_OUTPUT` | AI 输出无法解析/校验失败 |
 | 422 | `AI_INVALID_IMAGE` | 图片无法识别为题目/内容为空/格式不支持 |
 | 500 | `INTERNAL_ERROR` | 未预期错误（不暴露堆栈） |
 
-> `AI_PROVIDER_ERROR` 的例外：BYOK 写入时服务端缺 `SETTINGS_ENCRYPTION_KEY`（或 key 非法）返回 **503**，不是 502；客户端按 `code` 分支不受影响（BE-020 §6.9）。
+> `AI_PROVIDER_ERROR` 的例外：BYOK **写入**时服务端缺 `SETTINGS_ENCRYPTION_KEY`（或 key 非法）返回 **503**，不是 502；客户端按 `code` 分支不受影响（BE-020 §6.9）。**读接口不碰密文，保持 200**（#128 定案：25 号文档的「PUT/GET 503」收窄为「仅 PUT 503」）。
 
 ### 6.3 认证
 
@@ -1297,6 +1298,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.34 | **BYOK 两个边界（#128）**：AI 客户端把供应商 401/403 映射为 `AI_INVALID_KEY`（新增错误码；任务级 `error_code` 与同步 `/questions/from-image` 同码，HTTP 502，不回 401 以免前端误判登录失效）；`GET /settings/ai` **保持 200**：读接口不解密，不因缺加密密钥改变只读行为（25 号文档同步收窄为「仅 PUT 503」，避免本地/无 Key 环境整个 AI 面板变 503）；无迁移、无 OpenAPI schema 变化（错误码枚举变了，快照重导） | 人机 |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |

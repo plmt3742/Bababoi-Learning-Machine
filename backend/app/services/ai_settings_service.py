@@ -96,6 +96,7 @@ def _to_out(row: UserAiSettings | None) -> AiSettingsOut:
 
 
 def get_settings(session: Session, user_id: int) -> AiSettingsOut:
+    # 读接口不碰密文：#128 定案保持 200（25 号文档同步为「仅 PUT 503」）
     return _to_out(session.get(UserAiSettings, user_id))
 
 

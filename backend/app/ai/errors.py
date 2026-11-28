@@ -33,6 +33,17 @@ class AIProviderError(AIError):
     message = "LLM 供应商错误"
 
 
+class AIInvalidKeyError(AIError):
+    """供应商鉴权失败（401/403）：Key 无效、过期或被禁用。
+
+    与 `AI_PROVIDER_ERROR` 分开是因为用户能自己修（换 Key），前端要给出
+    「去设置里检查 Key」的指引，而不是笼统的「供应商错误」。
+    """
+
+    error_code = "AI_INVALID_KEY"
+    message = "AI API Key 无效或已过期"
+
+
 class AIInvalidOutputError(AIError):
     """模型输出解析/校验失败——重试后仍失败才抛这个。"""
 
