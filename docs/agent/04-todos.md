@@ -139,6 +139,7 @@ ID:
 | FE-039 | 登录页忘记密码 + 管理员授权说明 | 霹雳马桶 | P1 | 无 | 登录页「忘记密码？」展开说明；不提交表单；登录/注册切换时收起 | DONE（旧入口保留；新流程见 FE-040） |
 | FE-040 | 忘记密码线上申请 + 强制改密引导 | 霹雳马桶 | P1 | BE-030/ADM-010 | `/forgot-password` 表单；202 不提示账号是否存在；读取 `must_change_password` 路由守卫；跳设置页强制改密 | TODO（目标） |
 | BE-030 | 线上密码申请 + 审批 + 临时密码（后端） | 人机 | P1 | ADM-002/009 | 公开 202 泛化响应；审批/拒绝/重新生成；24h；`must_change_password` 门禁；审计；吊销 token；不新增姓名/学号 | TODO（依赖管理端基础） |
+| BE-032 | #105 v0.5 展示字段 + Mermaid prompt | 人机 | P1 | BE-005/BE-013 | `stats/overview` 两个时长字段（与流水同口径）；generated 三个练习字段（UTC Z）；`knowledge-points.mastery_history` 暂缓；分析 prompt 加 `mermaid_v1`；围栏原样往返测试 | 部分完成（围栏回归测试已补；字段/prompt 演示后做，口径见 05 §6.5c） |
 
 ### 1.8 FE-027 收口（2026-11-07）
 

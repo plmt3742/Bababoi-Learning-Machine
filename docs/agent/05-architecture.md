@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.36**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -487,7 +487,7 @@ erDiagram
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/generated-questions/{id}` | 单题详情 |
+| GET | `/generated-questions/{id}` | 单题详情；#105 追加可选 `practice_count` / `correct_count` / `last_practiced_at`（见 §6.5c） |
 | POST | `/generated-questions/{id}/regenerate` | 单题重新生成（BE-015，**未实现**）。三段并发下的单段重排走 `POST /questions/{id}/generate` + `target_index`，已经可用 |
 | POST | `/generated-questions/{id}/feedback` | `{type: "bad_question"|"wrong_answer"|"too_easy"|"too_hard", comment?}` |
 | POST | `/practice-records` | `{generated_question_id, user_answer?, is_correct, duration_seconds}`；返回 201 |
@@ -496,6 +496,13 @@ erDiagram
 > BE-012 防重复口径：同用户、同生成题、同 `user_answer`、同 `is_correct`，60 秒窗口内再次提交返回 `409 PRACTICE_DUPLICATE`（时长不参与比对）；窗口外允许重复。生成题不存在/不属于当前用户/已删除一律 `404 NOT_FOUND`。
 >
 > 已知风险：防重复是“先查后插”，并发请求理论上仍可能双双通过；MVP 单人单端可接受，BE-016 再收紧。整组重生成会软删旧 3 题，对旧题补交返回 404；已入库的 practice_records 不受影响。
+
+### 6.5c v0.5 展示字段（#105，P1，演示后实现）
+
+- `GET /stats/overview`：`total_duration_seconds` = 该用户全部 `practice_records.duration_seconds` 求和（与 `total_practice_records` 同口径，父题删除的流水也算）；`average_duration_seconds` = 四舍五入 total / 条数，0 条时为 0。
+- `GET /questions/{id}?include=generated` 与 `GET /generated-questions/{id}`：生成题增加 `practice_count` / `correct_count`（按 `practice_records` 聚合）与 `last_practiced_at`（最新一条 `created_at`，UTC 带 `Z`，未练过为 `null`）。
+- `knowledge-points/{id}.mastery_history`：当前没有该端点、前端也没有知识点页，范围确定后再定。
+- Markdown / Mermaid 围栏原样往返：存储与接口不改写、不转义；回归测试 `backend/tests/test_markdown_fence_passthrough.py`（2026-11-28 补）。
 
 ### 6.5b 草稿与任务
 
@@ -522,7 +529,7 @@ erDiagram
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/stats/overview` | `{total_questions, total_generated_questions, total_practice_records, accuracy, mastered_count, reviewing_count, unmastered_count, weak_knowledge_points, recent_trend, updated_at}` |
+| GET | `/stats/overview` | `{total_questions, total_generated_questions, total_practice_records, accuracy, mastered_count, reviewing_count, unmastered_count, weak_knowledge_points, recent_trend, updated_at}`；#105 追加可选 `total_duration_seconds` / `average_duration_seconds`（见 §6.5c） |
 | GET | `/tags?type=` | 标签列表 |
 
 统计口径：
@@ -1297,6 +1304,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.36 | **v0.5 展示字段口径 + 围栏往返（#105）**：补 §6.5c——stats 两个时长字段与流水同口径、generated 三个练习字段（UTC `Z`）、knowledge-points `mastery_history` 暂缓；Markdown/Mermaid 围栏原样往返补回归测试（create / PATCH / GET 逐字符比对）。字段本身演示后实现，无迁移、OpenAPI 不变 | 人机 |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
