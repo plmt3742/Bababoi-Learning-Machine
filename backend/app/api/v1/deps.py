@@ -4,7 +4,10 @@
 """
 from __future__ import annotations
 
-from fastapi import Depends
+from collections.abc import Callable
+from typing import TypeVar
+
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -16,8 +19,21 @@ from app.models import User
 # auto_error=False：缺 header 时默认会抛 403，而我们的信封统一用 401
 _bearer = HTTPBearer(auto_error=False)
 
+F = TypeVar("F", bound=Callable)
+
+
+def exempt_password_gate(fn: F) -> F:  # noqa: UP047 - 保持 Callable 泛型，改 PEP 695 无收益
+    """标在端点上：`must_change_password=true` 时仍允许访问。
+
+    白名单只有三个（少一个就是死锁）：/auth/me 读标记、/auth/change-password 改密、
+    /auth/logout 退出。用端点标记而不是路径匹配——换前缀不会失灵，代码上也看得出谁被豁免。
+    """
+    fn.__password_gate_exempt__ = True  # type: ignore[attr-defined]
+    return fn
+
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     session: Session = Depends(get_session),
 ) -> User:
@@ -38,6 +54,15 @@ def get_current_user(
     if user.disabled_at is not None:
         # ADM-009：禁用是软状态，token 仍有效但一律拒绝；单独错误码便于前端提示。
         raise ApiError(ErrorCode.ACCOUNT_DISABLED, "账号已被禁用", 403)
+    if user.must_change_password:
+        # BE-030：门禁放全局默认拒绝，新增端点天然受保护；白名单端点自带标记。
+        endpoint = request.scope.get("endpoint")
+        if not getattr(endpoint, "__password_gate_exempt__", False):
+            raise ApiError(
+                ErrorCode.PASSWORD_CHANGE_REQUIRED,
+                "首次登录需先修改密码",
+                403,
+            )
     return user
 
 

@@ -239,6 +239,92 @@ def test_token_payload_does_not_carry_role(client, db):
     assert decode_access_token(token)[0]  # 签名与 ver 解析正常
 
 
+def test_admin_login_failures_do_not_lock_student_login(client, db):
+    """复核单 §3：admin 与学生登录必须各用各的限流桶。"""
+    register_user(client, username="student01")
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+
+    for _ in range(settings.login_rate_limit):
+        assert _admin_login(client, "admin01", "wrong-pass").status_code == 401
+    assert _admin_login(client, "admin01", "wrong-pass").status_code == 429
+
+    ok = client.post(
+        "/api/v1/auth/login",
+        json={"username": "student01", "password": "p@ssw0rd9"},
+    )
+    assert ok.status_code == 200, ok.text
+
+
+def test_student_login_failures_do_not_lock_admin_login(client, db):
+    register_user(client, username="student01")
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+
+    for _ in range(settings.login_rate_limit):
+        resp = client.post(
+            "/api/v1/auth/login",
+            json={"username": "student01", "password": "wrong-pass"},
+        )
+        assert resp.status_code == 401
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json={"username": "student01", "password": "wrong-pass"},
+        ).status_code
+        == 429
+    )
+
+    assert _admin_login(client).status_code == 200
+
+
+def test_admin_logout_revokes_own_tokens_only(client, db):
+    """11-28 定案 B：管理端登出必须吊销 token，但不能波及学生/其他管理员。"""
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+    _create_user(db, "admin02", ADMIN_PASSWORD, role="admin")
+    token_a = _admin_login(client).json()["access_token"]  # 设备 1
+    token_b = _admin_login(client).json()["access_token"]  # 设备 2
+    token_other = _admin_login(client, "admin02").json()["access_token"]
+    student = register_user(client, username="student01")
+
+    resp = client.post("/api/v1/admin/logout", headers=auth_headers(token_a))
+    assert resp.status_code == 204
+
+    for token in (token_a, token_b):
+        resp = client.get("/api/v1/admin/me", headers=auth_headers(token))
+        assert resp.status_code == 401
+        assert resp.json()["detail"]["code"] == "AUTH_TOKEN_EXPIRED"
+
+    assert (
+        client.get("/api/v1/admin/me", headers=auth_headers(token_other)).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            "/api/v1/auth/me", headers=auth_headers(student["access_token"])
+        ).status_code
+        == 200
+    )
+
+
+def test_admin_logout_revokes_even_when_audit_write_fails(client, db, monkeypatch):
+    """bump 必须独立 commit：审计打桩抛异常后 token 仍要失效（复核单 §11.1 坑 1）。"""
+    _create_user(db, "admin01", ADMIN_PASSWORD, role="admin")
+    token = _admin_login(client).json()["access_token"]
+
+    from app.services import audit_service
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("audit down")
+
+    monkeypatch.setattr(audit_service, "record", boom)
+
+    resp = client.post("/api/v1/admin/logout", headers=auth_headers(token))
+    assert resp.status_code == 204
+
+    resp = client.get("/api/v1/admin/me", headers=auth_headers(token))
+    assert resp.status_code == 401
+    assert resp.json()["detail"]["code"] == "AUTH_TOKEN_EXPIRED"
+
+
 # --- seed 脚本 --------------------------------------------------------------
 
 
@@ -349,3 +435,61 @@ def test_seed_admin_promotes_existing_student(tmp_path):
         "select role from users where username='student01'"
     ).fetchone()[0] == "admin"
     conn.close()
+
+
+PROD_PASSWORD = "Adm1n-pass!2026"
+
+
+def test_seed_admin_production_allows_first_create_but_not_silent_reset(tmp_path):
+    """复核单 §2：生产切 APP_ENV=production 后必须还有正规建号路径。"""
+    db_path = _migrated_db(tmp_path)
+    env = _seed_env(db_path, APP_ENV="production", ADMIN_PASSWORD=PROD_PASSWORD)
+
+    created = _run_seed(env)
+    assert created.returncode == 0, created.stderr
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "select role, password_hash from users where username='admin01'"
+    ).fetchone()
+    assert row[0] == "admin"
+    original_hash = row[1]
+
+    # 已存在：幂等、不碰口令
+    again = _run_seed(env)
+    assert again.returncode == 0, again.stderr
+    assert (
+        conn.execute(
+            "select password_hash from users where username='admin01'"
+        ).fetchone()[0]
+        == original_hash
+    )
+
+    # --reset 缺 --yes：拒绝且不改库
+    refused = _run_seed(env, "--reset")
+    assert refused.returncode == 2
+    assert (
+        conn.execute(
+            "select password_hash from users where username='admin01'"
+        ).fetchone()[0]
+        == original_hash
+    )
+
+    # 服务器 shell 显式 --reset --yes：允许改口令
+    reset = _run_seed(env, "--reset", "--yes")
+    assert reset.returncode == 0, reset.stderr
+    assert (
+        conn.execute(
+            "select password_hash from users where username='admin01'"
+        ).fetchone()[0]
+        != original_hash
+    )
+    conn.close()
+
+
+def test_seed_admin_production_requires_strong_password(tmp_path):
+    db_path = _migrated_db(tmp_path)
+    env = _seed_env(db_path, APP_ENV="production", ADMIN_PASSWORD="short123")
+    result = _run_seed(env)
+    assert result.returncode == 2
+    assert "12" in result.stderr
+    assert sqlite3.connect(db_path).execute("select count(*) from users").fetchone()[0] == 0

@@ -67,10 +67,11 @@ BababoiLearningMachine/
 │   │   │                          # / vision_job_service / vision_worker
 │   │   │                          # / practice_service + image_service / extraction_service / ai_log
 │   │   │                          # / draft_service / stats_service / audit_service / admin_auth_service
+│   │   │                          # / admin_serializers / admin_stats_service / admin_actions
 │   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors
-│   │   └── utils/                 # client_ip（反代后取真实来源 IP）
+│   │   └── utils/                 # client_ip（反代后取真实来源 IP）/ admin_time（UTC+8 展示格式）/ search（LIKE 转义）
 │   ├── fixtures/                  # 目前为空；识图实拍样本在 _scratch/images/（不入库）
-│   └── tests/                     # ai / auth / admin_auth / client_ip / drafts_api / health /
+│   └── tests/                     # ai / auth / admin_auth / admin_read / password_gate / client_ip / drafts_api / health /
 │                                  # images_api / migrations / models / openapi_snapshot /
 │                                  # practice_api / question_schema / questions_api / sessions /
 │                                  # settings_* / stats_api / tasks / vision_cache + conftest

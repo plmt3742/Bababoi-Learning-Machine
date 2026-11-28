@@ -31,8 +31,14 @@ class Settings(BaseSettings):
     # 演示账号口令：只给 seed_demo.py 用，必须由 .env / 环境变量注入，代码里不给默认值
     demo_password: str = ""
 
-    # CORS：只列允许的来源，不用 *（05 §9.4）
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # CORS：只列允许的来源，不用 *（05 §9.4）。
+    # 5174 是 admin/ 的 Vite 开发端口（ADR-009）；开发期 admin 走 Vite 代理，这里
+    # 保留直连来源，免得调试时因为一个 IP/localhost 写法差异被拦。
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ]
 
     # FR-7 账号：JWT 有效期 7 天（05 §6.3）；secret 必须由环境变量注入
     jwt_secret: str = ""

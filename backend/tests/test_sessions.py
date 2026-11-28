@@ -182,7 +182,7 @@ def test_change_password_does_not_affect_other_users(client) -> None:
     assert _me(client, other).status_code == 200
 
 
-def test_bump_token_version_increments_sequentially(client, db) -> None:
+def testbump_token_version_increments_sequentially(client, db) -> None:
     """只验证顺序递增；`FOR UPDATE` 的并发当前读在 MySQL 8 才生效（SQLite 忽略该子句），
     上线前需在 MySQL 做一次并发改密/当前读专项验证。"""
     from app.models import User
@@ -190,10 +190,10 @@ def test_bump_token_version_increments_sequentially(client, db) -> None:
 
     user_id = register_user(client)["user"]["id"]
     with db() as first:
-        v1 = auth_service._bump_token_version(first, user_id)
+        v1 = auth_service.bump_token_version(first, user_id)
         first.commit()
     with db() as second:
-        v2 = auth_service._bump_token_version(second, user_id)
+        v2 = auth_service.bump_token_version(second, user_id)
         second.commit()
 
     assert (v1, v2) == (1, 2)

@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.38**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -407,14 +407,14 @@ erDiagram
 |---|---|---|---|
 | POST | `/auth/register` | `{username, password, email?}` | `{access_token, token_type, user}` |
 | POST | `/auth/login` | `{username, password}` | `{access_token, token_type, user, must_change_password?}` |
-| POST | `/auth/logout` | — | `204`；**只清前端**，服务端不吊销（多设备共存） |
+| POST | `/auth/logout` | — | `204`；学生端**只清前端**、服务端不吊销（多设备共存）；管理端 `/admin/logout` 吊销 token |
 | POST | `/auth/change-password` | 已登录；`{current_password, new_password}` | `204`；旧密码错 401 `AUTH_INVALID_CREDENTIALS`；新旧相同/长度不合规 400 `VALIDATION_ERROR`；频繁 429 `AUTH_RATE_LIMITED`；新密码至少 8 位且 ≤72 字节（BE-029） |
-| GET | `/auth/me` | — | `{id, username, email, created_at, must_change_password}` |
+| GET | `/auth/me` | — | `{id, username, email, created_at, role, must_change_password}` |
 
 - 密码最少 8 位（按 UTF-8 字节不超过 72，bcrypt 上限）；用户名 3–32 位，字母/数字/下划线/中文。
 - 不做邮箱自助找回；忘记密码走学生线上申请 → 管理员审批 → 临时密码（BE-030；ADR-010 / 28 §5）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
 - 公开 `POST /auth/password-reset-requests` 固定返回 202 泛化响应，不返回 `request_id`、不区分账号是否存在；用户名不存在不落库，已有 pending 不重复建单（幂等 202）。
-- 临时密码登录时 `POST /auth/login` 响应额外带 `must_change_password: true`；`GET /auth/me` 也返回该字段，供刷新/恢复会话后的路由守卫使用。改密前只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`，其他业务接口 403 `PASSWORD_CHANGE_REQUIRED`（28 §5.4）。
+- 临时密码登录时 `POST /auth/login` 响应顶层与 `user` 内都带 `must_change_password: true`；`GET /auth/me` 也返回该字段，供刷新/恢复会话后的路由守卫使用。改密前只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`，其他业务接口 403 `PASSWORD_CHANGE_REQUIRED`（门禁在 `get_current_user` 全局默认拒绝，白名单用端点标记；28 §5.4）。
 - JWT `sub=user_id`、`ver=token_version`，`exp=7d`；MVP 不做 refresh token。
 - **多设备共存（BE-028，2026-11-21 定案单 §3）**：`users.token_version` 只在**全踢**动作时 +1——改密（BE-029）、未来的管理员强制下线。**登录不 +1**（手机拍题 + 电脑做题互不打扰），**登出也不 +1**（否则手机上退出会把电脑踢下线）。`get_current_user` 发现 `ver` 与库里不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。改密成功后**所有设备（含当前）都要重新登录**，这正是"密码被同学知道后自救"的机制。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户第一次改密后旧 token 才失效。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。标识符带**业务命名空间**（`login` / `register` 前缀）：两个限流器即使配成同一额度，共享存储下也不会共用一个桶。
@@ -793,7 +793,7 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 - Base URL：`/api/v1/admin`；除 `POST /admin/auth/login` 与公开的 `POST /auth/password-reset-requests` 外，全部依赖 `require_admin`。
 - 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403 `ADMIN_REQUIRED`，禁用账号 403 `ACCOUNT_DISABLED`。
-- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验，有效期单独 8h。
+- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验，有效期单独 8h；**登出吊销 token**（`token_version+1`，同账号其他设备一并失效；学生账号不受影响）。
 - 实现真源：前端实际调用 `admin/src/api/admin.ts`（见 PR #120 分支）+ 28 号文档 §5/§6 + `admin/API_CONTRACT.md`。本节表格按 admin.ts 校正过，不再保留早期草稿里的 `/metrics/*`、`PATCH users`、`content_flags` 等叫法。
 
 | 模块 | 端点 |
@@ -1297,6 +1297,9 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.38 | **11-28 安全定案落地**：管理端 `POST /admin/logout` 吊销 token（`token_version+1`，bump 独立提交，审计失败不回滚吊销；学生登出仍不吊销，多设备共存）；`must_change_password` 门禁做进 `get_current_user` 全局默认拒绝，白名单仅 `/auth/me`、`/auth/change-password`、`/auth/logout`（端点标记，新增端点默认受保护）；登录响应顶层补 `must_change_password`；改密成功清标记与临时密码过期时间；审批入口必须拒绝 `role != student`（BE-030 实现时遵守） | 人机 / agent |
+| 2026-11-28 | v0.6.37 | **#123/#124 复核修复**：`password_reset_requests` DTO 补 `used_at`（前端判断申请是否已兑现）；管理端登录改用独立限流桶 `admin-login`（不再与学生登录互锁）；`/admin/*` 父 router 默认 `require_admin`（登录单独匿名 router）；搜索统一转义 `%`/`_`（`utils/search.py`）；`seed_admin.py` 生产允许首次创建（口令 ≥12 位）、改口令必须 `--reset --yes` | 人机 / agent |
+| 2026-11-28 | v0.6.36 | **ADM-003/007/011 只读端点**：overview 真实聚合（用户/内容/AI/任务/密码申请/趋势）、users 列表详情、tasks 列表详情（真实 timeline）、ai-logs 列表详情（不含 raw）、audit 列表详情（中文动作名可搜）、password-requests 只读、alerts 四类实时推导、system 真实探活；列表 DTO 出口 camelCase（按 `admin/src/types.ts`），时间/耗时由后端格式化为 UTC+8 展示串；`/auth/me` 补 `role`；CORS 默认加 admin 5174 开发来源 | 人机 / agent |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |

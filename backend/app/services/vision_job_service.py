@@ -135,7 +135,7 @@ def _reuse_active_if_same_params(
     """并发/双击：当前 active 任务参数全等就返回复用结果，否则 None。
 
     先 rollback 再读：MySQL RR 下本事务可能还握着旧快照，普通 SELECT 读不到
-    别的事务刚提交的那一行（同类坑见 `_bump_token_version` 的当前读注释）。
+    别的事务刚提交的那一行（同类坑见 `bump_token_version` 的当前读注释）。
     """
     session.rollback()
     active = _active_job(session, user_id)

@@ -109,21 +109,21 @@ ID:
 
 ### 1.6 管理端 admin（进入 11.29 演示；范围见 ADR-009 / 28 号文档）
 
-> 决策：ADR-005 + ADR-009。演示档位按 ADR-009：必须 = 登录/403、总览、任务/AI 日志只读、审计列表、系统健康；目标 = 密码申请审批 + 强制改密；演示后 = 导出、告警、内容标记等。密码流程见 `28-admin-console.md` §5。`admin/` 前端应用见 PR #120；后端地基见 PR #123。
+> 决策：ADR-005 + ADR-009。演示档位按 ADR-009：必须 = 登录/403、总览、任务/AI 日志只读、审计列表、系统健康；目标 = 密码申请审批 + 强制改密；演示后 = 导出、告警、内容标记等。密码流程见 `28-admin-console.md` §5。`admin/` 前端应用见 PR #120；后端地基 #123 已合，只读与复核修复在 #124。
 
 | ID | 任务 | 负责人 | 优先级 | 演示档位 | 依赖 | 验收标准 | 状态 |
 |---|---|---|---|---|---|---|---|
 | ADM-001 | ADR-005 + `admin/README.md` + 文档同步 | 霹雳马桶 | P1 | 必须（基础） | 无 | ADR Accepted；01/06/README/AGENTS 同步；不写业务代码 | DONE |
-| ADM-002 | `users.role` + migration + `require_admin` + seed admin | 人机 | P1 | 必须（基础） | ADM-001 | student token 403；admin 200；无默认密码 | DOING（PR #123） |
-| ADM-003 | `GET /admin/overview` | 人机 | P1 | 必须 | ADM-002 | 用户/错题/生成题/练习数、AI 成功率、失败任务数与 DB 一致 | TODO |
-| ADM-004 | admin app 脚手架 + 登录 + AdminShell | 霹雳马桶 | P1 | 必须 | ADM-001/002 | 独立 `admin/`；`base=/admin/`；登录/路由守卫；CI build | TODO |
-| ADM-005 | 用户列表/搜索/禁用/强制下线 | 两人 | P1 | 目标（列表/禁用） | ADM-003/004 | 分页、搜索、禁用、强制下线；不返回 password_hash | TODO |
+| ADM-002 | `users.role` + migration + `require_admin` + seed admin | 人机 | P1 | 必须（基础） | ADM-001 | student token 403；admin 200；无默认密码 | DONE（PR #123） |
+| ADM-003 | `GET /admin/overview` | 人机 | P1 | 必须 | ADM-002 | 用户/错题/生成题/练习数、AI 成功率、失败任务数与 DB 一致 | DOING（PR #124） |
+| ADM-004 | admin app 脚手架 + 登录 + AdminShell | 霹雳马桶 | P1 | 必须 | ADM-001/002 | 独立 `admin/`；`base=/admin/`；登录/路由守卫；CI build | DOING（PR #120） |
+| ADM-005 | 用户列表/搜索/禁用/强制下线 | 两人 | P1 | 目标（列表/禁用） | ADM-003/004 | 分页、搜索、禁用、强制下线；不返回 password_hash | DOING（列表/详情 PR #124；写操作待做） |
 | ADM-006 | 错题/生成题列表 + 软删除 | 两人 | P1 | 演示后 | ADM-003/004 | 列表/详情/软删；无富文本编辑 | TODO |
-| ADM-007 | 任务/AI logs 列表 + 失败重试 | 人机 | P1 | 必须 | ADM-003/004 | 筛选、重试、错误码/延迟/tokens 可见 | TODO |
-| ADM-008 | 审计列表/导出 | 人机 | P1 | 必须（列表）/演示后（导出） | ADM-005/006/007 | 删除/重试/禁用/审批/敏感读取留痕；导出脱敏 | TODO |
-| ADM-009 | `users.disabled_at` + `admin_audit_logs` + audit service | 人机 | P1 | 必须（基础） | ADM-002 | 写操作与审计同事务；审计失败回滚 | DOING（PR #123） |
+| ADM-007 | 任务/AI logs 列表 + 失败重试 | 人机 | P1 | 必须 | ADM-003/004 | 筛选、重试、错误码/延迟/tokens 可见 | DOING（只读 PR #124；重试/取消/raw 待做） |
+| ADM-008 | 审计列表/导出 | 人机 | P1 | 必须（列表）/演示后（导出） | ADM-005/006/007 | 删除/重试/禁用/审批/敏感读取留痕；导出脱敏 | DOING（列表 PR #124；导出待做） |
+| ADM-009 | `users.disabled_at` + `admin_audit_logs` + audit service | 人机 | P1 | 必须（基础） | ADM-002 | 写操作与审计同事务；审计失败回滚 | DONE（PR #123；写操作随 #124） |
 | ADM-010 | 管理端密码申请审批页面 | 霹雳马桶 | P1 | 目标 | BE-030/ADM-004 | 待审批列表/详情、通过/拒绝、临时密码一次性展示与重新生成；审计 | TODO |
-| ADM-011 | 监控指标 + 健康/告警 | 人机 | P1 | 必须（指标/健康）/演示后（告警） | ADM-003 | AI 成功率/延迟/tokens、队列、`/health` 与 DB 一致 | TODO |
+| ADM-011 | 监控指标 + 健康/告警 | 人机 | P1 | 必须（指标/健康）/演示后（告警） | ADM-003 | AI 成功率/延迟/tokens、队列、`/health` 与 DB 一致 | DOING（PR #124；告警 ack 待做） |
 | ADM-012 | 内容标记 + 用户强制下线 | 两人 | P1 | 演示后（内容标记）/目标（强制下线） | ADM-005/006/009 | 软删/恢复/标记；强制下线 token_version+1；审计 | TODO |
 
 ### 1.7 个人设置 / BYOK（P1，不进入 11.29 演示关键路径）
@@ -137,8 +137,8 @@ ID:
 | FE-038 | 个人设置重置密码（凭旧密码） | 霹雳马桶 | P1 | 无 | `/settings` 重置密码卡：当前密码 + 新密码 + 确认；至少 8 位且 ≤72 字节、新旧不得相同；成功清会话回登录并提示；404/405 降级 | DONE（前端 #99 已合 `e8a5629`；后端 BE-029 随本 PR） |
 | BE-029 | 重置密码接口（凭旧密码） | 人机 | P1 | BE-003 | `POST /auth/change-password`；校验旧密码；更新 bcrypt hash；成功后吊销旧 token（token_version +1）；限流；测试 | 待合（随 #103；验旧密码、至少 8 位且 ≤72 字节、新旧不同、失败 5 次/分钟/账号；成功后全设备重新登录） |
 | FE-039 | 登录页忘记密码 + 管理员授权说明 | 霹雳马桶 | P1 | 无 | 登录页「忘记密码？」展开说明；不提交表单；登录/注册切换时收起 | DONE（旧入口保留；新流程见 FE-040） |
-| FE-040 | 忘记密码线上申请 + 强制改密引导 | 霹雳马桶 | P1 | BE-030/ADM-010 | `/forgot-password` 表单；202 不提示账号是否存在；读取 `must_change_password` 路由守卫；跳设置页强制改密 | TODO（目标） |
-| BE-030 | 线上密码申请 + 审批 + 临时密码（后端） | 人机 | P1 | ADM-002/009 | 公开 202 泛化响应；审批/拒绝/重新生成；24h；`must_change_password` 门禁；审计；吊销 token；不新增姓名/学号 | TODO（依赖管理端基础） |
+| FE-040 | 忘记密码线上申请 + 强制改密引导 | 霹雳马桶 | P1 | BE-030/ADM-010 | **分两步发**：① 路由守卫 + 拦截器对 `PASSWORD_CHANGE_REQUIRED` 特判（跳改密页、不清 token）先上，零依赖；② `/forgot-password` 页面先做但**不挂登录页入口**（BE-030 前点进去 404），接口上线后再开入口。202 不提示账号是否存在 | TODO（两步，见验收列） |
+| BE-030 | 线上密码申请 + 审批 + 临时密码（后端） | 人机 | P1 | ADM-002/009 | 公开 202 泛化响应；审批入口拒绝 `role != student`；审批/拒绝/重新生成；24h；审计；吊销 token；不新增姓名/学号；改密回写 `password_reset_requests.used_at` 与清 `must_change_password` 同一事务。**硬门槛**：第一次写 `must_change_password=true` 的 PR 必须同时包含 `get_current_user` 全局门禁 + 三端点白名单（`/auth/me`、`/auth/change-password`、`/auth/logout`）——门禁已在 #124；若 #124 未合则 BE-030 必须一并带上，拆开就是假门禁或空跑 | DOING（门禁/改密清标记已在 #124；申请与审批待做） |
 
 ### 1.8 FE-027 收口（2026-11-07）
 

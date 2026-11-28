@@ -194,6 +194,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 - 其他业务接口一律 403 `PASSWORD_CHANGE_REQUIRED`。
 - 前端路由守卫读取 `must_change_password`（登录响应或 `/auth/me`），跳转 `/settings` 强制改密；`/auth/me` 必须放行，否则刷新/恢复会话会把用户踢回登录页。
 - 改密成功后清 `must_change_password` 与 `temp_password_expires_at`，`token_version += 1`，当前会话也需用新密码重新登录。
+- **发布顺序（11-28 定）**：前端「守卫 + 拦截器特判」先上（flag 全 false，零风险）；`/forgot-password` 页面可以先做但**先不挂登录页入口**（学生提交接口在 BE-030，提前挂链接会 404），BE-030 上线后再开入口。后端「第一次写 `must_change_password=true`」必须与全局门禁 + 三端点白名单同一 PR；门禁已随 #124 落地，若 #124 未合则 BE-030 一并带上——拆开就是假门禁或空跑。
 
 ## 6. 数据模型
 
@@ -289,7 +290,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 ## 10. 安全与隐私
 
 - 管理端独立 localStorage key（`bababoi:admin-token`）与登录页；JWT 仍共用同一签名密钥与 `token_version` 校验，学生 token 403。
-- 管理端登录限流；CORS 增加 `http://localhost:5174`，生产同源。
+- 管理端登录限流（独立 `admin-login` 桶，不与学生登录互锁）；**登出吊销 token**（`token_version+1`，其他设备一并失效）；CORS 增加 `http://localhost:5174`，生产同源。
 - 响应不返回 `password_hash`、JWT、API Key 密文、完整 Key。
 - 邮箱列表脱敏；原始 AI/图片访问审计；导出脱敏、限行数。
 - 图片走受保护接口，不暴露 `uploads/` 静态路径。
@@ -298,8 +299,8 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 ## 11. Seed、CI、部署
 
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` 环境变量；无默认密码。
-- `seed_demo.py` 或 `seed_admin.py`；生产拒绝，`--reset` 需 `--yes`。
-- 管理员恢复：不做 UI 自助；提供 server-side CLI（如 `uv run python -m app.scripts.reset_admin_password`）或环境变量 re-seed，需服务器 shell 权限，操作写日志/审计。
+- `seed_admin.py`：生产**允许首次创建**（口令 ≥12 位，注册只产生 student，这是唯一正规入口）；账号已存在时默认不动（幂等）；改线上口令必须服务器 shell 执行 `--reset --yes`，未带 `--yes` 直接拒绝。任何环境都不打印口令。
+- 管理员恢复：不做 UI 自助；只能用服务器 shell 重新 seed（`--reset --yes`）或运维脚本，操作写日志/审计。
 - 后端 `ruff` + `pytest` + OpenAPI `--check`；admin 前端独立 lint/typecheck/build。
 - nginx `location /admin/`；API 仍 `/api/v1`。
 - 学生端构建与演示脚本不受影响。

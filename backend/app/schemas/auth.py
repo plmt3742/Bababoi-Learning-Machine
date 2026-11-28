@@ -83,9 +83,14 @@ class UserResponse(BaseModel):
     username: str
     email: str | None
     created_at: datetime
+    # BE-030：临时密码登录后前端据此跳转强制改密；普通账号恒为 student/false
+    role: str = "student"
+    must_change_password: bool = False
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+    # BE-030：前端登录后无需再请求 /me 就能判断是否必须改密
+    must_change_password: bool = False
