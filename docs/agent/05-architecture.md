@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.35**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -492,10 +492,21 @@ erDiagram
 | POST | `/generated-questions/{id}/feedback` | `{type: "bad_question"|"wrong_answer"|"too_easy"|"too_hard", comment?}` |
 | POST | `/practice-records` | `{generated_question_id, user_answer?, is_correct, duration_seconds}`；返回 201 |
 | GET | `/practice-records` | 分页；`?page&page_size`；附加过滤 `?generated_question_id=`（BE-012 新增，练习页回显用） |
+| GET | `/practice/due` | 今日待复习队列；`?limit=6&subject=`；返回 `{items: [{generated_question, parent: {id, subject, excerpt, mastery_status}, last_practiced_at, due_reason}], total}` |
 
 > BE-012 防重复口径：同用户、同生成题、同 `user_answer`、同 `is_correct`，60 秒窗口内再次提交返回 `409 PRACTICE_DUPLICATE`（时长不参与比对）；窗口外允许重复。生成题不存在/不属于当前用户/已删除一律 `404 NOT_FOUND`。
 >
 > 已知风险：防重复是“先查后插”，并发请求理论上仍可能双双通过；MVP 单人单端可接受，BE-016 再收紧。整组重生成会软删旧 3 题，对旧题补交返回 404；已入库的 practice_records 不受影响。
+
+> 今日待复习（#107 / 后端 #126；2026-11-28 已实现）：
+>
+> - 只取未删除错题，且该错题名下存在未删除生成题；只算当前用户自己的数据。
+> - 到期规则：未练过优先；`unmastered` 距最近练习 ≥1 天、`reviewing` ≥3 天、`mastered` ≥7 天（滚动 24h，不按自然日）。
+> - 排序（口径 B，2026-11-28 定案）：未练过 → 掌握度越薄弱越前（unmastered > reviewing > mastered）→ 同档内最久未练 → 原题 id；前端 mock 同序。
+> - 每道到期原题只返回 1 道生成题（优先最近答错、其次练习次数少、最后 id）；返回哪道题只用**未软删**的生成题。
+> - 最近练习时间按该原题下**全部生成题（含已软删）**的流水计算——整组重生成会软删旧题但流水保留，只看未删的会把刚练过的题误判成 `never`。
+> - `due_reason` 枚举：`never` / `unmastered_1d` / `reviewing_3d` / `mastered_7d`；`last_practiced_at` 为 UTC 带 `Z`，未练过为 `null`。
+> - `limit` 越界按 1–20 clamp（不报 400）；`total` 为截断前的全部到期数。
 
 ### 6.5b 草稿与任务
 
@@ -1297,6 +1308,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.35 | **GET /practice/due 落地（#126 / #107 后端）**：按本节契约实现——只取当前用户未软删、名下有未软删生成题的原题；未练过优先，unmastered ≥1 天 / reviewing ≥3 天 / mastered ≥7 天（滚动 24h）；每原题只返 1 道生成题（最近答错→练习次数少→id），`last_practiced_at` UTC 带 `Z`，`limit` clamp 1–20，`total` 截断前；排序按口径 B（薄弱优先→最久未练→id）；15 条测试（含「重生成软删旧题不重置 last_practiced_at」与「紧迫度先于时间」）；无迁移，OpenAPI 快照已重导 | 人机 |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
