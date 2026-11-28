@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-10
+last_updated: 2026-11-28
 status: active
 read_when: 每天开工领取任务；每天收工更新状态；周会同步进度
 ---
@@ -187,7 +187,7 @@ ID:
 | FE-011 | Auth store + 路由守卫 | 霹雳马桶 | P0 | FE-004/005 | token 持久化；401 跳登录；刷新不丢 | DONE（PR #17） |
 | FE-012 | 空/错/loading 组件 | 霹雳马桶 | P0 | FE-003 | 统一组件 + 至少 5 处使用 | DONE（PR #18） |
 | SH-008 | 契约同步 + 联调 | 两人 | P0 | BE-009/FE-010 | OpenAPI diff；字段/错误码一致；联调记录 | TODO |
-| OPS-005 | Staging 部署 | 人机 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | DOING（2026-11-15：`http://47.107.30.226` 已上线，真 Key 跑通真图 + 缓存命中；演示口令已换、库已备份；待重建镜像启用 BYOK、手机 4G 实测） |
+| OPS-005 | Staging 部署 | 人机 | P0 | OPS-002/BE-009 | 地址可访问；登录+创建+列表可用；CORS/环境变量正确 | DONE（2026-11-17 staging 已更新到 `f73d247`，真 Key/BYOK/缓存 smoke 通过；备份与回滚见 `24-staging-handoff-20261117.md`；HTTP 访问，HTTPS 未做） |
 
 ## 3. M2：功能完整（11.15–11.21）
 

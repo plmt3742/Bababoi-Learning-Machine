@@ -13,7 +13,14 @@ import WeakPointList from '../components/stats/WeakPointList.vue'
 import { getStatsOverview } from '../api/stats'
 import { normalizeApiError } from '../api/errors'
 import type { StatsOverview } from '../api/types'
-import { formatAccuracy, formatStatsTime, formatTrendDay, summarizeTrend } from '../utils/stats'
+import {
+  fillRecentSevenDays,
+  formatAccuracy,
+  formatStatsTime,
+  formatTrendDay,
+  summarizeTrend,
+} from '../utils/stats'
+import { formatPracticeDuration } from '../utils/practice'
 
 const router = useRouter()
 
@@ -25,7 +32,8 @@ const errorCode = ref('')
 
 let requestToken = 0
 
-const week = computed(() => summarizeTrend(overview.value?.recent_trend ?? []))
+const trendPoints = computed(() => fillRecentSevenDays(overview.value?.recent_trend ?? []))
+const week = computed(() => summarizeTrend(trendPoints.value))
 
 const hasAnyData = computed(() => {
   const stats = overview.value
@@ -51,7 +59,7 @@ const accuracyHint = computed(() =>
 )
 
 const trendRange = computed(() => {
-  const points = overview.value?.recent_trend ?? []
+  const points = trendPoints.value
   if (points.length === 0) return ''
 
   return `${formatTrendDay(points[0].date)} — ${formatTrendDay(points[points.length - 1].date)}`
@@ -60,6 +68,20 @@ const trendRange = computed(() => {
 const updatedText = computed(() =>
   overview.value ? formatStatsTime(overview.value.updated_at) : '',
 )
+
+const durationSummary = computed(() => {
+  const stats = overview.value
+  if (!stats) return ''
+
+  const parts: string[] = []
+  if (stats.total_duration_seconds !== undefined) {
+    parts.push(`累计练习 ${formatPracticeDuration(stats.total_duration_seconds)}`)
+  }
+  if (stats.average_duration_seconds !== undefined) {
+    parts.push(`平均每题 ${formatPracticeDuration(stats.average_duration_seconds)}`)
+  }
+  return parts.join(' · ')
+})
 
 async function loadStats(mode: 'initial' | 'refresh'): Promise<void> {
   const token = ++requestToken
@@ -112,14 +134,10 @@ onBeforeUnmount(() => {
 <template>
   <div class="page">
     <PageHeader
-      eyebrow="Stats"
-      title="学习概览"
-      description="看清错题规模、练习正确率与薄弱知识点，把复习精力放在最需要的地方。"
+      title="学习统计"
+      description="查看错题规模、掌握度与近 7 天练习趋势，找到最值得复习的知识点。"
     >
       <template #actions>
-        <button class="btn btn--outline" type="button" @click="router.push('/')">
-          返回首页
-        </button>
         <button
           class="btn btn--outline stats-refresh"
           type="button"
@@ -134,10 +152,7 @@ onBeforeUnmount(() => {
     </PageHeader>
 
     <div v-if="errorMessage && overview" class="stats-alert" role="alert">
-      <span>
-        统计刷新失败：{{ errorMessage }}
-        <code v-if="errorCode" class="stats-alert__code">（{{ errorCode }}）</code>
-      </span>
+      <span>统计刷新失败：{{ errorMessage }}</span>
       <button class="btn btn--danger btn--sm" type="button" @click="handleRefresh">重试</button>
     </div>
 
@@ -177,6 +192,7 @@ onBeforeUnmount(() => {
           :value="String(overview.mastered_count)"
           :hint="`复习 ${overview.reviewing_count} · 未掌握 ${overview.unmastered_count}`"
         />
+        <p v-if="durationSummary" class="stats-duration">{{ durationSummary }}</p>
       </section>
 
       <div class="stats-panels">
@@ -211,7 +227,7 @@ onBeforeUnmount(() => {
           <span class="panel__head-hint">{{ trendRange }}</span>
         </header>
         <div class="panel__body">
-          <TrendChart :points="overview.recent_trend" />
+          <TrendChart :points="trendPoints" />
         </div>
       </section>
 
@@ -258,17 +274,20 @@ onBeforeUnmount(() => {
   line-height: var(--text-sm-leading);
 }
 
-.stats-alert__code {
-  margin-left: 2px;
-  color: var(--color-danger-text);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+.stats-duration {
+  grid-column: 1 / -1;
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .stats-panels {

@@ -2,6 +2,10 @@
 import { computed } from 'vue'
 import 'katex/dist/katex.min.css'
 import { renderMarkdown } from '../../utils/markdown'
+import { splitMermaidFences } from '../../utils/mermaid'
+import MermaidDiagram from './MermaidDiagram.vue'
+
+defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
   defineProps<{
@@ -13,16 +17,41 @@ const props = withDefaults(
 )
 
 const rendered = computed(() => renderMarkdown(props.content))
+const segments = computed(() =>
+  splitMermaidFences(props.content).map((segment) =>
+    segment.type === 'markdown'
+      ? { type: 'markdown' as const, html: renderMarkdown(segment.content) }
+      : segment,
+  ),
+)
+const hasMermaid = computed(() => segments.value.some((segment) => segment.type === 'mermaid'))
 </script>
 
 <template>
-  <!-- rendered HTML is sanitized by DOMPurify in utils/markdown.ts -->
+  <!-- rendered HTML is sanitized by DOMPurify in utils/markdown.ts; Mermaid SVG is sanitized in MermaidDiagram.vue -->
   <!-- eslint-disable vue/no-v-html -->
   <div
+    v-if="!hasMermaid"
     class="markdown-renderer"
     :class="{ 'markdown-renderer--compact': compact }"
+    v-bind="$attrs"
     v-html="rendered"
   />
+  <div
+    v-else
+    class="markdown-renderer markdown-renderer--segmented"
+    :class="{ 'markdown-renderer--compact': compact }"
+    v-bind="$attrs"
+  >
+    <template v-for="(segment, index) in segments" :key="index">
+      <div
+        v-if="segment.type === 'markdown'"
+        class="markdown-segment"
+        v-html="segment.html"
+      />
+      <MermaidDiagram v-else :source="segment.source" />
+    </template>
+  </div>
   <!-- eslint-enable vue/no-v-html -->
 </template>
 
@@ -199,6 +228,14 @@ const rendered = computed(() => renderMarkdown(props.content))
 .markdown-renderer--compact {
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
+}
+
+.markdown-renderer--segmented :deep(.markdown-segment > :first-child) {
+  margin-top: 0;
+}
+
+.markdown-renderer--segmented :deep(.markdown-segment > :last-child) {
+  margin-bottom: 0;
 }
 
 .markdown-renderer--compact :deep(p) {

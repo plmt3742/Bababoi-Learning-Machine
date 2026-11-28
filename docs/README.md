@@ -54,6 +54,7 @@
 | [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
 | [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
 | [agent/28-admin-console.md](agent/28-admin-console.md) | 管理端规划与后端对接：监控、审计、任务/AI、内容、线上密码申请审批、数据模型/API/分期 | 开发/联调管理端前；评审监控与审计时 |
+| [agent/31-frontend-issue-plan.md](agent/31-frontend-issue-plan.md) | 前端 issue 专项计划：#110/#113 演示前修复、#111/#112/#108 体验增强、#109/#107/#105 功能与依赖决策 | 处理前端评审 issue / 演示前收口 |
 
 ### 产品设计
 
@@ -88,6 +89,7 @@
 | [adr/ADR-008-generated-type-consistency-toggle.md](adr/ADR-008-generated-type-consistency-toggle.md) | 生成题题型一致性改为用户设置开关 | Accepted |
 | [adr/ADR-009-admin-in-demo.md](adr/ADR-009-admin-in-demo.md) | 管理端进入 11.29 演示 | Accepted |
 | [adr/ADR-010-scope-roles-types-subjects-stages.md](adr/ADR-010-scope-roles-types-subjects-stages.md) | 范围边界：角色 / 题型 / 学科 / 学段 | Accepted |
+| [adr/ADR-011-mermaid-rendering.md](adr/ADR-011-mermaid-rendering.md) | 解析与答案中的 Mermaid 图形渲染（动态加载 + strict + DOMPurify） | Accepted |
 
 ## 状态图例
 

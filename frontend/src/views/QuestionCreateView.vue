@@ -12,12 +12,14 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton.vue'
 import ImageIntakeFlow from '../components/question/image/ImageIntakeFlow.vue'
 import BlankEditor from '../components/question/editor/BlankEditor.vue'
 import ChoiceEditor from '../components/question/editor/ChoiceEditor.vue'
+import LatexToolbar from '../components/question/editor/LatexToolbar.vue'
 import QuestionPreview from '../components/question/editor/QuestionPreview.vue'
 import QuestionTypeSelector from '../components/question/editor/QuestionTypeSelector.vue'
 import { createQuestion, getQuestion, updateQuestion } from '../api/questions'
 import { normalizeApiError } from '../api/errors'
 import {
   createDefaultChoiceOptions,
+  insertLatexTemplate,
   optionLabel,
   toBlankAnswers,
   toChoiceOptions,
@@ -49,7 +51,10 @@ const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref<FormInstance>()
 const submitting = ref(false)
-const editMode = ref(true)
+type StemViewMode = 'edit' | 'split' | 'preview'
+const viewMode = ref<StemViewMode>('edit')
+const isWideEditor = ref(false)
+let wideEditorQuery: MediaQueryList | null = null
 const intakeMode = ref<'text' | 'image'>('text')
 const errorMessage = ref('')
 const attemptedSubmit = ref(false)
@@ -61,7 +66,10 @@ const structureErrorRef = ref<HTMLElement | null>(null)
 const continueDraftButton = ref<HTMLButtonElement | null>(null)
 const conflictPanelRef = ref<HTMLElement | null>(null)
 const restoreBarRef = ref<InstanceType<typeof DraftRestoreBar> | null>(null)
+const saveBarSentinel = ref<HTMLElement | null>(null)
+const showMobileSaveBar = ref(false)
 const editingQuestion = ref<QuestionDetail | null>(null)
+let saveBarObserver: IntersectionObserver | null = null
 const editLoading = ref(false)
 const editLoadError = ref('')
 const editLoadErrorCode = ref('')
@@ -228,7 +236,7 @@ function applyDraftContent(content: QuestionDraftContent): void {
       : createDefaultChoiceOptions()
   form.blanks = content.blanks.map((blank) => ({ answer_md: blank.answer_md }))
   choiceCorrectLabel.value = resolveCorrectLabel(content)
-  editMode.value = true
+  viewMode.value = 'edit'
   intakeMode.value = 'text'
 }
 
@@ -275,7 +283,7 @@ async function loadEditingQuestion(): Promise<void> {
     form.options = optionsToDrafts(detail.options)
     form.blanks = blanksToDrafts(detail.blanks)
     choiceCorrectLabel.value = correctLabelFromAnswer(detail.answer_md ?? '')
-    editMode.value = true
+    viewMode.value = 'edit'
     intakeMode.value = 'text'
   } catch (cause) {
     const apiError = normalizeApiError(cause)
@@ -443,7 +451,7 @@ async function handleSubmit(): Promise<void> {
     validationSummary.value = messages
 
     // Keep the stem error visible when the user submits from preview mode.
-    if (validationErrors.content_md) editMode.value = true
+    if (validationErrors.content_md) viewMode.value = 'edit'
 
     await nextTick()
     const firstField = FIELD_FOCUS_ORDER.find((field) => fields.includes(field)) ?? fields[0]
@@ -486,9 +494,7 @@ async function handleSubmit(): Promise<void> {
       })
 
       if (structureChanged() && !structureSaved(updated)) {
-        throw new Error(
-          '保存后题型结构校验不一致（可能是后端未按契约保存），请重试或联系后端。',
-        )
+        throw new Error('保存后题型结构未同步，请重试；如持续失败请联系管理员。')
       }
 
       Message.success('修改已保存')
@@ -524,7 +530,7 @@ async function handleSubmit(): Promise<void> {
 }
 
 async function handleRestoreDraft(): Promise<void> {
-  editMode.value = true
+  viewMode.value = 'edit'
   restoreDraft()
   await nextTick()
   focusField('content_md')
@@ -591,23 +597,72 @@ function handleSaveShortcut(event: KeyboardEvent): void {
   void handleSubmit()
 }
 
+function syncWideEditor(match: MediaQueryList | MediaQueryListEvent): void {
+  isWideEditor.value = match.matches
+  if (!match.matches && viewMode.value === 'split') viewMode.value = 'edit'
+}
+
+function handleInsertLatex(template: string, caretOffset: number): void {
+  if (viewMode.value === 'preview') viewMode.value = 'edit'
+
+  const textarea = document.getElementById('content-md') as HTMLTextAreaElement | null
+  const start = textarea?.selectionStart ?? form.content_md.length
+  const end = textarea?.selectionEnd ?? start
+  const inserted = insertLatexTemplate(form.content_md, start, end, template, caretOffset)
+  form.content_md = inserted.value
+
+  void nextTick(() => {
+    const next = document.getElementById('content-md') as HTMLTextAreaElement | null
+    if (!next) return
+    next.focus()
+    next.setSelectionRange(inserted.caret, inserted.caret)
+  })
+}
+
 onMounted(() => {
   if (isEditing.value) void loadEditingQuestion()
   window.addEventListener('keydown', handleSaveShortcut)
+
+  wideEditorQuery = window.matchMedia('(min-width: 1200px)')
+  syncWideEditor(wideEditorQuery)
+  wideEditorQuery.addEventListener('change', syncWideEditor)
+
+  if (saveBarSentinel.value) {
+    saveBarObserver = new IntersectionObserver(([entry]) => {
+      showMobileSaveBar.value = !entry.isIntersecting
+    })
+    saveBarObserver.observe(saveBarSentinel.value)
+  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleSaveShortcut)
+  wideEditorQuery?.removeEventListener('change', syncWideEditor)
+  wideEditorQuery = null
+  saveBarObserver?.disconnect()
+  saveBarObserver = null
 })
 </script>
 
 <template>
   <div class="page">
-    <PageHeader
-      :eyebrow="isEditing ? 'Edit entry' : 'New entry'"
-      :title="pageTitle"
-      :description="pageDescription"
-    />
+    <PageHeader :title="pageTitle" :description="pageDescription">
+      <template #actions>
+        <button
+          v-if="intakeMode === 'text'"
+          class="btn btn--primary create-save-top"
+          type="button"
+          :disabled="submitting || editLoading"
+          :aria-busy="submitting"
+          @click="handleSubmit"
+        >
+          <IconCheck aria-hidden="true" />
+          {{ isEditing ? '保存修改' : '保存并分析' }}
+        </button>
+      </template>
+    </PageHeader>
+
+    <div ref="saveBarSentinel" class="save-bar-sentinel" aria-hidden="true" />
 
     <LoadingSkeleton v-if="editLoading" variant="detail" label="正在加载错题" />
     <ErrorState
@@ -775,40 +830,60 @@ onBeforeUnmount(() => {
               <h2 id="stem-heading">题干</h2>
               <span class="req">必填</span>
               <div class="seg" role="group" aria-label="题干显示模式">
-                <button type="button" :aria-pressed="editMode" @click="editMode = true">
+                <button
+                  type="button"
+                  :aria-pressed="viewMode === 'edit'"
+                  @click="viewMode = 'edit'"
+                >
                   编辑
                 </button>
-                <button type="button" :aria-pressed="!editMode" @click="editMode = false">
+                <button
+                  v-if="isWideEditor"
+                  type="button"
+                  :aria-pressed="viewMode === 'split'"
+                  @click="viewMode = 'split'"
+                >
+                  分栏
+                </button>
+                <button
+                  type="button"
+                  :aria-pressed="viewMode === 'preview'"
+                  @click="viewMode = 'preview'"
+                >
                   预览
                 </button>
               </div>
             </div>
             <div class="panel__body">
-              <div v-show="editMode" class="stem-editor">
-                <label class="field-label" for="content-md">题目原文</label>
-                <a-form-item field="content_md" hide-label>
-                  <a-textarea
-                    v-model="form.content_md"
-                    class="editor-area"
-                    placeholder="例如：求函数 $f(x)=x^3-3x+1$ 的极值。"
-                    :auto-size="{ minRows: 4, maxRows: 18 }"
-                    :max-length="MAX_CONTENT_LENGTH"
-                    :textarea-attrs="{
-                      id: 'content-md',
-                      'aria-required': 'true',
-                      'aria-invalid': fieldHasError('content_md') ? 'true' : undefined,
-                      'aria-describedby': fieldAria('content_md', 'content-md-help'),
-                    }"
-                    allow-clear
-                  />
-                </a-form-item>
-                <div id="content-md-help" class="editor-meta">
-                  <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
-                  <span class="editor-meta__count">
-                    {{ form.content_md.length }} / {{ MAX_CONTENT_LENGTH }}
-                  </span>
+              <div class="stem-stage" :class="{ 'stem-stage--split': viewMode === 'split' }">
+                <div v-show="viewMode !== 'preview'" class="stem-editor">
+                  <label class="field-label" for="content-md">题目原文</label>
+                  <LatexToolbar @insert="handleInsertLatex" />
+                  <a-form-item field="content_md" hide-label>
+                    <a-textarea
+                      v-model="form.content_md"
+                      class="editor-area"
+                      placeholder="例如：求函数 $f(x)=x^3-3x+1$ 的极值。"
+                      :auto-size="{ minRows: 4, maxRows: 18 }"
+                      :max-length="MAX_CONTENT_LENGTH"
+                      :textarea-attrs="{
+                        id: 'content-md',
+                        'aria-required': 'true',
+                        'aria-invalid': fieldHasError('content_md') ? 'true' : undefined,
+                        'aria-describedby': fieldAria('content_md', 'content-md-help'),
+                      }"
+                      allow-clear
+                    />
+                  </a-form-item>
+                  <div id="content-md-help" class="editor-meta">
+                    <span>支持 Markdown；公式用 $...$ 或 $$...$$ 包裹</span>
+                    <span class="editor-meta__count">
+                      {{ form.content_md.length }} / {{ MAX_CONTENT_LENGTH }}
+                    </span>
+                  </div>
                 </div>
-                <div class="preview">
+
+                <div class="preview" :class="{ 'preview--solo': viewMode === 'preview' }">
                   <p class="preview__label">渲染预览</p>
                   <div class="preview__body">
                     <QuestionPreview
@@ -818,22 +893,14 @@ onBeforeUnmount(() => {
                       :options="form.options"
                       :correct-label="choiceCorrectLabel"
                     />
-                    <p v-else class="preview__empty">输入题干后，这里会显示渲染结果。</p>
+                    <p v-else class="preview__empty">
+                      {{
+                        viewMode === 'preview'
+                          ? '还没有内容，切换到编辑模式输入题干。'
+                          : '输入题干后，这里会显示渲染结果。'
+                      }}
+                    </p>
                   </div>
-                </div>
-              </div>
-
-              <div v-if="!editMode" class="preview preview--solo">
-                <p class="preview__label">渲染预览</p>
-                <div class="preview__body">
-                  <QuestionPreview
-                    v-if="form.content_md.trim()"
-                    :content="form.content_md"
-                    :question-type="form.question_type"
-                    :options="form.options"
-                    :correct-label="choiceCorrectLabel"
-                  />
-                  <p v-else class="preview__empty">还没有内容，切换到编辑模式输入题干。</p>
                 </div>
               </div>
             </div>
@@ -967,7 +1034,7 @@ onBeforeUnmount(() => {
             </p>
           </section>
 
-          <section class="panel panel--pad" aria-labelledby="after-heading">
+          <section class="panel panel--pad save-info-card" aria-labelledby="after-heading">
             <h2 id="after-heading" class="panel__title">保存后会发生什么</h2>
             <ol v-if="isEditing" class="save-steps">
               <li>
@@ -997,7 +1064,12 @@ onBeforeUnmount(() => {
         </aside>
       </a-form>
 
-      <div class="sticky-actions" role="region" aria-label="录入操作">
+      <div
+        class="sticky-actions"
+        :class="{ 'sticky-actions--visible': showMobileSaveBar }"
+        role="region"
+        aria-label="录入操作"
+      >
         <p>
           {{
             isEditing
@@ -1326,6 +1398,27 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.stem-stage {
+  min-width: 0;
+}
+
+.stem-stage--split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.stem-stage--split .preview {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.stem-stage--split .preview__body {
+  max-width: none;
+}
+
 .preview {
   margin-top: var(--space-4);
   padding-top: 13px;
@@ -1432,11 +1525,12 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-/* Sticky save bar */
+/* Save actions: inline on desktop, fixed above the mobile tab bar. */
+.save-bar-sentinel {
+  height: 0;
+}
+
 .sticky-actions {
-  position: sticky;
-  bottom: var(--space-4);
-  z-index: var(--z-sidebar);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1447,7 +1541,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-bar);
+  box-shadow: none;
 }
 
 .sticky-actions > p {
@@ -1482,17 +1576,54 @@ onBeforeUnmount(() => {
     padding: var(--space-4);
   }
 
+  .editor-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .editor-side {
+    order: -1;
+  }
+
+  .save-info-card {
+    display: none;
+  }
+
   .editor-meta {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
   }
 
+  .mode-panel {
+    padding-bottom: 96px;
+  }
+
+  .create-save-top {
+    display: none;
+  }
+
   .sticky-actions {
+    position: fixed;
+    right: 32px;
     bottom: calc(var(--layout-bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-2));
+    left: 32px;
+    z-index: 35;
+    margin: 0;
     flex-direction: column;
     align-items: stretch;
     padding: 10px var(--space-3);
+    box-shadow: var(--shadow-bar);
+    visibility: hidden;
+    transform: translateY(calc(100% + 24px));
+    transition:
+      transform 0.2s ease,
+      visibility 0.2s ease;
+  }
+
+  .sticky-actions--visible {
+    visibility: visible;
+    transform: translateY(0);
   }
 
   .sticky-actions > p {

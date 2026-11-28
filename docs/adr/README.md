@@ -41,6 +41,7 @@ ADR = Architecture Decision Record（架构决策记录）。用来记录**不�
 | ADR-008 | 生成题题型一致性改为用户设置开关 | Accepted | 2026-11-07 |
 | ADR-009 | 管理端进入 11.29 演示 | Accepted | 2026-11-27 |
 | ADR-010 | 范围边界：角色 / 题型 / 学科 / 学段 | Accepted | 2026-11-27 |
+| ADR-011 | 解析与答案中的 Mermaid 图形渲染 | Accepted | 2026-11-28 |
 
 ## 写 ADR 的最小结构
 

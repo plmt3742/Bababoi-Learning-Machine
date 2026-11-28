@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { GeneratedQuestion } from '../../api/types'
 import MarkdownRenderer from '../common/MarkdownRenderer.vue'
-import { difficultyLabel, validationStatusLabel } from '../../utils/question'
+import { difficultyLabel, formatDate, questionTypeLabel } from '../../utils/question'
 
 const props = defineProps<{
   question: GeneratedQuestion
@@ -10,16 +10,24 @@ const props = defineProps<{
 }>()
 
 const number = computed(() => String(props.index).padStart(2, '0'))
+const typeText = computed(() => questionTypeLabel(props.question.question_type))
 const difficultyText = computed(() => difficultyLabel(props.question.difficulty))
-const validationText = computed(() => validationStatusLabel(props.question.validation_status))
-const validationClass = computed(() => {
-  if (props.question.validation_status === 'valid') return 'tag--ok'
-  if (props.question.validation_status === 'invalid') return 'tag--fail'
-  return 'tag--draft'
-})
 const hasOptions = computed(() => Boolean(props.question.options?.length))
+const blanks = computed(() => props.question.blanks ?? [])
+const practiceText = computed(() => {
+  if (props.question.practice_count === undefined) return ''
+  const total = props.question.practice_count
+  const correct = props.question.correct_count ?? 0
+  const last = props.question.last_practiced_at
+    ? ` · 最近 ${formatDate(props.question.last_practiced_at)}`
+    : ''
+  return `练习 ${total} 次 · 答对 ${correct} 次${last}`
+})
 const hasQa = computed(
-  () => Boolean(props.question.answer_md?.trim()) || Boolean(props.question.explanation_md?.trim()),
+  () =>
+    Boolean(props.question.answer_md?.trim()) ||
+    blanks.value.length > 0 ||
+    Boolean(props.question.explanation_md?.trim()),
 )
 </script>
 
@@ -28,8 +36,8 @@ const hasQa = computed(
     <div class="gen-card__head">
       <span class="gen-card__no" aria-hidden="true">{{ number }}</span>
       <div class="gen-card__tags">
-        <span class="tag">{{ difficultyText }}</span>
-        <span class="tag" :class="validationClass">{{ validationText }}</span>
+        <span class="tag">{{ typeText }}</span>
+        <span class="tag tag--point">{{ difficultyText }}</span>
       </div>
     </div>
 
@@ -43,6 +51,8 @@ const hasQa = computed(
         <MarkdownRenderer :content="option.content_md" compact />
       </li>
     </ol>
+
+    <p v-if="practiceText" class="gen-card__practice">{{ practiceText }}</p>
 
     <details class="collapse collapse--card">
       <summary>
@@ -67,6 +77,15 @@ const hasQa = computed(
             <span class="inline-label">答案</span>
             <MarkdownRenderer :content="question.answer_md" />
           </div>
+          <div v-if="blanks.length" class="gen-qa">
+            <span class="inline-label">填空答案</span>
+            <ul class="gen-blanks">
+              <li v-for="blank in blanks" :key="blank.index" class="gen-blanks__item">
+                <span class="gen-blanks__label">第 {{ blank.index }} 空</span>
+                <MarkdownRenderer :content="blank.answer_md" compact />
+              </li>
+            </ul>
+          </div>
           <div v-if="question.explanation_md?.trim()" class="gen-qa">
             <span class="inline-label">解析</span>
             <MarkdownRenderer :content="question.explanation_md" />
@@ -76,29 +95,13 @@ const hasQa = computed(
       </div>
     </details>
 
-    <div class="gen-card__foot">
-      <span class="gen-card__fact">
-        <svg
-          class="icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="8" />
-        </svg>
-        可开始练习
-      </span>
-    </div>
   </article>
 </template>
 
 <style scoped>
 .gen-card {
   min-width: 0;
-  padding: 15px var(--space-5) 4px;
+  padding: 15px var(--space-5) 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
@@ -155,6 +158,14 @@ const hasQa = computed(
   margin: var(--space-3) 0 0;
   padding: 0;
   list-style: none;
+}
+
+.gen-card__practice {
+  margin-top: var(--space-2);
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  font-variant-numeric: tabular-nums;
 }
 
 .gen-card__option {
@@ -218,41 +229,40 @@ const hasQa = computed(
   margin-bottom: 0;
 }
 
+.gen-blanks {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gen-blanks__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.gen-blanks__label {
+  flex: none;
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-base-leading);
+}
+
 .gen-qa-empty {
   color: var(--color-text-3);
   font-size: var(--text-sm);
   line-height: var(--text-sm-leading);
 }
 
-.gen-card__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px var(--space-3);
-  padding: 9px 0 10px;
-  border-top: 1px solid var(--color-border);
-  color: var(--color-text-3);
-  font-size: var(--text-sm);
-  line-height: var(--text-sm-leading);
-}
-
-.gen-card__fact {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--color-text-3);
-}
-
-.gen-card__fact .icon {
-  width: 14px;
-  height: 14px;
-  flex: none;
-}
-
 @media (max-width: 767px) {
   .gen-card {
-    padding: 14px var(--space-4) 3px;
+    padding: 14px var(--space-4) 8px;
   }
 }
 </style>

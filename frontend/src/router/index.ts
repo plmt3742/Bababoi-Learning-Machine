@@ -21,7 +21,7 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: () => import('../views/HomeView.vue'),
-          meta: { title: '首页', navKey: 'home', requiresAuth: true },
+          meta: { title: '学习首页', navKey: 'home', requiresAuth: true },
         },
         {
           path: 'questions',
@@ -34,6 +34,12 @@ const router = createRouter({
           name: 'question-new',
           component: () => import('../views/QuestionCreateView.vue'),
           meta: { title: '录入错题', navKey: 'create', requiresAuth: true },
+        },
+        {
+          path: 'questions/print',
+          name: 'question-print',
+          component: () => import('../views/QuestionPrintView.vue'),
+          meta: { title: '打印巩固卷', navKey: 'questions', requiresAuth: true },
         },
         {
           path: 'tasks',
@@ -63,7 +69,7 @@ const router = createRouter({
           path: 'stats',
           name: 'stats',
           component: () => import('../views/StatsView.vue'),
-          meta: { title: '统计', navKey: 'stats', requiresAuth: true },
+          meta: { title: '学习统计', navKey: 'stats', requiresAuth: true },
         },
         {
           path: 'settings',

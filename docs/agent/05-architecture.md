@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.33**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -492,10 +492,19 @@ erDiagram
 | POST | `/generated-questions/{id}/feedback` | `{type: "bad_question"|"wrong_answer"|"too_easy"|"too_hard", comment?}` |
 | POST | `/practice-records` | `{generated_question_id, user_answer?, is_correct, duration_seconds}`；返回 201 |
 | GET | `/practice-records` | 分页；`?page&page_size`；附加过滤 `?generated_question_id=`（BE-012 新增，练习页回显用） |
+| GET | `/practice/due` | 今日待复习队列；`?limit=6&subject=`；返回 `{items: [{generated_question, parent: {id, subject, excerpt, mastery_status}, last_practiced_at, due_reason}], total}` |
 
 > BE-012 防重复口径：同用户、同生成题、同 `user_answer`、同 `is_correct`，60 秒窗口内再次提交返回 `409 PRACTICE_DUPLICATE`（时长不参与比对）；窗口外允许重复。生成题不存在/不属于当前用户/已删除一律 `404 NOT_FOUND`。
 >
 > 已知风险：防重复是“先查后插”，并发请求理论上仍可能双双通过；MVP 单人单端可接受，BE-016 再收紧。整组重生成会软删旧 3 题，对旧题补交返回 404；已入库的 practice_records 不受影响。
+>
+> 今日待复习（W2 / #107，后端任务 #126；前端在接口上线前走 mock，不把 mock 当完成）：
+>
+> - 只取未删除错题，且该错题名下存在未删除生成题；`limit` 1–20，默认 6；`subject` 可选。
+> - 到期规则：未练过优先；`unmastered` 距最近练习 ≥1 天、`reviewing` ≥3 天、`mastered` ≥7 天（滚动 24h）。
+> - 排序（口径 B，2026-11-28 定案）：未练过 → 掌握度越薄弱越前（unmastered > reviewing > mastered）→ 同档内最久未练 → 原题 id。
+> - 每道到期原题只返回 1 道生成题（最近答错 → 练习次数少 → id）；返回哪道题只用未软删的生成题。
+> - `due_reason` 枚举：`never` / `unmastered_1d` / `reviewing_3d` / `mastered_7d`；`last_practiced_at` 为 UTC 带 `Z`，未练过为 `null`，且按全部生成题（含已软删）的流水计算。
 
 ### 6.5b 草稿与任务
 
@@ -1342,4 +1351,5 @@ VITE_API_BASE_URL=/api/v1
 | 2026-11-20 | v0.6.23 | **修正 v0.6.22 只做了去重、位置太浅**：第 1 跳的「第 N 题…」警告被 `attach_transcript_warnings` 挂到条目后，service 仍把 `transcript["warnings"]` 全量拼回顶层，前端横幅和卡片各显示一次。改为函数**返回未下沉的剩余**，service 只拼返回值（与 `validate_extraction` 的 `kept` 语义一致）；题数对不上（第 2 跳丢/并条目）时一条也不下沉、全部留顶层。补 validator 返回值断言 + service 级用例（第 1 跳带「第 2 题…」→ 顶层没有、卡片上有），258 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-20 | v0.6.22 | **识图顶层警告去重**：两跳可能回同一句页面级说明（第 2 跳看得到第 1 跳的转录），`transcript + structure` 直接拼接会在前端显示两个相同 chip；改为按出现顺序 `dict.fromkeys` 去重。1 条新测试，257 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-19 | v0.6.21 | **识图：空位答案为空不再整条降级**。v0.6.3 把"空位答案为空"和"空位数≠答案数"一起判成结构不自洽，结果教材/卷面不印答案的填空题 100% 被降成解答题（提示词本来就让模型留空，两条口径打架）。现在把"内容缺失"和"结构不自洽"拆开：空位数、序号与题干 `___` 对得上时**保留填空题**，空答案原样给编辑器 + `incomplete` + "有 N 个空位没有答案，请补全后再保存"；只有空位数对不上、序号乱、选项不足才降级成文本题（blank 若误带 options 一并清掉）。判法是把空答案换成占位答案再跑一遍 `validate_type_payload`（判据仍只有一份）。**缓存版本升 `vision_structure_v2`**：提示词没变、变的是后处理语义，不升版会继续命中旧 payload（部署后旧行自然失效，可择机删 `hop2_version='vision_structure_v1'` 的行）。2 条新测试（保留空答案 + 旧缓存不复用），256 passed；无迁移、无 OpenAPI 变化 | 人机 |
+| 2026-11-28 | v0.6.33 | **W2 今日待复习契约（#107 / 后端 #126）**：新增 `GET /practice/due?limit=6&subject=`，返回 `items[{generated_question, parent{id,subject,excerpt,mastery_status}, last_practiced_at, due_reason}] + total`；到期规则 unmastered 1 天 / reviewing 3 天 / mastered 7 天、未练过优先；每道原题只返 1 道生成题（最近答错优先）。前端 mock-first，接口上线前不声称真接口完成 | 霹雳马桶 / agent |
 | 2026-11-19 | v0.6.20 | **BE-028 会话吊销 + 单会话**。`users.token_version`（前向迁移 `b3c7d9e1f204`，NOT NULL DEFAULT 0，历史行迁移即得 0）；JWT 加 `ver` 声明，`get_current_user` 与库里比对不一致 → 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端无需改分支）；登录成功 / 新增 `POST /auth/logout` 都把版本 +1（SQL 自增且在同事务内读回版本，并发登录也只会留下最后一个有效 token），因此同一账号同一时刻只有一个有效会话；**没有 `ver` 的老 token 按 0 处理**，部署本身不踢人，用户下次登录后旧 token 失效。改密接口尚未做，但走同一机制即可。7 条会话测试 + 1 条迁移回填测试；OpenAPI 快照重导（**该"单会话"口径已于 v0.6.28 改为多设备共存**：登录/登出不再 +1） | 人机 |

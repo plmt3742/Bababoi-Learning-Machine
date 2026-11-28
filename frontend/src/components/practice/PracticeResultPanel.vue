@@ -9,14 +9,24 @@ import {
   type PracticeResultItem,
 } from '../../utils/practice'
 
-const props = defineProps<{
-  results: PracticeResultItem[]
-  questions: GeneratedQuestion[]
-  masteryStatus: MasteryStatus | null
-  masterySyncing: boolean
-  masteryError: string
-  masterySynced: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    results: PracticeResultItem[]
+    questions: GeneratedQuestion[]
+    masteryStatus: MasteryStatus | null
+    masterySyncing: boolean
+    masteryError: string
+    masterySynced: boolean
+    mixed?: boolean
+    syncedParents?: number
+    backLabel?: string
+  }>(),
+  {
+    mixed: false,
+    syncedParents: 0,
+    backLabel: '返回错题详情',
+  },
+)
 
 const emit = defineEmits<{
   restart: []
@@ -32,6 +42,20 @@ const totalDuration = computed(() =>
   props.results.reduce((sum, item) => sum + item.duration_seconds, 0),
 )
 const totalDurationLabel = computed(() => formatPracticeDuration(totalDuration.value))
+const nextStepText = computed(() => {
+  if (total.value === 0) return '本轮没有练习记录。'
+  if (correctCount.value === total.value) {
+    return props.mixed
+      ? '到期题目全部答对，掌握度已按原题分别同步。'
+      : '全部答对，可以回到错题本继续下一道，或再练一轮加深记忆。'
+  }
+  if (correctCount.value === 0) {
+    return props.mixed
+      ? '这一轮全部没把握，建议在错题本里逐题回看解析，再安排一轮复习。'
+      : '这一轮全部没把握，建议先回详情页把解析看一遍，再练一次。'
+  }
+  return `答对 ${correctCount.value} 题，答错 ${total.value - correctCount.value} 题；建议回详情页对照解析复盘错题。`
+})
 const masteryText = computed(() =>
   props.masteryStatus ? masteryStatusLabel(props.masteryStatus) : '',
 )
@@ -52,9 +76,8 @@ function questionTypeFor(result: PracticeResultItem): string {
 <template>
   <section class="paper result" aria-labelledby="practice-result-title">
     <div class="result__head">
-      <p class="kicker">Practice complete</p>
       <h2 id="practice-result-title">本次练习完成</h2>
-      <p>练习记录已保存，结果会计入后续统计；掌握状态按本轮自评同步。</p>
+      <p>{{ nextStepText }}</p>
     </div>
 
     <dl class="result__stats">
@@ -105,16 +128,21 @@ function questionTypeFor(result: PracticeResultItem): string {
     </div>
 
     <div
-      v-if="masterySyncing || masteryError || (masterySynced && masteryText)"
+      v-if="masterySyncing || masteryError || (masterySynced && (mixed || masteryText))"
       class="result__sync"
     >
-      <span v-if="masterySyncing" class="muted">正在同步掌握状态…</span>
+      <span v-if="masterySyncing" class="muted">
+        {{ mixed ? '正在同步多道错题的掌握状态…' : '正在同步掌握状态…' }}
+      </span>
       <template v-else-if="masteryError">
         <span class="result__sync-error" role="alert">掌握状态未同步：{{ masteryError }}</span>
         <button class="btn btn--quiet btn--sm" type="button" @click="emit('retrySync')">
           重试
         </button>
       </template>
+      <span v-else-if="masterySynced && mixed" class="muted">
+        已按本轮自评同步 {{ syncedParents }} 道错题的掌握状态。
+      </span>
       <span v-else-if="masterySynced && masteryText" class="muted">
         已按本轮自评把错题标记为「{{ masteryText }}」。
       </span>
@@ -122,7 +150,7 @@ function questionTypeFor(result: PracticeResultItem): string {
 
     <div class="result__actions">
       <button class="btn btn--primary" type="button" @click="emit('restart')">再练一次</button>
-      <button class="btn btn--outline" type="button" @click="emit('back')">返回错题详情</button>
+      <button class="btn btn--outline" type="button" @click="emit('back')">{{ backLabel }}</button>
       <button class="btn btn--quiet" type="button" @click="emit('stats')">去统计</button>
     </div>
   </section>

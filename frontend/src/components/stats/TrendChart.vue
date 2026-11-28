@@ -35,6 +35,14 @@ function correctSegmentHeight(point: StatsTrendPoint): string {
   const ratio = Math.min(1, Math.max(0, point.correct_count / point.practice_count))
   return `${Math.round(ratio * 100)}%`
 }
+
+function tooltipText(point: StatsTrendPoint): string {
+  const accuracy =
+    point.practice_count > 0 ? point.correct_count / point.practice_count : null
+  return `${formatTrendDay(point.date)} · 练习 ${point.practice_count} 次 · 答对 ${
+    point.correct_count
+  } 次 · 正确率 ${formatAccuracy(accuracy, point.practice_count)}`
+}
 </script>
 
 <template>
@@ -51,7 +59,7 @@ function correctSegmentHeight(point: StatsTrendPoint): string {
       <div class="trend__legend" aria-hidden="true">
         <span>
           <i class="trend__swatch trend__swatch--total"></i>
-          练习
+          总练习
         </span>
         <span>
           <i class="trend__swatch trend__swatch--correct"></i>
@@ -60,14 +68,16 @@ function correctSegmentHeight(point: StatsTrendPoint): string {
       </div>
     </div>
 
-    <div v-if="hasData" class="trend__plot" role="img" :aria-label="chartLabel">
+    <div v-if="hasData" class="trend__plot" role="group" :aria-label="chartLabel">
       <ol class="trend__bars">
         <li
           v-for="point in points"
           :key="point.date"
           class="trend__col"
-          :title="`${point.date}：练习 ${point.practice_count} 次，答对 ${point.correct_count} 次`"
+          tabindex="0"
+          :aria-label="tooltipText(point)"
         >
+          <span class="trend__tooltip" role="tooltip">{{ tooltipText(point) }}</span>
           <span class="trend__count" :class="{ 'trend__count--zero': point.practice_count === 0 }">
             {{ point.practice_count }}
           </span>
@@ -208,10 +218,49 @@ function correctSegmentHeight(point: StatsTrendPoint): string {
 }
 
 .trend__col {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.trend__col:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.trend__tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 2;
+  width: max-content;
+  max-width: 200px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.trend__col:hover .trend__tooltip,
+.trend__col:focus-visible .trend__tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
 }
 
 .trend__count {

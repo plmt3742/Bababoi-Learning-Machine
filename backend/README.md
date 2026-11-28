@@ -2,11 +2,11 @@
 
 Python 3.13 + FastAPI + Pydantic v2 + SQLAlchemy 2.0 + Alembic。
 
-> 状态（2026-11-06）：核心闭环已实现——认证、错题 CRUD、AI 分析、生成（ADR-006 三段并发）、
-> 任务队列、练习记录；`uv run pytest` 全绿。
-> 仍待实现：草稿（BE-018）、统计（BE-013）、BYOK（BE-020）。图片上传与多题文本提取（BE-014）在 PR #40。
-> 数据库 schema 最终由人机负责；接口契约见 `docs/agent/05-architecture.md` 第 5/6 节，
-> 对接进度与待拍板项见 `docs/agent/15-backend-sync-20261106.md`。
+> 状态（2026-11-28）：核心闭环、统计（BE-013）、草稿（BE-018）、BYOK（BE-020）、
+> 两步识图（BE-024）、图片录入（BE-014）均已实现；`uv run pytest` 全绿；
+> OpenAPI 快照由 `scripts/export_openapi.py --check` 在 CI 校验。
+> 待实现：`GET /practice/due` 今日待复习队列（#126）；MySQL 实跑迁移仍属 BE-011/OPS 收尾。
+> 接口契约见 `docs/agent/05-architecture.md` 第 5/6 节。
 >
 > 出题质量的判据可以本地复现（要真 Key，脚本不打印密钥）：
 > `uv run python scripts/measure_segment_similarity.py`

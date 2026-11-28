@@ -8,10 +8,18 @@ import PageHeader from '../components/common/PageHeader.vue'
 import PracticeQuestionCard from '../components/practice/PracticeQuestionCard.vue'
 import PracticeResultPanel from '../components/practice/PracticeResultPanel.vue'
 import { normalizeApiError } from '../api/errors'
-import { createPracticeRecord } from '../api/practice'
+import { createPracticeRecord, getDuePractice } from '../api/practice'
 import { getQuestion, updateQuestion } from '../api/questions'
-import type { GeneratedQuestion, MasteryStatus, QuestionDetail } from '../api/types'
+import type {
+  Analysis,
+  GeneratedQuestion,
+  MasteryStatus,
+  PracticeDueItem,
+  QuestionDetail,
+} from '../api/types'
+import { masteryStatusLabel } from '../utils/question'
 import {
+  dueReasonLabel,
   formatPracticeClock,
   masteryStatusForResults,
   parsePracticeId,
@@ -40,10 +48,22 @@ const masterySyncing = ref(false)
 const masteryError = ref('')
 const masterySynced = ref(false)
 
+const dueItems = ref<PracticeDueItem[]>([])
+const dueTotal = ref(0)
+const dueLoading = ref(false)
+const dueError = ref('')
+const dueUnavailable = ref(false)
+const dueMode = ref(false)
+const dueSessionQuestions = ref<GeneratedQuestion[]>([])
+const dueSyncedParents = ref(0)
+const dueAnalysis = ref(new Map<number, Analysis | null>())
+
 const elapsedSeconds = ref(0)
 let timerId: number | null = null
 let questionStartedAt = 0
 let loadToken = 0
+let dueToken = 0
+let dueAnalysisToken = 0
 let masteryToken = 0
 
 const rawQuestionId = computed<string>(() => {
@@ -55,6 +75,7 @@ const rawQuestionId = computed<string>(() => {
 const hasQuestionParam = computed(() => rawQuestionId.value.length > 0)
 const parentQuestionId = computed(() => parsePracticeId(rawQuestionId.value))
 const practiceQuestions = computed<GeneratedQuestion[]>(() => {
+  if (dueMode.value) return dueSessionQuestions.value
   const items = question.value?.generated_questions ?? []
   return items.filter((item) => item.content_md.trim().length > 0)
 })
@@ -62,7 +83,19 @@ const currentQuestion = computed<GeneratedQuestion | null>(() => {
   if (finished.value) return null
   return practiceQuestions.value.at(currentIndex.value) ?? null
 })
+const dueParentByGenerated = computed(
+  () => new Map(dueItems.value.map((item) => [item.generated_question.id, item.parent.id])),
+)
+const currentAnalysis = computed<Analysis | null>(() => {
+  if (!dueMode.value) return question.value?.analysis ?? null
+  const current = currentQuestion.value
+  if (!current) return null
+  const parentId = dueParentByGenerated.value.get(current.id)
+  return parentId === undefined ? null : (dueAnalysis.value.get(parentId) ?? null)
+})
 const totalQuestions = computed(() => practiceQuestions.value.length)
+const correctCount = computed(() => results.value.filter((item) => item.is_correct).length)
+const wrongCount = computed(() => results.value.filter((item) => !item.is_correct).length)
 const elapsedLabel = computed(() => formatPracticeClock(elapsedSeconds.value))
 
 function stopTimer(): void {
@@ -86,7 +119,7 @@ function readElapsedSeconds(): number {
   return Math.max(0, Math.min(3600, Math.floor((Date.now() - questionStartedAt) / 1000)))
 }
 
-function resetSession(): void {
+function resetAttempt(): void {
   masteryToken += 1
   currentIndex.value = 0
   results.value = []
@@ -99,9 +132,75 @@ function resetSession(): void {
   masterySyncing.value = false
   masteryError.value = ''
   masterySynced.value = false
+  dueSyncedParents.value = 0
   stopTimer()
   questionStartedAt = 0
   elapsedSeconds.value = 0
+}
+
+function resetSession(): void {
+  resetAttempt()
+  dueMode.value = false
+  dueSessionQuestions.value = []
+  dueAnalysis.value = new Map()
+  dueAnalysisToken += 1
+}
+
+async function loadDuePractice(): Promise<void> {
+  const token = ++dueToken
+  dueLoading.value = true
+  dueError.value = ''
+
+  try {
+    const result = await getDuePractice({ limit: 6 })
+    if (token !== dueToken) return
+    dueUnavailable.value = false
+    dueItems.value = result.items
+    dueTotal.value = result.total
+  } catch (cause) {
+    if (token !== dueToken) return
+    const apiError = normalizeApiError(cause)
+    if (apiError.status === 404) {
+      dueUnavailable.value = true
+      dueItems.value = []
+      dueTotal.value = 0
+    } else {
+      dueError.value = apiError.message
+    }
+  } finally {
+    if (token === dueToken) dueLoading.value = false
+  }
+}
+
+async function loadDueAnalyses(parentIds: number[]): Promise<void> {
+  const token = ++dueAnalysisToken
+  const entries = await Promise.all(
+    parentIds.map(async (parentId) => {
+      try {
+        const detail = await getQuestion(parentId)
+        return [parentId, detail.analysis] as const
+      } catch {
+        return [parentId, null] as const
+      }
+    }),
+  )
+  if (token !== dueAnalysisToken || !dueMode.value) return
+  dueAnalysis.value = new Map(entries)
+}
+
+function startDuePractice(): void {
+  if (dueItems.value.length === 0) return
+  dueSessionQuestions.value = dueItems.value.map((item) => item.generated_question)
+  dueMode.value = true
+  dueAnalysis.value = new Map()
+  resetAttempt()
+  void loadDueAnalyses([...new Set(dueItems.value.map((item) => item.parent.id))])
+  window.scrollTo({ top: 0 })
+}
+
+function retryMasterySync(): void {
+  if (dueMode.value) void syncDueMastery()
+  else void syncMastery()
 }
 
 async function loadPractice(): Promise<void> {
@@ -118,6 +217,7 @@ async function loadPractice(): Promise<void> {
   if (id === null) {
     loading.value = false
     notFound.value = hasQuestionParam.value
+    void loadDuePractice()
     return
   }
 
@@ -168,6 +268,47 @@ async function syncMastery(): Promise<void> {
   }
 }
 
+async function syncDueMastery(): Promise<void> {
+  if (!dueMode.value || results.value.length === 0 || masterySyncing.value) return
+
+  const parentByGenerated = new Map(
+    dueItems.value.map((item) => [item.generated_question.id, item.parent.id]),
+  )
+  const grouped = new Map<number, PracticeResultItem[]>()
+
+  for (const result of results.value) {
+    const parentId = parentByGenerated.get(result.generated_question_id)
+    if (parentId === undefined) continue
+    const list = grouped.get(parentId) ?? []
+    list.push(result)
+    grouped.set(parentId, list)
+  }
+
+  if (grouped.size === 0) return
+
+  const token = ++masteryToken
+  masterySyncing.value = true
+  masteryError.value = ''
+  dueSyncedParents.value = 0
+
+  try {
+    let synced = 0
+    for (const [parentId, items] of grouped) {
+      await updateQuestion(parentId, { mastery_status: masteryStatusForResults(items) })
+      if (token !== masteryToken) return
+      synced += 1
+    }
+    masterySynced.value = true
+    dueSyncedParents.value = synced
+  } catch (cause) {
+    if (token !== masteryToken) return
+    masteryError.value = normalizeApiError(cause).message
+    masterySynced.value = false
+  } finally {
+    if (token === masteryToken) masterySyncing.value = false
+  }
+}
+
 function recordAndAdvance(
   generatedQuestionId: number,
   userAnswer: string | null,
@@ -187,7 +328,8 @@ function recordAndAdvance(
   if (currentIndex.value + 1 >= practiceQuestions.value.length) {
     finished.value = true
     stopTimer()
-    void syncMastery()
+    if (dueMode.value) void syncDueMastery()
+    else void syncMastery()
     return
   }
 
@@ -232,21 +374,7 @@ function retrySubmit(): void {
 }
 
 function restartPractice(): void {
-  masteryToken += 1
-  results.value = []
-  currentIndex.value = 0
-  finished.value = false
-  submitting.value = false
-  submitError.value = ''
-  lastGrade.value = null
-  lastUserAnswer.value = null
-  masteryStatus.value = null
-  masterySyncing.value = false
-  masteryError.value = ''
-  masterySynced.value = false
-  stopTimer()
-  questionStartedAt = 0
-  elapsedSeconds.value = 0
+  resetAttempt()
   window.scrollTo({ top: 0 })
 }
 
@@ -291,6 +419,8 @@ watch(rawQuestionId, () => void loadPractice(), { immediate: true })
 
 onBeforeUnmount(() => {
   loadToken += 1
+  dueToken += 1
+  dueAnalysisToken += 1
   masteryToken += 1
   stopTimer()
 })
@@ -299,7 +429,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="page">
     <PageHeader
-      eyebrow="Practice"
       title="练习"
       description="逐题作答、查看答案后自评；每题用时自动记录，提交后进入下一题。"
     >
@@ -334,11 +463,47 @@ onBeforeUnmount(() => {
 
     <LoadingSkeleton v-if="loading" variant="detail" label="正在加载练习题" />
 
-    <div v-else-if="!hasQuestionParam" class="state-stack">
+    <div v-else-if="!hasQuestionParam && !dueMode" class="state-stack">
+      <section v-if="!dueUnavailable" class="paper due-panel" aria-labelledby="due-title">
+        <div class="paper__head">
+          <h2 id="due-title">今日待复习</h2>
+          <span class="paper__meta">
+            {{ dueLoading ? '正在整理' : dueError ? '暂不可用' : `${dueTotal} 道到期` }}
+          </span>
+        </div>
+        <div class="paper__body">
+          <p v-if="dueLoading" class="muted">正在按掌握度和上次练习时间整理到期题目…</p>
+          <div v-else-if="dueError" class="due-panel__error" role="alert">
+            <span>{{ dueError }}</span>
+            <button class="btn btn--quiet btn--sm" type="button" @click="loadDuePractice">
+              重试
+            </button>
+          </div>
+          <template v-else-if="dueItems.length">
+            <ul class="due-list">
+              <li v-for="item in dueItems" :key="item.generated_question.id" class="due-list__item">
+                <RouterLink class="due-list__title" :to="`/questions/${item.parent.id}`">
+                  {{ item.parent.subject }} · {{ item.parent.excerpt }}
+                </RouterLink>
+                <span class="due-list__meta">
+                  {{ masteryStatusLabel(item.parent.mastery_status) }} ·
+                  {{ dueReasonLabel(item.due_reason) }}
+                </span>
+              </li>
+            </ul>
+            <button class="btn btn--primary due-start" type="button" @click="startDuePractice">
+              开始混刷 · {{ dueItems.length }} 题
+            </button>
+          </template>
+          <p v-else class="muted">今天没有到期题目，先按下面的流程挑一道错题练习。</p>
+        </div>
+      </section>
+
       <EmptyState
+        v-if="!dueLoading && !dueError && dueItems.length === 0"
         title="从一道错题开始练习"
         description="练习会依次呈现该错题的相似题。打开错题详情，点击「去练习」即可开始。"
-        action-label="去错题本"
+        action-label="去错题本挑一道"
         @action="goQuestionList"
       />
 
@@ -397,19 +562,22 @@ onBeforeUnmount(() => {
       @action="goQuestionDetail"
     />
 
-    <PracticeResultPanel
-      v-else-if="finished"
-      :results="results"
-      :questions="practiceQuestions"
-      :mastery-status="masteryStatus"
-      :mastery-syncing="masterySyncing"
-      :mastery-error="masteryError"
-      :mastery-synced="masterySynced"
-      @restart="restartPractice"
-      @back="goQuestionDetail"
-      @stats="goStats"
-      @retry-sync="syncMastery"
-    />
+      <PracticeResultPanel
+        v-else-if="finished"
+        :results="results"
+        :questions="practiceQuestions"
+        :mastery-status="masteryStatus"
+        :mastery-syncing="masterySyncing"
+        :mastery-error="masteryError"
+        :mastery-synced="masterySynced"
+        :mixed="dueMode"
+        :synced-parents="dueSyncedParents"
+        :back-label="dueMode ? '返回错题本' : '返回错题详情'"
+        @restart="restartPractice"
+        @back="goQuestionDetail"
+        @stats="goStats"
+        @retry-sync="retryMasterySync"
+      />
 
     <div v-else-if="currentQuestion" class="practice-shell">
       <div class="progress-rail" aria-hidden="true">
@@ -421,9 +589,14 @@ onBeforeUnmount(() => {
         />
       </div>
 
+      <p v-if="results.length > 0" class="progress-caption" aria-live="polite">
+        已答 {{ results.length }} 题 · 答对 {{ correctCount }} · 待复习 {{ wrongCount }}
+      </p>
+
       <PracticeQuestionCard
         :key="currentQuestion.id"
         :question="currentQuestion"
+        :analysis="currentAnalysis"
         :index="currentIndex"
         :total="totalQuestions"
         :submitting="submitting"
@@ -491,6 +664,63 @@ onBeforeUnmount(() => {
   gap: var(--space-4);
 }
 
+.due-panel {
+  overflow: hidden;
+}
+
+.due-panel__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.due-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.due-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.due-list__item:last-child {
+  border-bottom: 0;
+}
+
+.due-list__title {
+  color: var(--color-text-1);
+  font-size: var(--text-base);
+  line-height: var(--text-base-leading);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.due-list__title:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.due-list__meta {
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
+}
+
+.due-start {
+  margin-top: var(--space-4);
+}
+
 .practice-shell {
   width: 100%;
   max-width: 820px;
@@ -522,6 +752,13 @@ onBeforeUnmount(() => {
 
 .progress-rail__seg.is-wrong {
   background: var(--color-danger);
+}
+
+.progress-caption {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-leading);
 }
 
 .entry-guide {
@@ -576,6 +813,9 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 767px) {
+  .due-start {
+    width: 100%;
+  }
   .session-meta {
     width: 100%;
   }
