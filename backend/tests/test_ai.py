@@ -788,14 +788,21 @@ def test_pipeline_deadline_tightens_call_timeout() -> None:
 
 
 @pytest.mark.parametrize(
-    "error_cls",
-    [openai.AuthenticationError, openai.PermissionDeniedError],
+    ("error_cls", "key_source", "expected"),
+    [
+        (openai.AuthenticationError, "system", "平台 AI Key 暂时不可用，请联系助教"),
+        (openai.PermissionDeniedError, "system", "平台 AI Key 暂时不可用，请联系助教"),
+        (openai.AuthenticationError, "user", "你的 AI Key 无效或已过期，请到设置页更新"),
+    ],
 )
-def test_provider_auth_failure_maps_to_invalid_key(monkeypatch, error_cls) -> None:
-    """#128：供应商 401/403 是 Key 问题，要发 AI_INVALID_KEY，不能混进 AI_PROVIDER_ERROR。"""
+def test_provider_auth_failure_maps_to_invalid_key(
+    monkeypatch, error_cls, key_source, expected
+) -> None:
+    """#128：供应商 401/403 要发 AI_INVALID_KEY，并按 Key 来源分文案。"""
     client = DeepSeekClient(
         api_key="sk-invalid", base_url="https://api.deepseek.com/v1", model="deepseek-flash"
     )
+    client.key_source = key_source
     request = httpx.Request("POST", "https://api.deepseek.com/v1/chat/completions")
     response = httpx.Response(401, request=request)
 
@@ -808,4 +815,5 @@ def test_provider_auth_failure_maps_to_invalid_key(monkeypatch, error_cls) -> No
         client.complete(OPERATION_ANALYSIS, [{"role": "user", "content": "x"}])
 
     assert excinfo.value.error_code == "AI_INVALID_KEY"
+    assert excinfo.value.message == expected
     assert "sk-invalid" not in str(excinfo.value)

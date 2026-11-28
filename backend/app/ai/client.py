@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import threading
 import time
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ import openai
 from app.ai.errors import AIInvalidKeyError, AIProviderError, AITimeoutError
 from app.ai.llm_config import LLMConfig, system_config
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 操作类型：决定 mock 返回哪种输出、日志里记什么 operation
 OPERATION_ANALYSIS = "analysis"
@@ -198,8 +201,15 @@ class DeepSeekClient:
         except openai.APITimeoutError as exc:
             raise AITimeoutError(str(exc)) from None
         except (openai.AuthenticationError, openai.PermissionDeniedError) as exc:
-            # 401/403 是 Key 的问题，用户能自己修；必须在 APIError 之前接住
-            raise AIInvalidKeyError(str(exc)) from None
+            # 401/403 是 Key 的问题；必须在 APIError 之前接住。
+            # 平台 Key 坏了学生修不了，别让他去设置页找自己没配过的 Key（#128）。
+            source = getattr(self, "key_source", "system")
+            logger.warning("AI 鉴权失败（key_source=%s）：%s", source, exc)
+            raise AIInvalidKeyError(
+                "平台 AI Key 暂时不可用，请联系助教"
+                if source == "system"
+                else "你的 AI Key 无效或已过期，请到设置页更新"
+            ) from None
         except openai.APIError as exc:
             raise AIProviderError(str(exc)) from None
 
