@@ -213,3 +213,23 @@ def test_oldest_practice_sorts_after_never(client, db, user) -> None:
     body = _due(client, token)
     ids = [item["parent"]["id"] for item in body["items"]]
     assert ids == [never_q.id, oldest_q.id, newest_q.id]
+
+
+def test_resegment_does_not_reset_last_practiced(client, db, user) -> None:
+    """整组重生成软删旧题后，旧题上的流水仍要算「最近练习过」。
+
+    否则刚练过的题会被当成 never 顶到队列第一位（复核单 P1-1）。
+    """
+    token, user_id = user
+    question = _question(db, user_id, mastery="unmastered")
+    old = _generated(db, user_id, question.id, deleted=True)
+    live = _generated(db, user_id, question.id)
+    _record(db, user_id, old.id, days_ago=5)
+
+    body = _due(client, token)
+    assert body["total"] == 1
+    item = body["items"][0]
+    assert item["last_practiced_at"] is not None
+    assert item["due_reason"] == "unmastered_1d"
+    # 软删的生成题不能返给前端，仍用未删除的那道
+    assert item["generated_question"]["id"] == live.id

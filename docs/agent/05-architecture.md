@@ -502,7 +502,8 @@ erDiagram
 >
 > - 只取未删除错题，且该错题名下存在未删除生成题；只算当前用户自己的数据。
 > - 到期规则：未练过优先；`unmastered` 距最近练习 ≥1 天、`reviewing` ≥3 天、`mastered` ≥7 天（滚动 24h，不按自然日）；再按最久未练、原题 id 排序。
-> - 每道到期原题只返回 1 道生成题（优先最近答错、其次练习次数少、最后 id）。
+> - 每道到期原题只返回 1 道生成题（优先最近答错、其次练习次数少、最后 id）；返回哪道题只用**未软删**的生成题。
+> - 最近练习时间按该原题下**全部生成题（含已软删）**的流水计算——整组重生成会软删旧题但流水保留，只看未删的会把刚练过的题误判成 `never`。
 > - `due_reason` 枚举：`never` / `unmastered_1d` / `reviewing_3d` / `mastered_7d`；`last_practiced_at` 为 UTC 带 `Z`，未练过为 `null`。
 > - `limit` 越界按 1–20 clamp（不报 400）；`total` 为截断前的全部到期数。
 
@@ -1306,7 +1307,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
-| 2026-11-28 | v0.6.35 | **GET /practice/due 落地（#126 / #107 后端）**：按本节契约实现——只取当前用户未软删、名下有未软删生成题的原题；未练过优先，unmastered ≥1 天 / reviewing ≥3 天 / mastered ≥7 天（滚动 24h）；每原题只返 1 道生成题（最近答错→练习次数少→id），`last_practiced_at` UTC 带 `Z`，`limit` clamp 1–20，`total` 截断前；13 条测试；无迁移，OpenAPI 快照已重导 | 人机 |
+| 2026-11-28 | v0.6.35 | **GET /practice/due 落地（#126 / #107 后端）**：按本节契约实现——只取当前用户未软删、名下有未软删生成题的原题；未练过优先，unmastered ≥1 天 / reviewing ≥3 天 / mastered ≥7 天（滚动 24h）；每原题只返 1 道生成题（最近答错→练习次数少→id），`last_practiced_at` UTC 带 `Z`，`limit` clamp 1–20，`total` 截断前；14 条测试（含「重生成软删旧题不重置 last_practiced_at」回归）；无迁移，OpenAPI 快照已重导 | 人机 |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |

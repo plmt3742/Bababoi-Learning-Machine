@@ -182,29 +182,31 @@ def list_due(
     for row in generated:
         generated_by_parent.setdefault(row.parent_question_id, []).append(row)
 
-    records = session.scalars(
-        select(PracticeRecord).where(
+    # 算「多久没练」要带上已软删的生成题：整组重生成会软删旧 3 题，但流水保留
+    # （05「旧题的 practice_records 保留」）；只看未删的会把刚练过的题算成 never。
+    record_rows = session.execute(
+        select(PracticeRecord, GeneratedQuestion.parent_question_id)
+        .join(GeneratedQuestion, GeneratedQuestion.id == PracticeRecord.generated_question_id)
+        .where(
+            GeneratedQuestion.user_id == user_id,
+            GeneratedQuestion.parent_question_id.in_(parent_ids),
             PracticeRecord.user_id == user_id,
-            PracticeRecord.generated_question_id.in_([g.id for g in generated]),
         )
-    )
+    ).all()
     records_by_generated: dict[int, list[PracticeRecord]] = {}
-    for record in records:
+    last_by_parent: dict[int, datetime] = {}
+    for record, parent_id in record_rows:
         records_by_generated.setdefault(record.generated_question_id, []).append(record)
+        if record.created_at > last_by_parent.get(parent_id, datetime.min):
+            last_by_parent[parent_id] = record.created_at
 
     due: list[DueRow] = []
     for question in questions:
         candidates = generated_by_parent.get(question.id)
         if not candidates:
             continue
-        parent_records = [
-            record
-            for row in candidates
-            for record in records_by_generated.get(row.id, [])
-        ]
-        last_practiced_at = max(
-            (record.created_at for record in parent_records), default=None
-        )
+        # 返回哪道题只用未软删的 candidates；最近练习时间用含软删的全部流水
+        last_practiced_at = last_by_parent.get(question.id)
         reason = _due_reason(question.mastery_status, last_practiced_at, now)
         if reason is None:
             continue
