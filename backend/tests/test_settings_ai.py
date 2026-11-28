@@ -278,6 +278,11 @@ def test_missing_encryption_key_is_503(client, db, monkeypatch) -> None:
     assert resp.status_code == 503
     assert resp.json()["detail"]["code"] == "AI_PROVIDER_ERROR"
 
+    # #128 定案：GET 不解密，缺密钥仍 200（25 号文档同步为「仅 PUT 503」）
+    get_resp = _get(client, token)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["configured"] is False
+
 
 def test_settings_are_isolated_per_user(client, db, enc_key) -> None:
     a = register_user(client, username="byokA")["access_token"]

@@ -373,6 +373,36 @@ def test_worker_retries_once_then_fails(client, db, fake_llm) -> None:
         assert task.error_message
 
 
+def test_worker_does_not_retry_auth_errors(client, db, fake_llm) -> None:
+    """#128 review：AI_INVALID_KEY 重试无意义，第一次就落 failed（不再排第二轮）。"""
+    from app.ai.errors import AIInvalidKeyError
+
+    class UnauthorizedClient:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, operation, messages, **kwargs):
+            self.calls += 1
+            raise AIInvalidKeyError("平台 AI Key 暂时不可用，请联系助教")
+
+    broken = UnauthorizedClient()
+    fake_llm["client"] = broken
+    token = register_user(client)["access_token"]
+    _create_question(client, token)["question"]
+    with db() as s:
+        task_id = s.scalar(select(GenerationTask.id))
+
+    task_worker.execute_task(db, task_id)
+
+    with db() as s:
+        task = s.get(GenerationTask, task_id)
+        assert task.status == "failed"
+        assert task.error_code == "AI_INVALID_KEY"
+        assert task.retry_index == 0
+        assert broken.calls == 1
+        assert task.error_message == "平台 AI Key 暂时不可用，请联系助教"
+
+
 def test_byok_resolution_failure_marks_task_failed(client, db, monkeypatch) -> None:
     """review P1：密文解不开时任务必须落终态，不能永远停在 running。
 

@@ -292,6 +292,10 @@ def _apply_segment(
         session.commit()
 
 
+# 重试无意义的错误：Key 不换，第二次还是同样的 401/403，白等一轮还多打一次 LLM
+NO_RETRY_ERROR_CODES = frozenset({"AI_INVALID_KEY"})
+
+
 def _fail_or_requeue(session_factory: sessionmaker, task_id: int, code: str, message: str) -> None:
     with session_factory() as session:
         task = session.get(GenerationTask, task_id)
@@ -300,7 +304,12 @@ def _fail_or_requeue(session_factory: sessionmaker, task_id: int, code: str, mes
         # 14 号 D8：跑过 90s 的段不再自动重排。三段并发下一个坏输出如果排队重试，
         # 用户会在骨架卡上等到 4 分钟；直接 failed 让前端出"这一格可重试"的卡更快有终态。
         ran_s = (utcnow() - task.started_at).total_seconds() if task.started_at else 0.0
-        if task.retry_index < settings.task_retry_limit and ran_s <= settings.task_requeue_deadline_s:
+        retryable = code not in NO_RETRY_ERROR_CODES
+        if (
+            retryable
+            and task.retry_index < settings.task_retry_limit
+            and ran_s <= settings.task_requeue_deadline_s
+        ):
             task.status = "queued"  # 自动重试：回队列排到队尾之后（按 created_at 排仍是老位置）
             task.retry_index += 1
         else:
