@@ -69,7 +69,7 @@ AI 分析（知识点、题型、错误原因）
 - 后端待办：BE-020 BYOK、BE-024 两步识图（PR #67 待合）、BE-011 MySQL 兼容、OPS-001/002/005（compose/staging）
 - 前端：FE-032~035 已完成（PR #68 已合）；时间解析统一到 `utils/time.ts`（questions/tasks/practice/auth 是 UTC naive，drafts/stats 带 Z）；设置页偏好/AI 面板 404 降级；录入页支持 Ctrl/⌘+Enter；FE-017 375/768/1366 截图验收通过
 - 联调实测（2026-11-13，真实后端 + 种子数据）：草稿 204/200/409/204、统计 accuracy 0.667 + 7 天稀疏趋势、练习/任务正常、图片上传 201 + from-image 4 条、偏好默认 true 且改后刷新仍生效
-- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台；BYOK 见 ADR-007；均不进入 11.29 演示关键路径
+- 管理端：ADR-005 + ADR-009；`admin/` 进入 11.29 演示（范围见 `28-admin-console.md`）；BYOK 见 ADR-007，仍为 P1
 - 范围/交互/验收以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 - CI：`.github/workflows/ci.yml` 已存在；frontend job 跑 lint/typecheck/build/test；backend 跑 ruff/pytest + OpenAPI 快照防漂移（#65）
 - 图片录入：用户裁剪 + 图片转文本 + 多题条目（ADR-004）；识图三项初判可空，空结果 200 + `questions[]`
@@ -103,7 +103,7 @@ AI 分析（知识点、题型、错误原因）
 | Q-014 | **视觉语言基准**：可读性优先 + 整体使用流畅；不为视觉效果牺牲题干/公式可读性、主操作路径和状态反馈 | 设计评审、组件和页面验收按此排序；风格变体先过可读性/流畅性，再看一致性/美感 |
 | Q-015 | **视觉细节确认**：辅助文字 `--color-text-3` 加深到 `#6B7280`；详情页难度/删除只在页头；录入页底部吸底操作栏；未掌握状态用红色；移除 M0 开发标识 | `04-design-system.md` / tokens / FE-007/008 按此执行 |
 | Q-016 | **最终视觉方向（2026-11-06 更新）**：全量采用 Calm Academic 原型（顶部 appbar + 1140px 纸面 frame、无侧边栏、白纸/细线/单一 Arco 蓝、14px UI 下限、纸张面板、详情右侧处理进度、录入两栏 + sticky 操作卡、任务中心 5 列列表）；`--color-text-3` 随原型调整为 `#5F6775` | 新分支 `feat/frontend-calm-redesign`；前端样式/布局按原型覆写；不直接合 main |
-| Q-017 | **范围边界（ADR-010）**：角色只有 `student`/`admin`；题型保持 `solve/choice/blank`（判断题/多选题用 `choice` 表达）；学科用 `subject` 字符串、不做枚举；不设学段列，扩展优先用 subject 命名；管理员可重置密码（临时密码 + 审计 + 目标全踢） | 新题型/学科/学段不需要迁移；admin 重置密码走 BE-030 |
+| Q-017 | **范围边界（ADR-010）**：角色只有 `student`/`admin`；题型保持 `solve/choice/blank`（判断题/多选题用 `choice` 表达）；学科用 `subject` 字符串、不做枚举；不设学段列，扩展优先用 subject 命名；管理员审批学生的线上密码申请 → 系统生成一次性临时密码（24h、强制改密、全踢、审计）；admin 不直接重置 | 新题型/学科/学段不需要迁移；admin 重置密码走 BE-030 |
 
 ## 待确认
 

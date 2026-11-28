@@ -1,15 +1,16 @@
 # admin · 内部运维台
 
-> 状态：前端已完成真实 API 接线；后端 `/api/v1/admin/*` 仍待后端同学实现。
+> 状态：Admin 前端已完成真实 API 接线（#120）；后端 ADM-002 地基已合（#123：角色/禁用/审计/管理员登录），只读/写端点见 #124 等，真实联调未完成。
 > 决策：`docs/adr/ADR-005-admin-console.md` + ADR-009。
-> 重要：默认没有管理员账号；真实登录依赖后端初始化管理员。本地演示模式可用 `admin / admin123`，仅用于看页面。
+> 新会话交接：`docs/agent/30-admin-frontend-handoff.md`。
+> 重要：默认没有管理员账号；真实登录依赖后端 seed；本地演示模式可用 `admin / admin123`，仅用于看页面。
 
 ## 当前状态
 
 - 前端是独立 Vue 3 + Vite + TS + Arco 应用，保留 Calm Academic 视觉。
 - 所有页面已从 mock 数据切到真实 API 层；`src/mock/data.ts` 已删除。
 - 管理员登录、总览、用户、密码申请、内容、任务、AI 日志、审计、告警、系统健康均已接线。
-- 真实后端尚未提供 `/api/v1/admin/*`；关闭演示模式后登录会返回 404，这是后端未实现，不是前端假数据回退。
+- 后端 ADM-002 地基已合（#123）：`users.role`、`require_admin`、管理员登录与审计基础；只读端点 #124 待合，完整 `/api/v1/admin/*` 联调未完成。关闭演示模式后，未实现端点仍会 404，这不是前端回退。
 - 本地演示模式会拦截 `/api/v1/admin/*`，可直接看完整页面；数据只在内存里，刷新会重置。
 - 前端 `pnpm typecheck` 与 `pnpm build` 通过；真实接口联调待后端完成后进行。
 
@@ -31,13 +32,9 @@ pnpm build
 
 ## 管理员账号
 
-没有内置账号，也没有默认密码。后端需要：
+后端已实现 `users.role`、`require_admin`、`POST /api/v1/admin/auth/login`、`GET /api/v1/admin/me`（#123）；管理员账号用 `backend/scripts/seed_admin.py` 创建，命令见 `docs/agent/29-admin-backend-handoff.md`。
 
-1. 增加 `users.role = student | admin`，并初始化一个 `admin` 账号。
-2. 实现 `POST /api/v1/admin/auth/login`、`GET /api/v1/admin/me`。
-3. 所有 `/api/v1/admin/*` 使用 `require_admin`，学生 token 返回 403。
-
-管理员账号由服务端环境变量或 seed 脚本创建；前端不保存、不显示默认密码。
+前端不保存、不显示默认密码。
 
 ### 本地演示模式
 
@@ -114,6 +111,6 @@ admin/
 
 ## 已知未完成
 
-- 后端 admin 路由、`users.role`、审计表、密码申请表未实现（由后端同学负责）。
-- 真实登录与真实数据端到端联调未执行。
+- 后端只读/写端点（overview/users/tasks/ai-logs/audit/system 等）见 #124 等，仍在合入；真实端到端联调未完成。
+- 密码申请审批、内容审核、告警确认等写端点待后端。
 - 部分后端合同没有的聚合指标在页面上显示 `—`，不编造数字。

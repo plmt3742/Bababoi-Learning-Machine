@@ -31,7 +31,7 @@ BababoiLearningMachine/
 │   ├── src/                       # api/assets/components/...
 │   ├── tests/
 │   └── e2e/
-├── admin/                         # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
+├── admin/                         # 内部运维台（占位，ADR-005/009；进入 11.29 演示）
 │   └── README.md                  # 规划与范围；业务代码待 ADM-002+
 ├── backend/                       # 按 2026-11-07 实际结构（BE-001~021 落地后）
 │   ├── README.md                  # 状态与待办
@@ -47,28 +47,30 @@ BababoiLearningMachine/
 │   │   ├── b7c2f4a91d30_vision_extract_cache.py                 # BE-024：识图结果缓存
 │   │   ├── c4e8a1d62f37_vision_cache_model_and_force.py         # BE-024：缓存键加 model + 强刷列
 │   │   ├── e9b1c7f3a2d5_user_ai_settings.py                     # BE-020：BYOK 设置表
-│   │   └── b3c7d9e1f204_users_token_version.py                  # BE-028：会话版本号（历史行回填 0）
+│   │   ├── b3c7d9e1f204_users_token_version.py                  # BE-028：会话版本号（历史行回填 0）
+│   │   └── 9a4c7d2e8b1f_admin_console_foundation.py              # ADM-002/009：role/禁用/审计/密码申请/告警确认
 │   ├── static/test-console.html   # 本地测试台：登录/录错题/分析/三段生成/练习/识图上传
 │   ├── scripts/
 │   │   ├── spike_llm.py                    # 真模型连通性与输出质量（不进 CI）
 │   │   ├── export_openapi.py               # 导出 contracts/openapi/openapi.json（--check 给 CI）
 │   │   ├── measure_type_consistency.py     # strict 题型一致率复测（要真 Key）
-│   │   └── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
+│   │   ├── measure_segment_similarity.py   # ADR-006 判据复现（要真 Key，不打印密钥）
+│   │   └── seed_admin.py                   # ADM-002：创建/提升管理员（无默认口令，生产拒跑）
 │   ├── app/
 │   │   ├── main.py                # 装配路由 + 启动恢复（reset_stale_running）+ 拉起 worker
 │   │   ├── core/                  # config / security / errors / observability / rate_limit
 │   │   ├── db/                    # base / session
-│   │   ├── models/                # user / question / generation / records / draft / cache / vision
-│   │   ├── schemas/               # auth / question / image / practice / drafts / stats / settings / vision
-│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / drafts / stats / settings
+│   │   ├── models/                # user / question / generation / records / draft / cache / vision / admin
+│   │   ├── schemas/               # auth / question / image / practice / drafts / stats / settings / vision / admin
+│   │   ├── api/v1/                # health / auth / deps / questions / tasks / practice / images / drafts / stats / settings / admin/
 │   │   ├── services/              # auth_service / question_service / task_service / task_worker
 │   │   │                          # / vision_job_service / vision_worker
 │   │   │                          # / practice_service + image_service / extraction_service / ai_log
-│   │   │                          # / draft_service / stats_service
+│   │   │                          # / draft_service / stats_service / audit_service / admin_auth_service
 │   │   ├── ai/                    # client / prompts / parser / pipeline / validator / errors
 │   │   └── utils/                 # client_ip（反代后取真实来源 IP）
 │   ├── fixtures/                  # 目前为空；识图实拍样本在 _scratch/images/（不入库）
-│   └── tests/                     # ai / auth / client_ip / drafts_api / health /
+│   └── tests/                     # ai / auth / admin_auth / client_ip / drafts_api / health /
 │                                  # images_api / migrations / models / openapi_snapshot /
 │                                  # practice_api / question_schema / questions_api / sessions /
 │                                  # settings_* / stats_api / tasks / vision_cache + conftest
@@ -234,7 +236,7 @@ BababoiLearningMachine/
 | `docs/product/` | PRD、IA/流程、页面规范、设计 tokens、草稿双写、线框/交互地图 | 实现细节、API 字段定义（放 05） |
 | `docs/adr/` | 不可逆/跨模块决策 | 日常小决定 |
 | `docs/interaction/` | 交互参考 demo（历史参考，非契约） | 业务代码、API 字段定义 |
-| `admin/` | P1 内部运维台（独立 Vue app）：总览/用户/内容/任务/AI 日志 | 学生端功能、教师端、密钥、完整 RBAC |
+| `admin/` | 内部运维台（独立 Vue app，进入 11.29 演示）：总览/用户/内容/任务/AI 日志/审计/密码申请 | 学生端功能、教师端、密钥、完整 RBAC |
 | `frontend/src/api/` | Axios 实例、端点函数、请求/响应类型 | 业务组件、页面状态 |
 | `frontend/src/components/` | 可复用展示/交互组件 | 页面级数据请求（放 views/composables） |
 | `frontend/src/components/common/` | 共享 UI（PageHeader/Empty/Error/Loading/Markdown/Tag） | 业务组件、API 调用 |

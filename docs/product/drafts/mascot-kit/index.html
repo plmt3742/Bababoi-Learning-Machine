@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小纸 · Bababoi 吉祥物资产包</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --subtle: #fbfbfc;
+    --ink: #1b1f24;
+    --ink-2: #414a57;
+    --ink-3: #5f6775;
+    --border: #e4e6ea;
+    --border-strong: #cfd3da;
+    --blue: #165dff;
+    --blue-soft: #edf3ff;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 24px 64px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .frame {
+    max-width: 1140px;
+    margin: 0 auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(20,28,45,.05), 0 14px 40px rgba(20,28,45,.05);
+    overflow: hidden;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    height: 56px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .lockup { display: flex; align-items: center; gap: 10px; }
+  .dots { display: grid; grid-template-columns: repeat(3, 4px); grid-template-rows: repeat(3, 4px); gap: 3px; }
+  .dots i { width: 4px; height: 4px; border-radius: .6px; background: var(--border-strong); }
+  .dots i:nth-child(1), .dots i:nth-child(5), .dots i:nth-child(9) { background: var(--blue); }
+  .lockup b { font-weight: 600; font-size: 14px; }
+  .lockup span { color: var(--ink-3); font-size: 13px; }
+  .bar__meta { color: var(--ink-3); font-family: var(--mono); font-size: 11px; letter-spacing: .06em; }
+  .sheet { padding: 0 32px; }
+  section { padding: 36px 0; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: 0; }
+  .kicker { display:flex; align-items:center; gap:8px; margin:0 0 10px; color:var(--ink-3); font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
+  .kicker::before { content:''; width:6px; height:6px; background:var(--blue); }
+  h1 { margin:0 0 12px; font-size:30px; line-height:38px; font-weight:650; letter-spacing:-.01em; }
+  h2 { margin:0 0 16px; font-size:18px; line-height:28px; font-weight:650; }
+  h3 { margin:0 0 4px; font-size:14px; line-height:22px; font-weight:650; }
+  .lead { max-width:48em; margin:0 0 10px; color:var(--ink-2); font-size:15px; line-height:26px; }
+  .meta { margin:0; color:var(--ink-3); font-size:13px; line-height:20px; }
+  .hero { display:grid; grid-template-columns:1fr .9fr; gap:32px; align-items:center; padding:40px 0; }
+  .hero-stage { display:flex; align-items:center; justify-content:center; min-height:300px; border:1px solid var(--border); border-radius:var(--radius); background:var(--subtle); }
+  .hero-stage img { width:250px; height:auto; display:block; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:0 14px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--ink-2); font-size:14px; font-weight:500; text-decoration:none; }
+  .btn:hover { border-color:var(--ink-3); color:var(--ink); }
+  .btn--primary { background:var(--blue); border-color:var(--blue); color:#fff; font-weight:600; }
+  .btn--primary:hover { background:#0e42d2; border-color:#0e42d2; color:#fff; }
+  .note { margin-top:14px; color:var(--ink-3); font-size:12px; line-height:19px; }
+  .states { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:14px; }
+  .state { border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); overflow:hidden; }
+  .state__stage { display:flex; align-items:center; justify-content:center; height:170px; border-bottom:1px solid var(--border); background:var(--subtle); }
+  .state__stage img { width:140px; height:auto; }
+  .state__body { padding:12px 13px 14px; }
+  .state__body p { margin:0; color:var(--ink-3); font-size:12px; line-height:18px; }
+  .state__body h3 { font-size:14px; }
+  .palette { display:flex; flex-wrap:wrap; gap:10px; }
+  .chip { display:flex; align-items:center; gap:8px; min-width:150px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--surface); }
+  .chip i { width:20px; height:20px; border-radius:3px; border:1px solid var(--border); flex:none; }
+  .chip b { font-family:var(--mono); font-size:11px; font-weight:600; }
+  .chip span { color:var(--ink-3); font-size:12px; }
+  .files { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 32px; }
+  .files code { font-family:var(--mono); font-size:12px; }
+  .usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 40px; }
+  .usage ul { margin:0; padding-left:18px; color:var(--ink-2); }
+  .usage li + li { margin-top:6px; }
+  .foot { padding-top:18px; color:var(--ink-3); font-size:12px; line-height:19px; }
+  .foot a { color:#0e42d2; text-decoration:none; }
+  .foot a:hover { text-decoration:underline; }
+  @media (max-width:860px){ .hero{grid-template-columns:1fr} .states{grid-template-columns:repeat(3,minmax(0,1fr))} .files,.usage{grid-template-columns:1fr} }
+  @media (max-width:600px){ body{padding:16px 12px 32px} .bar{padding:0 16px} .lockup span,.bar__meta{display:none} .sheet{padding:0 16px} .states{grid-template-columns:repeat(2,minmax(0,1fr))} }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="bar">
+    <div class="lockup">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <b>Bababoi 错题学习机</b>
+      <span>吉祥物资产包</span>
+    </div>
+    <div class="bar__meta">v1.0.0 · 2026-11-28</div>
+  </div>
+
+  <div class="sheet">
+    <section class="hero">
+      <div>
+        <p class="kicker">Mascot asset pack</p>
+        <h1>小纸 · 吉祥物资产包</h1>
+        <p class="lead">一张被订正过的错题纸：折角是唯一的高饱和蓝，腹部三颗点是一道错题变成三道同类题。包含平面 SVG 状态、纸面标记，以及可拖动旋转的 3D 交互页。</p>
+        <p class="meta">2D · 400 × 400 / 64 × 64 · 3D · Three.js r170 本地 vendor</p>
+        <div class="actions">
+          <a class="btn btn--primary" href="3d/index.html">打开 3D 交互页</a>
+          <a class="btn" href="preview/flat-states.html">平面状态表</a>
+          <a class="btn" href="manifest.json">manifest.json</a>
+        </div>
+        <p class="note">3D 页需要静态服务器：先运行 serve.cmd，再打开 http://127.0.0.1:4173/。平面页可直接打开。</p>
+      </div>
+      <div class="hero-stage">
+        <img src="svg/mascot-body.svg" alt="小纸主体形态">
+      </div>
+    </section>
+
+    <section>
+      <h2>状态</h2>
+      <div class="states">
+        <article class="state">
+          <div class="state__stage"><img src="svg/mascot-body.svg" alt="默认"></div>
+          <div class="state__body"><h3>默认</h3><p>svg/mascot-body.svg</p></div>
+        </article>
+        <article class="state">
+          <div class="state__stage"><img src="svg/states/state-curious.svg" alt="好奇"></div>
+          <div class="state__body"><h3>好奇</h3><p>svg/states/state-curious.svg</p></div>
+        </article>
+        <article class="state">
+          <div class="state__stage"><img src="svg/states/state-thinking.svg" alt="思考"></div>
+          <div class="state__body"><h3>思考</h3><p>svg/states/state-thinking.svg</p></div>
+        </article>
+        <article class="state">
+          <div class="state__stage"><img src="svg/states/state-happy.svg" alt="完成"></div>
+          <div class="state__body"><h3>完成</h3><p>svg/states/state-happy.svg</p></div>
+        </article>
+        <article class="state">
+          <div class="state__stage"><img src="svg/states/state-error.svg" alt="失败"></div>
+          <div class="state__body"><h3>失败</h3><p>svg/states/state-error.svg</p></div>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>色板</h2>
+      <div class="palette">
+        <div class="chip"><i style="background:#fff"></i><b>#FFFFFF</b><span>纸面</span></div>
+        <div class="chip"><i style="background:#F3F4F6"></i><b>#F3F4F6</b><span>后页</span></div>
+        <div class="chip"><i style="background:#1B1F24"></i><b>#1B1F24</b><span>墨线 / 眼睛</span></div>
+        <div class="chip"><i style="background:#165DFF"></i><b>#165DFF</b><span>折角 / 蓝边</span></div>
+        <div class="chip"><i style="background:#E1EEFF"></i><b>#E1EEFF</b><span>腮红</span></div>
+        <div class="chip"><i style="background:#8A95A2"></i><b>#8A95A2</b><span>3D 灰泡</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>文件</h2>
+      <div class="files">
+        <code>svg/mascot-body.svg</code><code>svg/mascot-mark.svg</code>
+        <code>svg/states/state-curious.svg</code><code>svg/states/state-thinking.svg</code>
+        <code>svg/states/state-happy.svg</code><code>svg/states/state-error.svg</code>
+        <code>preview/flat-states.html</code><code>3d/index.html</code>
+        <code>3d/vendor/three.module.min.js</code><code>3d/vendor/OrbitControls.js</code>
+        <code>3d/vendor/LICENSE</code><code>manifest.json</code>
+      </div>
+    </section>
+
+    <section>
+      <h2>使用</h2>
+      <div class="usage">
+        <ul>
+          <li>48px 及以下使用纸面标记；状态表情建议 ≥ 120px。</li>
+          <li>平面资产透明背景，无外链字体、位图和渐变。</li>
+          <li>3D 页使用 serve.cmd 启动静态服务器；不要用 file:// 直接打开。</li>
+        </ul>
+        <ul>
+          <li>3D 页支持拖动旋转、滚轮缩放、双击复位。</li>
+          <li>状态切换有轻弹动；标记循环动画尊重 prefers-reduced-motion。</li>
+          <li>3D 的层级来自几何、蓝边和粗墨线，不使用阴影或高光。</li>
+        </ul>
+      </div>
+    </section>
+
+    <p class="foot">Three.js r170（MIT）随包放在 3d/vendor/LICENSE。资产包版本 v1.0.0 · 2026-11-28。Bababoi Learning Machine · 小纸。</p>
+  </div>
+</div>
+</body>
+</html>

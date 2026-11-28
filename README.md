@@ -20,7 +20,7 @@
 
 ```text
 frontend/                 # Vue 3 学生端（Calm Academic，FE-001~024 页面已完成）
-admin/                    # P1 内部运维台（占位，ADR-005；不进入 11.29 演示）
+admin/                    # 内部运维台（占位，ADR-005/009；进入 11.29 演示）
 backend/                  # FastAPI 后端（BE-001/002/003 + follow-up 已合）
 contracts/                # 前后端共享契约（OpenAPI / 示例）
 deploy/                   # Docker Compose / nginx / 部署说明
@@ -48,7 +48,7 @@ Resource/                 # 本地只读参考资料（不上传仓库）
 - `origin/main @ 7ee6029`：BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）、FE-013~024 页面（#23~#25/#28~#30/#34/#35）已合并
 - 后端待处理：BE-014 图片文本提取、BE-018 草稿、BE-013 统计、BE-020 用户 AI Key、BE-008 种子、BE-009 OpenAPI、OPS；docs #8 收尾
 - 前端：FE-001~024 全部页面已合（含首页/个人设置）；剩余 FE-017 768/键盘细节与真接口联调
-- 管理端：ADR-005 已定 `admin/` 为 P1 内部运维台，不进入 11.29 演示；当前仅占位
+- 管理端：ADR-005 + ADR-009；`admin/` 进入 11.29 演示（范围见 `docs/agent/28-admin-console.md`）；当前仅占位
 - 图片录入 v2（正式决策）：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择 1–3 道生成；不做 bbox/框题
 - 范围 / 交互 / 验收以 `docs/product/01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
 

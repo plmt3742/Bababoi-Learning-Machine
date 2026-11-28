@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # FR-7 账号：JWT 有效期 7 天（05 §6.3）；secret 必须由环境变量注入
     jwt_secret: str = ""
     access_token_expire_days: int = 7
+    # ADM-002：管理员 token 单独 8h（交接单 §12 待确认项 1 的默认值）。
+    # 同一签名密钥与 token_version 校验链，只是签发时 exp 更短。
+    admin_token_expire_hours: int = 8
     # 登录失败限流（05 §6.3）：5 次/分钟/IP；存储由下面的 rate_limit_storage_url 决定
     login_rate_limit: int = 5
     login_rate_window_s: int = 60
