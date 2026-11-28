@@ -45,21 +45,24 @@ def get_owned_question(session: Session, user_id: int, question_id: int) -> Ques
     return question
 
 
-def enqueue(
+def _enqueue_segment(
     session: Session,
     user_id: int,
     question_id: int,
     stage: str,
-    target_index: int | None = None,
-    difficulty: str | None = None,
+    target_index: int | None,
+    difficulty: str | None,
 ) -> GenerationTask:
-    """入队一个任务；同 question+stage+target_index 已有 active 任务时直接复用它（防重复入队）。"""
-    get_owned_question(session, user_id, question_id)
+    """入队单段：同 question+stage+target_index 已有 active 任务时复用它，否则新建。
 
+    不提交事务——整组入队要把软删旧组和 3 段入队放进同一次提交，边界交给调用方。
+    """
     existing = session.scalar(
         select(GenerationTask)
         .where(
             GenerationTask.question_id == question_id,
+            # 归属也进键：正常路径同题必同主；有脏数据时也不能复用/返回别人的任务
+            GenerationTask.user_id == user_id,
             GenerationTask.stage == stage,
             # 去重键含 target_index：单题重生成（BE-015）会针对某一题入队，
             # 不带它就会被同题的整组任务顶掉，反之也会顶掉别人
@@ -78,6 +81,21 @@ def enqueue(
         status="queued", target_index=target_index, difficulty=difficulty,
     )
     session.add(task)
+    session.flush()
+    return task
+
+
+def enqueue(
+    session: Session,
+    user_id: int,
+    question_id: int,
+    stage: str,
+    target_index: int | None = None,
+    difficulty: str | None = None,
+) -> GenerationTask:
+    """入队一个任务；同 question+stage+target_index 已有 active 任务时直接复用它（防重复入队）。"""
+    get_owned_question(session, user_id, question_id)
+    task = _enqueue_segment(session, user_id, question_id, stage, target_index, difficulty)
     session.commit()
     session.refresh(task)
     return task
@@ -98,6 +116,9 @@ def enqueue_generation(
     - `target_index` 有值 = 单段（BE-015 的"重试这一段"）：只排那一段，难度取 `difficulty`
     """
     _check_target_index(target_index)
+    # 归属校验必须先于任何写操作：整组入口会软删旧组，
+    # 放到 enqueue() 里做的话，越权请求会先删掉别人的生成题再拿到 403（issue #114）
+    get_owned_question(session, user_id, question_id)
 
     if target_index is not None:
         slot = target_index
@@ -114,19 +135,39 @@ def enqueue_generation(
     # 14 号 Q2-A：整组重生成入队即软删旧组，前端显示 3 张骨架卡，每段成功再写自己那格。
     # 只软删不物理删，已有的 practice_records 外键还要指回这些行。
     # 单段重生成不走这里——一段成功删整组会把另外两段的成果一起抹掉。
-    session.execute(
-        update(GeneratedQuestion)
+    # 例外：已有 active 段（重复点、部分在跑）时跳过软删——那些任务会被复用，
+    # 已完成格若先删掉就会在新任务写好之前凭空消失；新任务成功时 worker 仍按格替换。
+    has_active = session.scalar(
+        select(GenerationTask.id)
         .where(
-            GeneratedQuestion.parent_question_id == question_id,
-            GeneratedQuestion.deleted_at.is_(None),
+            GenerationTask.question_id == question_id,
+            GenerationTask.user_id == user_id,
+            GenerationTask.stage == "quiz",
+            GenerationTask.status.in_(ACTIVE_STATUSES),
         )
-        .values(deleted_at=utcnow())
+        .limit(1)
     )
-    session.commit()
-    return [
-        enqueue(session, user_id, question_id, "quiz", slot, segment_difficulty(slot, picked[slot - 1]))
+    if has_active is None:
+        session.execute(
+            update(GeneratedQuestion)
+            .where(
+                GeneratedQuestion.parent_question_id == question_id,
+                # 归属上面已经校验过，这条是纵深防御：越权/脏数据都不该命中别人的行
+                GeneratedQuestion.user_id == user_id,
+                GeneratedQuestion.deleted_at.is_(None),
+            )
+            .values(deleted_at=utcnow())
+        )
+    # 软删与 3 段入队同一次提交：中途异常不会留下「旧组已删、任务没入队」
+    tasks = [
+        _enqueue_segment(session, user_id, question_id, "quiz", slot,
+                         segment_difficulty(slot, picked[slot - 1]))
         for slot in range(1, SEGMENT_COUNT + 1)
     ]
+    session.commit()
+    for task in tasks:
+        session.refresh(task)
+    return tasks
 
 
 def list_tasks(

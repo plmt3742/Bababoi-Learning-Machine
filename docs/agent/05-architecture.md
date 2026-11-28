@@ -7,7 +7,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 # 05 · 架构与契约
 
-> 状态：**v0.6.32**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
+> 状态：**v0.6.33**（11.7 冻结后按增量修订）。改接口/数据模型先改本文档，再改代码与 OpenAPI 快照。
 > 2026-11-07 正式决策：生成题题型一致性改为**用户设置开关** `enforce_same_question_type`，默认开启、按用户后端持久化；关闭时允许换题型。
 > 2026-11-06 正式决策：生成链路改为「三段并发，每段 1 道」（ADR-006）——`/generate` 返回 `tasks[]`，一次生题排 3 个任务。
 > 2026-11-05 正式决策：图片录入改为「用户裁剪 → 文本提取（LaTeX）→ 多题条目 → 选择生成」，不再做 AI bbox/框题确认；见 ADR-004。
@@ -432,7 +432,7 @@ erDiagram
 | PATCH | `/questions/{id}` | 更新题干/答案/解析/学科/章节/标签/`analysis`/`mastery_status` + **`question_type`/`options`/`blanks` 完整三题型编辑（BE-025 已实现）**：切换题型会清掉不适用的一半（`solve`→两项清空、`choice`→清 `blanks`、`blank`→清 `options`），未提交的字段保持原值（`exclude_unset`）；四个结构输入（题型/题干/选项/空位）任一变动都由 `validate_type_payload` 整题复核，不合法 **400 且整笔回滚**，message 走 `structure_problem_zh` 的中文文案 |
 | DELETE | `/questions/{id}` | 软删除；204 |
 | POST | `/questions/{id}/analyze` | 重新分析，入队 `analysis` 任务；返回 `task_id` |
-| POST | `/questions/{id}/generate` | 生题入队（ADR-006 三段并发）。请求可省：整组 = 排 3 段，难度默认 `easy/medium/hard` 递增，可传 `difficulties`（长度 3，允许重复）覆盖；单段 = 传 `target_index`（1–3）+ 可选 `difficulty`。**`target_index` 是格位、`difficulty` 独立**（`target_index=3` + `easy` 合法）；一组任务数可为 **1–3**，前端不得假设恒为 3；**响应只有 `tasks`**：`{"tasks":[{"task_id","target_index","difficulty"}]}`，不再返回单个 `task_id`。整组重生成**入队即软删旧组**（`deleted_at`），每段成功只写自己那一格；旧题的 `practice_records` 保留 |
+| POST | `/questions/{id}/generate` | 生题入队（ADR-006 三段并发）。请求可省：整组 = 排 3 段，难度默认 `easy/medium/hard` 递增，可传 `difficulties`（长度 3，允许重复）覆盖；单段 = 传 `target_index`（1–3）+ 可选 `difficulty`。**`target_index` 是格位、`difficulty` 独立**（`target_index=3` + `easy` 合法）；一组任务数可为 **1–3**，前端不得假设恒为 3；**响应只有 `tasks`**：`{"tasks":[{"task_id","target_index","difficulty"}]}`，不再返回单个 `task_id`。整组重生成**入队即软删旧组**（`deleted_at`），每段成功只写自己那一格；旧题的 `practice_records` 保留。**2026-11-28（#114）**：入口先校验归属再写；同题已有 active 段时**不重复软删**（已完成的格保留到该格新任务成功按格替换），软删与 3 段入队同一次提交；worker 按格替换的软删、去重与 `has_active` 查询同样带 `user_id`（纵深防御） |
 | GET | `/questions/{id}/events` | SSE 任务进度（P1；P0 用 `/tasks` 轮询）；见 6.7 |
 
 > 生成题统一通过 `GET /questions/{id}?include=generated` 返回；不单独提供 `/questions/{id}/generated`，避免两套取法。
@@ -1297,6 +1297,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
+| 2026-11-28 | v0.6.33 | **#114 越权软删 + #115 搜索大小写**（含安全向复核整改）：整组生题入口把归属校验提到任何写操作之前（越权请求 403 时不再先软删别人的生成题）；软删 UPDATE、worker 按格替换的软删、去重与 `has_active` 查询都带 `user_id` 作纵深防御；同题已有 active 段时不重复软删旧组（三格照常入队、已完成格保留到该格新任务按格替换），软删与 3 段入队合并为单次提交；搜索 `q` 先 `lower()`，LIKE 区分大小写的库不再漏掉含大写的关键词；`/static` 手工测试台改为**仅 `APP_ENV=development/local` 挂载**（部署模板是 staging，黑名单等于没关）；README 同步到当前进度。新增 6 条测试，312 passed；无迁移、无 OpenAPI 变化 | 人机 |
 | 2026-11-28 | v0.6.32 | **ADM-002/009 地基落地**：`users` 增加 role/disabled/must_change_password/临时密码过期，新增 `admin_audit_logs`、`password_reset_requests`、`admin_alert_acks`（迁移 `9a4c7d2e8b1f`）；`require_admin` 每次查 DB，角色不进 JWT；实现 `/admin/auth/login`（8h token）、`/admin/me`、`/admin/logout`（登录/登出写审计）；新增错误码 `ACCOUNT_DISABLED`、`ADMIN_REQUIRED`；§6.10 端点表按 `admin/src/api/admin.ts` 校正（去掉 `/metrics/*`、`PATCH users`、`content_flags` 等早期草稿叫法） | 人机 / agent |
 | 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |

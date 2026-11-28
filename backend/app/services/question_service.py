@@ -133,7 +133,9 @@ def list_questions(
         stmt = stmt.join(Question.tags).where(Tag.name == tag)
     if q:
         # 05 §5.3：大小写不敏感搜索用 lower + like；转义用户输入里的 % 和 _
-        pattern = "%" + _LIKE_SPECIAL.sub(r"\\\1", q) + "%"
+        # 查询串也必须 lower：列侧小写 + 串侧保留大写时，只在 LIKE 不区分大小写的
+        # SQLite 里碰巧能命中；MySQL 的 ..._bin / 区分大小写的排序规则会整条漏掉（#115）
+        pattern = "%" + _LIKE_SPECIAL.sub(r"\\\1", q.lower()) + "%"
         content_hit = func.lower(Question.content_md).like(pattern, escape="\\")
         # PRD 的搜索范围是「题干 + 知识点标签」，所以标签命中也算；
         # 用关联子查询而不是 join，否则一题命中多个标签会在列表里重复出现
