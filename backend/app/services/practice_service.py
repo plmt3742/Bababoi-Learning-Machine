@@ -7,14 +7,15 @@
 """
 from __future__ import annotations
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError, ErrorCode
 from app.db.base import utcnow
-from app.models import GeneratedQuestion, PracticeRecord
+from app.models import GeneratedQuestion, PracticeRecord, Question
 from app.schemas.practice import DUPLICATE_WINDOW_SECONDS, PracticeRecordCreate
 
 
@@ -82,3 +83,147 @@ def list_records(
         .limit(page_size)
     )
     return list(rows), total
+
+
+# --- 今日待复习（#126 / 05 §6.5） -------------------------------------------------
+
+DUE_LIMIT_DEFAULT = 6
+DUE_LIMIT_MAX = 20
+
+# 到期间隔按掌握度；契约单位是「天」，实现按滚动 24h（不是中国时区自然日）
+DUE_REVIEW_DAYS: dict[str, int] = {"unmastered": 1, "reviewing": 3, "mastered": 7}
+DUE_REASON_BY_STATUS: dict[str, str] = {
+    "unmastered": "unmastered_1d",
+    "reviewing": "reviewing_3d",
+    "mastered": "mastered_7d",
+}
+
+
+@dataclass(frozen=True)
+class DueRow:
+    question: Question
+    generated: GeneratedQuestion
+    last_practiced_at: datetime | None
+    due_reason: str
+
+
+def _due_reason(
+    mastery_status: str, last_practiced_at: datetime | None, now: datetime
+) -> str | None:
+    if last_practiced_at is None:
+        return "never"
+    days_needed = DUE_REVIEW_DAYS.get(mastery_status, 1)
+    elapsed = (now - last_practiced_at).total_seconds()
+    if elapsed < days_needed * 86_400:
+        return None
+    return DUE_REASON_BY_STATUS.get(mastery_status, "unmastered_1d")
+
+
+def _pick_generated(
+    generated: list[GeneratedQuestion], records: dict[int, list[PracticeRecord]]
+) -> GeneratedQuestion:
+    """每道原题只返 1 道：最近一次答错优先，其次练习次数少，最后 id。"""
+
+    def key(row: GeneratedQuestion) -> tuple:
+        items = records.get(row.id, [])
+        last_wrong = max(
+            (r.created_at for r in items if not r.is_correct), default=None
+        )
+        return (
+            last_wrong is None,
+            -(last_wrong.replace(tzinfo=UTC).timestamp() if last_wrong else 0),
+            len(items),
+            row.id,
+        )
+
+    return min(generated, key=key)
+
+
+def list_due(
+    session: Session,
+    user_id: int,
+    *,
+    limit: int = DUE_LIMIT_DEFAULT,
+    subject: str | None = None,
+    now: datetime | None = None,
+) -> tuple[list[DueRow], int]:
+    """返回（截断后的到期条目, 截断前的总数）。
+
+    - 只取未删除、属于当前用户的错题，且名下存在未删除生成题；
+    - 到期：未练过优先；unmastered ≥1 天 / reviewing ≥3 天 / mastered ≥7 天；
+    - 排序：未练过 → 最久未练 → 原题 id；limit 越界按 1–20 clamp。
+    """
+    limit = min(max(int(limit), 1), DUE_LIMIT_MAX)
+    now = now or utcnow()
+
+    stmt = select(Question).where(
+        Question.user_id == user_id, Question.deleted_at.is_(None)
+    )
+    if subject:
+        stmt = stmt.where(Question.subject == subject)
+    questions = list(session.scalars(stmt.order_by(Question.id)))
+    if not questions:
+        return [], 0
+
+    parent_ids = [q.id for q in questions]
+    generated = list(
+        session.scalars(
+            select(GeneratedQuestion).where(
+                GeneratedQuestion.parent_question_id.in_(parent_ids),
+                GeneratedQuestion.user_id == user_id,
+                GeneratedQuestion.deleted_at.is_(None),
+            )
+        )
+    )
+    if not generated:
+        return [], 0
+
+    generated_by_parent: dict[int, list[GeneratedQuestion]] = {}
+    for row in generated:
+        generated_by_parent.setdefault(row.parent_question_id, []).append(row)
+
+    records = session.scalars(
+        select(PracticeRecord).where(
+            PracticeRecord.user_id == user_id,
+            PracticeRecord.generated_question_id.in_([g.id for g in generated]),
+        )
+    )
+    records_by_generated: dict[int, list[PracticeRecord]] = {}
+    for record in records:
+        records_by_generated.setdefault(record.generated_question_id, []).append(record)
+
+    due: list[DueRow] = []
+    for question in questions:
+        candidates = generated_by_parent.get(question.id)
+        if not candidates:
+            continue
+        parent_records = [
+            record
+            for row in candidates
+            for record in records_by_generated.get(row.id, [])
+        ]
+        last_practiced_at = max(
+            (record.created_at for record in parent_records), default=None
+        )
+        reason = _due_reason(question.mastery_status, last_practiced_at, now)
+        if reason is None:
+            continue
+        due.append(
+            DueRow(
+                question=question,
+                generated=_pick_generated(candidates, records_by_generated),
+                last_practiced_at=last_practiced_at,
+                due_reason=reason,
+            )
+        )
+
+    total = len(due)
+    due.sort(
+        key=lambda row: (
+            0 if row.due_reason == "never" else 1,
+            row.last_practiced_at is not None,
+            row.last_practiced_at or datetime.min,
+            row.question.id,
+        )
+    )
+    return due[:limit], total

@@ -845,6 +845,95 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "PracticeDueItem": {
+        "properties": {
+          "due_reason": {
+            "enum": [
+              "never",
+              "unmastered_1d",
+              "reviewing_3d",
+              "mastered_7d"
+            ],
+            "title": "Due Reason",
+            "type": "string"
+          },
+          "generated_question": {
+            "$ref": "#/components/schemas/GeneratedQuestionOut"
+          },
+          "last_practiced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Practiced At"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/PracticeDueParent"
+          }
+        },
+        "required": [
+          "generated_question",
+          "parent",
+          "last_practiced_at",
+          "due_reason"
+        ],
+        "title": "PracticeDueItem",
+        "type": "object"
+      },
+      "PracticeDueOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeDueItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PracticeDueOut",
+        "type": "object"
+      },
+      "PracticeDueParent": {
+        "description": "到期条目的原题摘要（不给全文）。",
+        "properties": {
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mastery_status": {
+            "title": "Mastery Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "excerpt",
+          "mastery_status"
+        ],
+        "title": "PracticeDueParent",
+        "type": "object"
+      },
       "PracticeRecordCreate": {
         "description": "POST /practice-records；05 §6.4 的扁平结构。",
         "properties": {
@@ -2782,6 +2871,72 @@
           }
         ],
         "summary": "Create Practice Record",
+        "tags": [
+          "practice"
+        ]
+      }
+    },
+    "/api/v1/practice/due": {
+      "get": {
+        "description": "今日待复习队列；`limit` 越界按 1–20 clamp（前端固定传 6）。",
+        "operationId": "list_due_practice_api_v1_practice_due_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeDueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Due Practice",
         "tags": [
           "practice"
         ]
