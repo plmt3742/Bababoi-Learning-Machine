@@ -7,6 +7,7 @@
 | 页面 | 路由 | 作用 | 主操作 | 优先级 |
 |---|---|---|---|---|
 | 登录/注册 | `/login` | 进入产品 | 登录/注册 | P0 |
+| 忘记密码 | `/forgot-password` | 提交线上密码申请 | 提交申请 | P1 |
 | 首页 | `/` | 去录入/练习/错题本 | 录入错题 | P0 |
 | 错题列表 | `/questions` | 找错题、筛选、搜索 | 新建错题 | P0 |
 | 录入/编辑 | `/questions/new` | 文本/图片录入 + 显示 + 编辑 + 保存 | 保存 | P0 |
@@ -21,6 +22,7 @@
 ```mermaid
 flowchart TD
   L[登录/注册] --> H[首页]
+  L -.忘记密码.-> FP[忘记密码]
   H --> Q[错题列表]
   H --> P[练习]
   H --> T[任务中心]
@@ -162,6 +164,7 @@ flowchart TD
 | 页面 | 主要 API | 关键数据 |
 |---|---|---|
 | 登录/注册 | `POST /auth/login`、`POST /auth/register`、`GET /auth/me` | token、user |
+| 忘记密码 | `POST /auth/password-reset-requests`（固定 202）、`GET /auth/me`（`must_change_password`）、`POST /auth/change-password` | 申请、强制改密状态 |
 | 首页 | `GET /questions?page=1`、`GET /tasks?limit=` | 最近错题、任务状态 |
 | 错题列表 | `GET /questions`、`DELETE /questions/{id}` | items、total、filters |
 | 录入/编辑（文本） | `POST /questions`、`GET/PUT/DELETE /drafts/me` | question、content_md、options、blanks、analysis |

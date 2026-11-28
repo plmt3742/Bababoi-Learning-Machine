@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-27
+last_updated: 2026-11-28
 status: active
 read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重置时
 ---
@@ -29,11 +29,15 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 
 | 优先级 | 演示内容 |
 |---|---|
-| 必须 | 管理员登录/403 边界、总览、任务列表/详情、AI 调用日志、审计列表、系统健康 |
+| 必须 | 管理员登录/403 边界、总览、任务列表/详情（只读）、AI 调用日志（只读）、审计列表、系统健康 |
 | 目标 | 线上密码申请 + 管理员审批 + 临时密码 24h + 学生强制改密 |
-| 演示后 | 内容标记/质量队列、导出、告警中心、批量操作、只读 auditor、完整审计保留策略 |
+| 演示后 | 用户管理（列表/禁用/强制下线）、任务重试/取消、内容标记/质量队列、导出、告警中心、批量操作、只读 auditor、完整审计保留策略 |
 
-> 若密码申请的后端基础（role/audit/request）在演示前未完成，只在 PPT 中讲流程，不在现场演示写操作。
+> 若密码申请的后端基础（role/audit/request）在演示前未完成，只在 PPT 中讲流程，不在现场演示写操作。总览/任务/AI 日志/审计/健康若未完成，也只放已实现的只读页面或 PPT，不用假数据填充。
+>
+> 11.28 晚做一次冻结判定：必须项没完成的，演示时只展示已实现部分并在 PPT 标注规划；管理端不得反向阻塞学生端。
+>
+> 当前后端只完成 ADM-002/009（#123）；admin 前端页面在 PR #120（未合）。`VITE_ADMIN_DEMO` 的假数据只用于本地看页面，不得用于 11.29 现场演示。
 
 ### 1.3 不做
 
@@ -67,9 +71,10 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 |---|---|---|
 | 登录 | `/admin/login` | 管理员登录；非 admin 403 |
 | 总览 | `/admin` | 业务/AI/任务/内容/系统健康 |
+| 告警 | `/admin/alerts` | 真实数据推导的告警、确认/取消确认 |
 | 用户 | `/admin/users` | 列表、搜索、禁用/启用、详情 |
 | 密码申请 | `/admin/password-requests` | 待审批、通过、拒绝、审计 |
-| 内容 | `/admin/questions` | 错题/生成题列表、详情、软删/隐藏/标记 |
+| 内容 | `/admin/questions` | 错题/生成题列表、详情、隐藏/恢复、标记 |
 | 任务 | `/admin/tasks` | 队列、筛选、详情、重试/取消 |
 | AI 日志 | `/admin/ai-logs` | 调用列表/详情、raw 单独接口 |
 | 审计 | `/admin/audit` | 操作日志、筛选、详情、导出 |
@@ -102,7 +107,7 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 ### 4.2 任务与 AI 运维
 
 - 任务列表：按状态、stage、错误码、用户、题目、时间筛选；服务端分页。
-- 任务详情：时间线、错误、关联题目、AI 调用、raw 入口。
+- 任务详情：时间线、错误、关联题目、AI 调用（没有 `ai_call_logs.task_id` 时按 `question_id` 聚合，见 §6.4）、raw 入口。
 - 操作：失败重试、排队取消；running 不强行中断；管理员重试绕过 owner 校验但校验状态并写审计。
 - AI 日志：operation/model/status/latency/tokens/key_source/error；列表不返回 raw。
 - raw 输出：单独接口，截断 8k，访问写审计。
@@ -114,17 +119,18 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 - 列表：用户名、邮箱（脱敏）、角色、状态、错题/生成题/练习数、最近登录。
 - 详情：账号资料、统计、最近任务、AI 设置状态（provider/model/key_last4，不显示 Key）。
 - 操作：禁用/启用、强制下线、密码申请审批。
-- 禁用：`disabled_at` + `token_version += 1`；旧 token 失效；登录拒绝。
+- 禁用：`disabled_at` / `disabled_reason` + `token_version += 1`；旧 token 失效；登录/业务接口 403 `ACCOUNT_DISABLED`。
+- 非管理员访问 `/admin/*` 返回 403 `ADMIN_REQUIRED`。
 - 禁止禁用自己、禁止禁用最后一个 active admin。
 
 ### 4.4 内容
 
-- 错题列表：题干摘要、用户、学科、题型、掌握状态、标记/软删、时间。
+- 错题列表：题干摘要、用户、学科、题型、掌握状态、隐藏/标记、时间。
 - 错题详情：全文、选项/空位、答案/解析、AI 分析、生成题、图片、练习次数、任务历史。
 - 生成题：父题、target_index、难度、validation_status/score、model/prompt_version、标记。
-- 操作：软删除/恢复、隐藏、标记 bad output；不做富文本编辑。
-- 图片：受保护接口，不暴露 `uploads/` 静态路径；查看写审计。
-- 质量队列：invalid/fallback/低分/被标记；P1 建表，P2 完整工作流。
+- 操作：隐藏/恢复（`questions.status='hidden'` + `hidden_at`/`hidden_reason`）、标记/取消标记（`flagged_at`/`flag_reason`）；不做富文本编辑。
+- 图片：详情返回 `imagePath`；admin 读取走受保护接口，具体端点随 ADM-006 定，不暴露 `uploads/` 静态路径；查看写审计。
+- 质量队列：invalid/fallback/低分/被标记；Phase 3 做只读队列，Phase 4 完整工作流。
 
 ### 4.5 系统
 
@@ -139,9 +145,9 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 
 1. 学生登录页点“忘记密码”，进入 `/forgot-password`。
 2. 填写：`username`、注册邮箱（可选）、申请原因。
-3. 后端对任何提交都返回同一个 **202 泛化响应**（不返回 `request_id`、不区分账号是否存在）；内部：用户名不存在则不落库；存在且已有 pending 则不重复建单（对外表现为幂等 202）；存在且无 pending 才建单；按 IP/用户名限流。
+3. 后端对任何提交都返回同一个 **202 泛化响应**（不返回 `request_id`、不区分账号是否存在）；内部：用户名不存在则不落库；存在且已有 pending 则不重复建单（对外表现为幂等 202；并发由 §6.2 唯一约束兜底，冲突也返回 202）；存在且无 pending 才建单；按 IP/用户名限流。
 4. 命中时创建 `password_reset_requests`，状态 `pending`；未命中不建单。
-5. 管理员在 `/admin/password-requests` 核对用户名/邮箱/账号状态；填写核验说明（必填）；拒绝时填写拒绝原因。
+5. 管理员在 `/admin/password-requests` 核对用户名/邮箱/账号状态；填写核验说明（必填，记录核验方式）；拒绝时填写拒绝原因。
 6. 通过后：生成临时密码、bcrypt 入库、`must_change_password=true`、`temp_password_expires_at=now+24h`、`token_version += 1`、写审计。
 7. 管理端弹窗只显示一次临时密码；管理员通过外部渠道通知学生。
 8. 学生用临时密码登录；登录响应 `must_change_password=true`。
@@ -151,11 +157,11 @@ read_when: 开发/联调 admin 管理端前；评审监控、审计、密码重�
 ### 5.2 边界
 
 - 不做学生状态查询页、不做自助领取临时密码、不做邮件/短信。
-- 临时密码由后端生成（12 位左右，去除易混淆字符），只在审批响应返回一次；`Cache-Control: no-store`。
+- 临时密码由后端生成（12 位左右，去除易混淆字符），每次审批/重新生成响应只返回一次；`Cache-Control: no-store`。
 - 不写日志/审计/数据库明文；管理端不持久化；关闭弹窗即清空。
-- 临时密码 24h 有效；过期后登录和业务接口都拒绝，学生重新申请。
+- 临时密码 24h 有效；过期后登录返回 403 `TEMP_PASSWORD_EXPIRED`，已登录会话访问业务接口或 `/auth/change-password` 同样返回 403 `TEMP_PASSWORD_EXPIRED`；`GET /auth/me`、`POST /auth/logout` 仍放行，学生重新申请。
 - 管理员忘记临时密码只能重新生成；旧临时密码立即失效。重新生成端点见 §5.3；审批响应丢失时也用它恢复，不重复审批。
-- 审批时目标为管理员/自己/禁用账号则拒绝；提交端仍返回 202，不暴露账号状态。
+- 管理员账号、禁用账号、审批人自己的账号不建单（提交端仍返回 202，不暴露账号状态）；若历史脏数据里出现这些目标，审批动作返回 409 `RESET_REQUEST_STATE_INVALID`。
 - 审计与重置同一事务；审计写失败则回滚，不生成临时密码。
 
 ### 5.3 接口
@@ -168,23 +174,42 @@ POST /api/v1/auth/password-reset-requests
 响应固定为 `202 Accepted`，body 例如 `{ "message": "如果账号存在，申请已提交" }`；不返回 `request_id`，不区分账号是否存在。
 
 ```http
-GET  /api/v1/admin/password-reset-requests?status=pending
-GET  /api/v1/admin/password-reset-requests/{id}
-POST /api/v1/admin/password-reset-requests/{id}/approve
-POST /api/v1/admin/password-reset-requests/{id}/reject
-POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
+GET  /api/v1/admin/password-requests?status=pending|approved|rejected|all
+GET  /api/v1/admin/password-requests/{id}
+POST /api/v1/admin/password-requests/{id}/approve
+POST /api/v1/admin/password-requests/{id}/reject
+POST /api/v1/admin/password-requests/{id}/regenerate-temp-password
 ```
 
-通过响应（只返回一次）：
+通过/重新生成响应（每次只返回一次）：
 
 ```json
 {
+  "request": { "id": 301, "status": "approved" },
   "temporary_password": "K7m2P9q4R6s8",
   "must_change_password": true,
-  "temp_password_expires_at": "2026-11-28T12:00:00Z",
+  "expires_at": "2026-11-28T22:48:00+08:00",
   "audit_id": 123
 }
 ```
+
+> 响应字段以 `admin/API_CONTRACT.md` §4 为准：这里用 `expires_at`；数据库字段仍是 `users.temp_password_expires_at`。
+
+**状态与幂等**
+
+| 当前状态 | 动作 | 结果 |
+|---|---|---|
+| pending | approve | 200 + 临时密码；置 approved；`token_version += 1`；写审计 |
+| pending | reject | 200；置 rejected；写审计 |
+| pending | regenerate | 409 `RESET_REQUEST_STATE_INVALID` |
+| approved | approve / reject | 409 `RESET_REQUEST_STATE_INVALID` |
+| approved | regenerate | 200 + 新临时密码；重置 `temp_password_expires_at=now+24h`；旧临时密码立即失效；`token_version += 1`；写审计 |
+| rejected | 任意写操作 | 409 `RESET_REQUEST_STATE_INVALID` |
+
+- approve/reject/regenerate 都用条件 UPDATE（`WHERE id=? AND status=?`）；并发只有一个成功，输的一方 409。
+- 审批响应丢失：用 `GET /admin/password-requests?status=approved` 或 `GET /{id}` 查状态，再调用 regenerate，不重复审批。
+- regenerate 只对 approved 生效；已过期也允许 regenerate，视为重新发放。
+- 与 `admin/API_CONTRACT.md` §4 的差异：前端契约写的是 pending 或 approved 都可 regenerate；本方案只允许 approved，避免绕过审批核验。BE-030 实现以本方案为准，前端契约随 BE-030 同步。
 
 ### 5.4 强制改密门禁
 
@@ -192,6 +217,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 - 只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`。
 - 其他业务接口一律 403 `PASSWORD_CHANGE_REQUIRED`。
+- 临时密码过期（`temp_password_expires_at < now`）后，登录、业务接口与 `/auth/change-password` 返回 403 `TEMP_PASSWORD_EXPIRED`；`GET /auth/me` 与 `POST /auth/logout` 仍放行，学生需重新申请。
 - 前端路由守卫读取 `must_change_password`（登录响应或 `/auth/me`），跳转 `/settings` 强制改密；`/auth/me` 必须放行，否则刷新/恢复会话会把用户踢回登录页。
 - 改密成功后清 `must_change_password` 与 `temp_password_expires_at`，`token_version += 1`，当前会话也需用新密码重新登录。
 
@@ -203,6 +229,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 |---|---|---|
 | `role` | VARCHAR(16) NOT NULL DEFAULT 'student' | student/admin |
 | `disabled_at` | DATETIME NULL | 禁用时间 |
+| `disabled_reason` | VARCHAR(255) NULL | 禁用原因（管理员填写） |
 | `must_change_password` | BOOLEAN NOT NULL DEFAULT false | 临时密码强制改密 |
 | `temp_password_expires_at` | DATETIME NULL | 24h 有效期 |
 
@@ -218,20 +245,26 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 | `submitted_email` | 提交的邮箱（可选） |
 | `reason` | 申请原因 |
 | `status` | pending/approved/rejected |
-| `reviewed_by` / `reviewed_at` | 审批管理员/时间 |
+| `reviewed_by` / `reviewed_at` | 审批管理员用户名快照/时间 |
 | `review_note` | 审批备注/拒绝原因 |
+| `expires_at` | 临时密码过期时间（审批/重新生成时写） |
+| `delivery_channel` | 通知渠道快照（如 wechat/phone） |
+| `used_at` | 学生用临时密码成功改密后回写 |
 | `created_at` | 申请时间 |
 | `ip` / `user_agent` | 申请来源 |
 
 索引：`(status, created_at)`、`(user_id, created_at)`。不存临时密码、secret、明文密码。
 
+**pending 唯一性**：同一 `user_id` 最多一条 pending。SQLite 用 partial unique index `UNIQUE(user_id) WHERE status='pending'`；MySQL 8 用生成列 `pending_user_id = IF(status='pending', user_id, NULL)` + 唯一索引（MySQL 不支持部分索引）。service 层捕获唯一冲突后仍返回 202，保证并发提交的幂等。
+
 ### 6.3 `admin_audit_logs`
 
 | 字段 | 说明 |
 |---|---|
-| `actor_user_id` / `actor_username` | 管理员及快照 |
-| `action` | user.disable / task.retry / password_request.approve / ai_log.view_raw 等 |
-| `target_type` / `target_id` / `target_label` | 目标及快照 |
+| `id` | 主键 |
+| `actor_user_id` / `actor_username` | 管理员及快照；`actor_user_id` 可空（CLI/系统动作用 NULL + `actor_username='system'`） |
+| `action` | user.disable / task.retry / password_request.approve / password_request.regenerate / ai_log.view_raw 等 |
+| `target_type` / `target_id` / `target_label` | 目标及快照；`target_id` 统一按字符串存 |
 | `target_owner_id` | 内容所属学生 |
 | `before_json` / `after_json` | 脱敏 diff |
 | `reason` | 可空；系统动作自动填充（如登录/登出），管理员写操作可选填 |
@@ -243,8 +276,9 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 ### 6.4 其他建议
 
-- `content_flags`：target_type/target_id/reason/severity/status/created_by/resolved_at（P1 建表）。
-- `ai_call_logs.task_id`（P1）、`ai_call_logs.request_id`（P2）。
+- 内容审核字段（随后续 ADM 任务补迁移）：`questions.hidden_at`/`hidden_reason`/`flagged_at`/`flag_reason`；`status` 用 `confirmed`/`hidden`。**不用 `content_flags`**。
+- `admin_alert_acks`：`alert_key` PK、`acknowledged_by`、`acknowledged_at`、`note`（已随 ADM-002 建表；告警本身由真实数据实时推导）。
+- `ai_call_logs.task_id`（Phase 1 建议加，任务详情按 task 精确关联 AI 调用）、`ai_call_logs.request_id`（Phase 2）。
 - `generation_task`：`(user_id, created_at)`、`(stage, status, created_at)`、`(error_code, created_at)`。
 - `ai_call_logs`：`(created_at)`、`(status, created_at)`、`(operation, created_at)`。
 
@@ -252,15 +286,18 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 | 模块 | 端点 |
 |---|---|
-| 认证 | `POST /admin/auth/login`、`GET /admin/me` |
-| 监控 | `GET /admin/overview`、`GET /admin/metrics/ai`、`GET /admin/metrics/tasks`、`GET /admin/health` |
-| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`PATCH /admin/users/{id}`、`POST /admin/users/{id}/force-logout` |
-| 密码申请 | `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password`；公开 `POST /auth/password-reset-requests`（固定 202 泛化响应） |
-| 内容 | `GET/DELETE /admin/questions/{id}`、`GET /admin/questions`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
+| 认证 | `POST /admin/auth/login`、`GET /admin/me`、`POST /admin/logout`（登录/登出写审计） |
+| 监控 | `GET /admin/overview`、`GET /admin/alerts`（告警由真实数据推导，裸数组） |
+| 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`POST /admin/users/{id}/status`（active/disabled）、`POST /admin/users/{id}/force-logout` |
+| 密码申请 | 公开 `POST /auth/password-reset-requests`（固定 202 泛化响应）；管理端 `GET /admin/password-requests`、`GET /admin/password-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password` |
+| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`POST /admin/questions/{id}/moderation`（`hide/restore/flag/unflag`） |
 | 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
-| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`GET /admin/ai-logs/{id}/raw`、`GET /admin/ai-logs/export` |
-| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export` |
+| AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`POST /admin/ai-logs/{id}/raw`（`reason` 必填 + 审计 + `Cache-Control: no-store`） |
+| 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export.csv` |
+| 告警确认 | `POST /admin/alerts/{key}/ack`、`POST /admin/alerts/{key}/unack` |
 | 系统 | `GET /admin/system` |
+
+> 实现真源：`admin/API_CONTRACT.md`（PR #120）与 `admin/src/api/admin.ts`；本表按它们校正，不再保留早期草稿里的 `/metrics/*`、`PATCH users`、`content_flags` 等叫法。
 
 统一：`/api/v1` 前缀、Bearer JWT、`{items,total,page,page_size}`、统一错误信封、`X-Request-ID`。写操作可带 `reason`（高风险操作建议填写），响应带 `audit_id`。
 
@@ -279,7 +316,7 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 ## 9. 审计要求
 
-覆盖：admin 登录/失败/登出、用户禁用/启用/强制下线、密码申请通过/拒绝、任务重试/取消、内容软删/恢复/标记、raw/图片访问、审计导出、配置变更。
+覆盖：admin 登录/失败/登出、用户禁用/启用/强制下线、密码申请通过/拒绝/重新生成、任务重试/取消、内容隐藏/恢复/标记、raw/图片访问、审计导出、配置变更；CLI/系统动作以 `actor_user_id=NULL` + `actor_username='system'` 记录。
 
 - 高风险写操作与审计同一事务；审计失败回滚。
 - 现有 service 内部 commit 的，admin 侧需要 `commit=False` 或抽出不提交的内部函数。
@@ -288,10 +325,11 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 ## 10. 安全与隐私
 
-- 管理端独立 localStorage key（`bababoi:admin-token`）与登录页；JWT 仍共用同一签名密钥与 `token_version` 校验，学生 token 403。
+- 管理端独立 localStorage key（`bababoi:admin-token`）与登录页；JWT 仍共用同一签名密钥与 `token_version` 校验，学生 token 403 `ADMIN_REQUIRED`，禁用账号 403 `ACCOUNT_DISABLED`；admin token 有效期单独 8h（已随 ADM-002 实现）。
 - 管理端登录限流；CORS 增加 `http://localhost:5174`，生产同源。
-- 响应不返回 `password_hash`、JWT、API Key 密文、完整 Key。
+- 除 `POST /admin/auth/login` 的 access token 外，响应不返回 JWT；任何响应都不返回 JWT Secret、`password_hash`、API Key 密文、完整 Key。
 - 邮箱列表脱敏；原始 AI/图片访问审计；导出脱敏、限行数。
+- 审批核验为人工外部渠道，`submitted_email` 不作为身份凭证；管理员在 `review_note` 记录核验方式。
 - 图片走受保护接口，不暴露 `uploads/` 静态路径。
 - 不做用户模拟登录、SQL 控制台、批量 PII 导出。
 
@@ -299,25 +337,29 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 
 - `ADMIN_USERNAME` / `ADMIN_PASSWORD` 环境变量；无默认密码。
 - `seed_demo.py` 或 `seed_admin.py`；生产拒绝，`--reset` 需 `--yes`。
-- 管理员恢复：不做 UI 自助；提供 server-side CLI（如 `uv run python -m app.scripts.reset_admin_password`）或环境变量 re-seed，需服务器 shell 权限，操作写日志/审计。
+- 管理员恢复：不做 UI 自助；提供 server-side CLI（如 `uv run python scripts/reset_admin_password.py`，从 `backend/` 运行）或环境变量 re-seed，需服务器 shell 权限，操作以 `actor_user_id=NULL` + `actor_username='system'` 写日志/审计。
 - 后端 `ruff` + `pytest` + OpenAPI `--check`；admin 前端独立 lint/typecheck/build。
-- nginx `location /admin/`；API 仍 `/api/v1`。
+- nginx `location /admin/` 用 `try_files $uri $uri/ /admin/index.html` 支持 history 路由；API 仍 `/api/v1`。
 - 学生端构建与演示脚本不受影响。
 
 ## 12. 分期与验收
 
+> 档位对应：Phase 0/1 = 11.29 必须；Phase 2 的密码申请审批 = 11.29 目标，其余 Phase 2（users 列表/详情只读、用户禁用/强制下线、任务重试/取消、内容隐藏/标记）= 演示后；Phase 3/4 = 演示后。
+>
+> 进度（2026-11-28）：Phase 0（ADM-002/009）已随 #123 合入；Phase 1 端点尚未实现；admin 前端页面在 PR #120（未合）。
+
 | 阶段 | 内容 |
 |---|---|
 | Phase 0 | role/disabled/require_admin、admin 登录、audit 表、password_reset_requests 表、seed admin |
-| Phase 1 | overview、health、tasks/ai-logs 只读、users 只读、审计列表只读 |
-| Phase 2 | 密码申请审批、用户禁用/强制下线、任务重试/取消、内容软删/标记 |
+| Phase 1 | overview、system、tasks/ai-logs 只读、审计列表只读 |
+| Phase 2 | 密码申请审批、users 列表/详情只读、用户禁用/强制下线、任务重试/取消、内容隐藏/标记 |
 | Phase 3 | AI 成本/失败趋势、内容质量队列、导出、告警 |
 | Phase 4 | 只读 auditor、保留策略、webhook、缓存清理、批量操作、IP 白名单 |
 
 验收：
 
-- 学生 token `/admin/*` 403；admin token 200。
-- 禁用用户旧 token 失效、登录被拒。
+- 学生 token `/admin/*` 403 `ADMIN_REQUIRED`；admin token 200。
+- 禁用用户旧 token 失效、登录被拒（403 `ACCOUNT_DISABLED`）。
 - 总览数字与 DB 一致；AI 指标与 `ai_call_logs` 一致。
 - 任务重试后学生任务中心状态一致。
 - 密码申请：提交、去重、限流、审批、拒绝、24h、强制改密、旧会话失效。
@@ -326,14 +368,14 @@ POST /api/v1/admin/password-reset-requests/{id}/regenerate-temp-password
 - 列表分页/搜索可用；不返回敏感字段。
 - 管理端构建进入 CI；学生端不受影响。
 
-## 13. 待后端确认的默认值
+## 13. 默认值与已定项
 
-1. admin token TTL（建议 8h）。
+1. admin token TTL 已实现 8h（ADM-002；学生仍为 7d）。
 2. 审计保留天数（建议 180 天）。
 3. 密码申请限流阈值（建议 3 次/天/IP+用户名）。
-4. 是否给 `ai_call_logs` 加 `task_id` / `request_id`（建议加）。
+4. 是否给 `ai_call_logs` 加 `task_id` / `request_id`（建议加；`task_id` 优先 Phase 1）。
 5. 告警阈值与通知渠道（MVP 页面告警）。
-6. `content_flags` 是否 Phase 1 建表（建议建表，Phase 2 使用）。
+6. 内容审核字段已定：`questions.hidden_at`/`hidden_reason`/`flagged_at`/`flag_reason`（随 ADM-006 补迁移）；不用 `content_flags`。
 
 ## 14. 链接
 

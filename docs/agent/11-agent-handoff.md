@@ -1,6 +1,6 @@
 ---
 owner: 霹雳马桶
-last_updated: 2026-11-06
+last_updated: 2026-11-28
 status: active
 read_when: 切换会话、换 agent、让新 agent 接手任务时
 ---
@@ -9,48 +9,35 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 
 > 目标：让一个新 agent 在 **3 分钟内**知道“项目是什么、现在到哪、我要做什么、不能做什么”，而不是把 `docs/` 全读一遍。
 
-## 0. 当前交接状态（2026-11-06，origin/main @ 7ee6029）
+## 0. 当前交接状态（2026-11-28，origin/main）
 
-- **`main`**：`7ee6029`（M0 收尾；前端页面全部完成；后端核心闭环已合）
-- **已合后端**：BE-001/002/003 + follow-up（#14）、BE-004（#7）、BE-005（#6）、BE-006/007（#5）、BE-012（#9）
-- **后端 open PR**：仅 **#8 docs**（基于旧 main，状态很可能已被 #26/#31/#36 覆盖；建议关闭或缩成 `backend/README.md`）
-- **后端 open issue**：
-  - **#13 BE-014 图片录入 v2**：`/uploads/images` + `/questions/from-image` 尚未实现，是图片识别真联调的唯一阻塞
-  - **#32 BE-020 用户自带 AI Key**：`GET/PUT/DELETE /settings/ai` + 加密存储 + SSRF 白名单
-  - **#11 BE-001~003 follow-up**：主体已由 #14 修复；剩 docs/README、ruff format、MySQL 实跑
-- **前端已合**：FE-001~024 全部页面（#16~#21/#23~#25/#28~#30/#34/#35），含：
-  - 首页 `HomeView`（#34）
-  - 个人设置 + AI API Key（BYOK，mock；#35，ADR-007）
-  - 图片录入 + 多题条目（#29，mock；等 BE-014）
-  - 三段并发 UI（#28，兼容旧 `task_id`；等 ADR-006）
-  - 草稿双写 + 可访问性（#30，mock；等 BE-018）
-  - 练习（#23）、统计（#24，mock；等 BE-013）、三题型编辑器（#25）
-- **前端剩余**：FE-017 的 768px 宽度与完整键盘细节；真接口联调
-- **管理端**：ADR-005 + ADR-009；`admin/` 进入 11.29 演示（范围见 `28-admin-console.md`）；当前仅占位
-- **范围/交互/验收**：以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准
-- **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题；见 ADR-004 / issue #13
-- **BYOK（ADR-007）**：Key 只提交后端加密存储；前端不落 localStorage/Pinia、不回显完整值；P1，不进入 11.29 演示关键路径
+- **`main`**：11.29 演示收尾；学生端闭环、管理端文档（#116）与后端地基（#123）已合；admin 前端见 PR #120。
+- **已合后端**：认证/错题/分析/生成/任务/练习/图片识图/草稿/统计/生成偏好/OpenAPI；BE-020 BYOK、BE-024 两步识图、BE-013、BE-018、BE-025/026 等已完成。
+- **后端待做**：BE-015 单题重生成/质量反馈、BE-016 性能/安全加固、OPS/部署收尾；管理端后端地基 #123 已合，admin 前端 PR #120 待合，ADM-003+ 待做。
+- **前端已合**：FE-001~039 页面、测试与联调收口；FE-040 忘记密码/强制改密待 BE-030。
+- **管理端**：ADR-005 + ADR-009；`admin/` 进入 11.29 演示（范围见 `28-admin-console.md`）；主分支 `admin/` 仍为占位，前端见 PR #120。
+- **演示口径**：管理端必须 = 登录/403、总览、任务/AI 日志只读、审计列表、系统健康；目标 = 密码申请审批 + 强制改密；用户管理/任务重试/内容操作演示后。
+- **范围/交互/验收**：以 `01-prd-lite.md` + `02-ia-and-flows.md` + `03-page-specs.md` 为准。
+- **图片录入 v2（正式决策）**：用户裁剪 → 多题文本提取（①②…）→ 逐条确认 → 分析/答案/解析 → 选择题目生成（可多选）；不做 bbox/框题；见 ADR-004。
+- **BYOK（ADR-007）**：Key 只提交后端加密存储；前端不落 localStorage/Pinia、不回显完整值；P1，不进入 11.29 演示关键路径。
 - **下一步顺序**：
-  1. 后端 **BE-014 图片识别**（最高优先；前端 FE-016/021 已就绪）
-  2. 后端 **BE-018 草稿 / BE-013 统计 / BE-020 BYOK**
-  3. 后端 **ADR-006 三段并发**（新 PR，base=main）
-  4. 前端 **FE-017** 768/键盘收尾 + 真接口联调
-  5. M0 验收、部署 staging
+  1. 演示冻结/彩排：学生端连续 3 次；管理端只读 + 密码申请目标。
+  2. 管理端 ADM-003/004/007/008/011（后端只读端点 + PR #120 前端）；BE-030/ADM-010/FE-040 密码申请。
+  3. BE-015/BE-016；部署/种子/PPT/备用录屏。
 - **本地启动**：
-  - 前端：`cd "G:\AIworkspace\opencode\BababoiLearningMachine\frontend"` → `pnpm dev`（PowerShell 不要用 `cd /d`）
-  - 开发模式默认 mock；演示账号 `student01 / password123`
-  - 后端：`cd backend` → `uv sync` → 配置 `.env`（`JWT_SECRET` ≥32 字节、`LLM_MOCK=true`）→ `uv run alembic upgrade head` → `uv run uvicorn app.main:app --reload`
-  - 父目录 `G:\AIworkspace\opencode\pnpm-workspace.yaml` 已改名为 `.bak-20261106`，避免 pnpm 把父项目当 workspace 根；不要恢复，除非处理父项目
-- **不要做**：不要 revert 已合后端；不要先合 PR #8；不要绕过 PR review/CI；不要恢复 bbox/框题；不要在前端存 AI Key；不要直接合 main
+  - 前端：`cd frontend` → `pnpm dev`（Windows PowerShell 用 `cd "路径"`，不要 `cd /d`）。
+  - 开发模式默认 mock；演示账号/口令见演示手册，不要在代码里写死。
+  - 后端：`cd backend` → `uv sync` → 配置 `.env`（`JWT_SECRET` ≥32 字节、`LLM_MOCK=true`）→ `uv run alembic upgrade head` → `uv run uvicorn app.main:app --reload`。
+- **不要做**：不要扩大演示范围；不要绕过 PR review/CI；不要跳过权限/审计；不要在前端存 AI Key；不要直接合 main；不要把管理端工作反向阻塞学生端 P0。
 - **分支规则**：所有开发（含前端/文档）从 `main` 开短分支 + PR；合并前等用户确认。
 
 ### 0.1 下一个会话建议直接接的任务
 
-1. **后端 BE-014（最高优先）**：实现 `POST /uploads/images` + `POST /questions/from-image`；契约见 `docs/agent/15-backend-sync-20261106.md` §3 和 issue #13。
-2. **后端 BE-018 / BE-013 / BE-020**：草稿、统计、用户 AI Key；前端对应页面已按 mock 完成。
-3. **后端 ADR-006 三段并发**：新 PR base=main；前端 FE-023 已兼容旧 `task_id`。
-4. **前端 FE-017**：768px + 完整键盘细节；之后把 `VITE_USE_MOCK=false` 做真接口联调。
-5. **M0 收尾**：`03-page-specs.md`、`05` 冻结、`deploy/docker-compose.dev.yml`、M0 验收、产品评审同步。
+1. **管理端基础**：ADM-002（role/require_admin/seed admin）+ ADM-009（disabled_at/audit service）；先看 28 §6/§12。
+2. **管理端只读**：ADM-003 总览、ADM-004 脚手架/登录、ADM-007 任务/AI 日志只读、ADM-008 审计列表、ADM-011 健康。
+3. **密码申请（目标）**：BE-030 后端 + ADM-010 管理端 + FE-040 学生端；严格按 28 §5 的状态机/过期语义。
+4. **学生端收口**：BE-015/BE-016；部署/种子/PPT/彩排。
+5. **演示冻结**：11.28 晚按 ADR-009 判定；未完成项进 PPT。
 
 ## 1. 最小启动提示词（复制即用）
 
@@ -87,7 +74,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 任务：<FE-xxx>。
 只改 frontend/ 下与任务相关的文件；不要改后端/数据库/Resource。
 不要直接 push/merge `main`；完成后开 PR，等用户确认后再合并。
-当前状态：FE-001~024 页面已完成；优先 FE-017（768/键盘）与真接口联调。图片/统计/草稿/BYOK 页面当前走 mock，等 BE-014/BE-013/BE-018/BE-020 后再切真实接口。
+当前状态：FE-001~039 已合；优先 FE-040 忘记密码/强制改密（依赖 BE-030）。图片/统计/草稿/BYOK 已接真实接口或按 404 降级；不要再按旧 mock 假设开发。
 页面结构/交互参照 `07-page-drafts.md` / `08-interaction-map.md`；**视觉唯一基准是 `calm-academic/index.html`**（顶部 appbar + 1140px 纸面 frame，无侧边栏）。图片 v2 与原型冲突时以 ADR-004 / 05 v0.4 为准。
 视觉语言以 `04-design-system.md` 的第一/第二原则 + §1.2 Calm 定稿为准：**可读性优先、整体使用流畅**；不为视觉牺牲题干/公式可读性和主操作路径。
 接口以 docs/agent/05-architecture.md 为准；没有的接口先用 Mock，不要自己发明字段。
@@ -107,7 +94,7 @@ read_when: 切换会话、换 agent、让新 agent 接手任务时
 只改 backend/ 下与任务相关的文件；数据库 schema 最终由人机确认，不要擅自改字段/迁移。
 AI 调用必须服务端；LLM 测试用 mock，不花真实额度。
 接口/字段/错误码必须与 05 一致；改了就先更新 05 和 OpenAPI。
-当前最高优先：**BE-014 图片文本提取**（issue #13，契约见 `15-backend-sync-20261106.md` §3）；之后 BE-018 草稿、BE-013 统计、BE-020 BYOK、ADR-006 三段并发。
+当前最高优先：**管理端基础 ADM-002/009 + BE-030 密码申请**（见 28 号文档）；之后 BE-015/BE-016 与部署收尾。BE-014/018/013/020/024/025/026 已完成，不要再按旧任务单重做。
 图片录入按 v2：`from-image` 返回 `questions[]`（1..N），不做 bbox/candidates；用户裁剪后上传；确认后逐条 `POST /questions`。
 完成后跑 uv run ruff check / uv run pytest，并在 PR 里贴结果。
 先复述任务和计划，等我确认再写代码。
