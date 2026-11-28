@@ -97,6 +97,13 @@ DUE_REASON_BY_STATUS: dict[str, str] = {
     "reviewing": "reviewing_3d",
     "mastered": "mastered_7d",
 }
+# 排序口径 B：未练过 > 未掌握 > 复习中 > 已掌握；同档内最久未练优先（前端 mock 同序）
+DUE_SORT_RANK: dict[str, int] = {
+    "never": 0,
+    "unmastered_1d": 1,
+    "reviewing_3d": 2,
+    "mastered_7d": 3,
+}
 
 
 @dataclass(frozen=True)
@@ -220,10 +227,10 @@ def list_due(
         )
 
     total = len(due)
+    # 口径 B（2026-11-28 定案）：未练过 → 掌握度越薄弱越前 → 同档内最久未练 → id
     due.sort(
         key=lambda row: (
-            0 if row.due_reason == "never" else 1,
-            row.last_practiced_at is not None,
+            DUE_SORT_RANK.get(row.due_reason, len(DUE_SORT_RANK)),
             row.last_practiced_at or datetime.min,
             row.question.id,
         )

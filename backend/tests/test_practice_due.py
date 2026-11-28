@@ -233,3 +233,18 @@ def test_resegment_does_not_reset_last_practiced(client, db, user) -> None:
     assert item["due_reason"] == "unmastered_1d"
     # 软删的生成题不能返给前端，仍用未删除的那道
     assert item["generated_question"]["id"] == live.id
+
+
+def test_urgency_sorts_before_oldest(client, db, user) -> None:
+    """口径 B：unmastered 2 天要排在 mastered 10 天前面。"""
+    token, user_id = user
+    mastered_q = _question(db, user_id, mastery="mastered")
+    mastered_g = _generated(db, user_id, mastered_q.id)
+    _record(db, user_id, mastered_g.id, days_ago=10)
+
+    unmastered_q = _question(db, user_id, mastery="unmastered")
+    unmastered_g = _generated(db, user_id, unmastered_q.id)
+    _record(db, user_id, unmastered_g.id, days_ago=2)
+
+    body = _due(client, token)
+    assert [item["parent"]["id"] for item in body["items"]] == [unmastered_q.id, mastered_q.id]
