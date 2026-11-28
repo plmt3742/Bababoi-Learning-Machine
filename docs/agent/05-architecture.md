@@ -16,7 +16,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 
 ## 0. 速览（给评审/新 agent）
 
-### 0.1 数据表（现有 10 张 + admin 待建 3 张）
+### 0.1 数据表（现有 12 张 + admin 待建 3 张）
 
 | 表 | 一句话 | 关键字段 |
 |---|---|---|
@@ -30,12 +30,14 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 | `draft` | 每账号 1 份录入草稿 | `user_id` UNIQUE、`content_json`、`version`、`updated_at` |
 | `generation_task` | 后台整理/生题任务 | `question_id`、`stage`、`status`、`retry_index`、`timestamps` |
 | `vision_extract_cache` | 识图结果缓存（BE-024） | `user_id`、`image_sha`、`subject_key`、`model`、`hop1_version`、`hop2_version`、`payload`、`hit_count`、`last_forced_at` |
+| `user_ai_settings` | 用户自带 AI Key（ADR-007） | `user_id` PK/FK、`provider`、`base_url`、`model`、`api_key_ciphertext`、`key_last4` |
+| `vision_job` | 识图任务（BE-024 B 档） | `user_id`、`image_path`、`status`、`active_slot`、`result_json`、`error_code`、`deadline_at`、`expires_at` |
 
 ### 0.2 API 分组
 
 | 分组 | 端点 | 用途 |
 |---|---|---|
-| 认证 | `/auth/register`、`/auth/login`、`/auth/logout`、`/auth/me`、`/auth/change-password`（BE-029） | 最小账号体系 |
+| 认证 | `/auth/register`、`/auth/login`、`/auth/logout`、`/auth/me`、`/auth/change-password`（BE-029）、`/auth/password-reset-requests`（公开申请，BE-030） | 最小账号体系 + 密码申请 |
 | 错题 | `/questions`、`/questions/{id}` | CRUD、筛选、搜索、分析编辑 |
 | AI/任务 | `/questions/{id}/analyze`、`/questions/{id}/generate`、`/questions/{id}/events`、`/tasks` | 入队、进度轮询（SSE P1）、重试 |
 | 图片 | `/uploads/images`、`/questions/from-image` | 用户裁剪上传 + 多题文本提取（结果按 ①②… 条目确认） |
@@ -45,6 +47,7 @@ read_when: 写前后端代码前；改 API/数据模型前；联调前
 | 统计 | `/stats/overview` | 概览（趋势/薄弱点都在 overview 里，见 §6.6） |
 | 标签 | `/tags` | 知识点/自定义标签 |
 | 健康 | `/health` | 部署检查 |
+| 管理端 | `/admin/*`（ADR-009） | 登录/总览/任务/AI 日志/审计/密码申请；见 §6.10 |
 
 ### 0.3 契约准则
 
@@ -374,9 +377,11 @@ erDiagram
 | 404 | `NOT_FOUND` | 路由未命中（与 QUESTION_NOT_FOUND 区分；BE-001 新增） |
 | 403 | `FORBIDDEN` | 框架层 403（鉴权中间件等），与业务态 `QUESTION_FORBIDDEN` 区分；issue #11 新增 |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | 临时密码登录后未改密，仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`（ADR-010 / 28 §5.4） |
+| 403 | `TEMP_PASSWORD_EXPIRED` | 临时密码过期；登录、业务接口、`/auth/change-password` 拒绝，`/auth/me` 与 `/auth/logout` 放行（28 §5.4） |
 | 405 | `METHOD_NOT_ALLOWED` | 方法用错；以前被统统标成 `VALIDATION_ERROR`，前端会误查表单字段；issue #11 新增 |
 | 409 | `USERNAME_TAKEN` | 用户名已存在 |
 | 409 | `DRAFT_VERSION_CONFLICT` | 草稿版本冲突 |
+| 409 | `RESET_REQUEST_STATE_INVALID` | 密码申请审批状态非法（重复 approve/reject、对非 approved 请求 regenerate）；BE-030 |
 | 409 | `PRACTICE_DUPLICATE` | 60 秒内相同作答重复提交（BE-012） |
 | 404 | `TASK_NOT_FOUND` | 任务不存在 |
 | 413 | `UPLOAD_TOO_LARGE` | 图片超限 |
@@ -407,9 +412,11 @@ erDiagram
 
 - 密码最少 8 位（按 UTF-8 字节不超过 72，bcrypt 上限）；用户名 3–32 位，字母/数字/下划线/中文。
 - 不做邮箱自助找回；忘记密码走学生线上申请 → 管理员审批 → 临时密码（BE-030；ADR-010 / 28 §5）。学生端设置页提供凭旧密码的重置（FE-038，`POST /auth/change-password`）。
-- 公开 `POST /auth/password-reset-requests` 固定返回 202 泛化响应，不返回 `request_id`、不区分账号是否存在；用户名不存在不落库，已有 pending 不重复建单（幂等 202）。
+- 公开 `POST /auth/password-reset-requests` 固定返回 202 泛化响应，不返回 `request_id`、不区分账号是否存在；用户名不存在不落库，已有 pending 不重复建单（幂等 202；并发由 28 §6.2 的 pending 唯一约束兜底）。
 - 临时密码登录时 `POST /auth/login` 响应额外带 `must_change_password: true`；`GET /auth/me` 也返回该字段，供刷新/恢复会话后的路由守卫使用。改密前只放行 `GET /auth/me`、`POST /auth/logout`、`POST /auth/change-password`，其他业务接口 403 `PASSWORD_CHANGE_REQUIRED`（28 §5.4）。
-- JWT `sub=user_id`、`ver=token_version`，`exp=7d`；MVP 不做 refresh token。
+- 临时密码过期（`temp_password_expires_at < now`）：登录、业务接口与 `/auth/change-password` 返回 403 `TEMP_PASSWORD_EXPIRED`；`GET /auth/me`、`POST /auth/logout` 仍放行，学生需重新申请（28 §5.2/§5.4）。
+- 密码申请审批状态非法（重复 approve/reject、对非 approved 请求 regenerate）返回 409 `RESET_REQUEST_STATE_INVALID`；审批用条件 UPDATE 保证并发只有一个成功（28 §5.3）。
+- JWT `sub=user_id`、`ver=token_version`，学生 `exp=7d`；admin token 建议 8h（§6.10，待后端确认）；MVP 不做 refresh token。
 - **多设备共存（BE-028，2026-11-21 定案单 §3）**：`users.token_version` 只在**全踢**动作时 +1——改密（BE-029）、未来的管理员强制下线。**登录不 +1**（手机拍题 + 电脑做题互不打扰），**登出也不 +1**（否则手机上退出会把电脑踢下线）。`get_current_user` 发现 `ver` 与库里不一致即 401 `AUTH_TOKEN_EXPIRED`（复用该码，前端本来就是"401 清 token 回登录页"）。改密成功后**所有设备（含当前）都要重新登录**，这正是"密码被同学知道后自救"的机制。**没有 `ver` 的老 token 按 0 处理**，部署本身不会集体踢人，用户第一次改密后旧 token 才失效。
 - 登录失败 5 次/分钟/IP 限流：`limits` 的 **MovingWindow**（精确滑动窗口，不是固定窗口——边界突刺会在两秒内放行 2×额度）。默认进程内存存储，只对单实例成立；多实例把 `RATE_LIMIT_STORAGE_URL` 换成 `redis://…`（需 `limits[redis]`），调用点不用改。标识符带**业务命名空间**（`login` / `register` 前缀）：两个限流器即使配成同一额度，共享存储下也不会共用一个桶。
 - **注册按 IP 30 次/小时**（`REGISTER_RATE_LIMIT` / `REGISTER_RATE_WINDOW_S`）：注册是零成本的，不挡就能"换号"绕过按用户的 AI 额度。默认取 30 而不是 3：实验室考核全班通常共用一个 NAT 出口，3/小时会把正常注册挡在外面；公开部署想收紧再调小。**30 是硬上限**：全班同一出口时第 31 个成功注册会 429，需等窗口滑过或临时调高；重名 409 不扣额度（额度在重名检查之后扣），所以"打错用户名重试"不会吃掉名额。
@@ -787,20 +794,21 @@ data: {"code":"AI_TIMEOUT","message":"AI 服务超时，请重试"}
 
 - Base URL：`/api/v1/admin`；除 `POST /admin/auth/login` 与公开的 `POST /auth/password-reset-requests` 外，全部依赖 `require_admin`。
 - 权限：`users.role = student | admin`；每次查 DB 角色，不信 token claim；学生 token 403。
-- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验。
+- 管理员登录：`POST /admin/auth/login`、`GET /admin/me`、`POST /admin/auth/logout`（写审计）；管理端独立 localStorage key（`bababoi:admin-token`），JWT 共用同一签名密钥与 `token_version` 校验。
+- 管理员 token TTL 建议 8h（学生 7d），待后端确认；审批状态机与临时密码过期语义见 28 §5.3/§5.4。
 
 | 模块 | 端点 |
 |---|---|
 | 监控 | `GET /admin/overview`、`GET /admin/metrics/ai`、`GET /admin/metrics/tasks`、`GET /admin/health` |
 | 用户 | `GET /admin/users`、`GET /admin/users/{id}`、`PATCH /admin/users/{id}`、`POST /admin/users/{id}/force-logout` |
 | 密码申请 | 公开 `POST /auth/password-reset-requests`（固定 202 泛化响应）；管理端 `GET /admin/password-reset-requests`、`GET /admin/password-reset-requests/{id}`、`POST .../approve`、`POST .../reject`、`POST .../regenerate-temp-password` |
-| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`DELETE /admin/questions/{id}`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
+| 内容 | `GET /admin/questions`、`GET /admin/questions/{id}`、`GET /admin/questions/{id}/image`、`DELETE /admin/questions/{id}`、`POST /admin/questions/{id}/restore`、`POST /admin/questions/{id}/flag`、`GET /admin/generated-questions` |
 | 任务 | `GET /admin/tasks`、`GET /admin/tasks/{id}`、`POST /admin/tasks/{id}/retry`、`POST /admin/tasks/{id}/cancel` |
 | AI 日志 | `GET /admin/ai-logs`、`GET /admin/ai-logs/{id}`、`GET /admin/ai-logs/{id}/raw`、`GET /admin/ai-logs/export` |
 | 审计 | `GET /admin/audit`、`GET /admin/audit/{id}`、`GET /admin/audit/export` |
 | 系统 | `GET /admin/system` |
 
-新增/调整的数据模型（待 migration）：`users.role`、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`、`content_flags`；`ai_call_logs` 建议补 `task_id`/`request_id`。列表统一 `{items,total,page,page_size}`，错误统一 `{detail:{code,message,request_id}}`。
+新增/调整的数据模型（待 migration）：`users.role`、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at`、`admin_audit_logs`、`password_reset_requests`、`content_flags`；`ai_call_logs` 建议补 `task_id`（Phase 1）/`request_id`（Phase 2）。`password_reset_requests` 的 pending 唯一性按 28 §6.2（SQLite partial unique index / MySQL 生成列 + 唯一索引）。列表统一 `{items,total,page,page_size}`，错误统一 `{detail:{code,message,request_id}}`。
 
 ## 7. AI 流水线
 
@@ -1288,7 +1296,7 @@ VITE_API_BASE_URL=/api/v1
 
 | 日期 | 版本 | 变更 | 变更人 |
 |---|---|---|---|
-| 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点 | 霹雳马桶 / agent |
+| 2026-11-28 | v0.6.31 | **Admin API 入口与线上密码重置定稿**：新增 §6.10（ADR-005/009）；`users.role`、`admin_audit_logs`、`password_reset_requests`、`content_flags` 待建；公开密码申请固定 202 泛化响应；临时密码登录带 `must_change_password`，改密前仅放行 `/auth/me`、`/auth/logout`、`/auth/change-password`，其他业务 403 `PASSWORD_CHANGE_REQUIRED`；补临时密码重新生成端点、`TEMP_PASSWORD_EXPIRED`/`RESET_REQUEST_STATE_INVALID`、admin token TTL 8h 待定；修正现有表数 12（补 `user_ai_settings`/`vision_job`）与 API 分组 | 霹雳马桶 / agent |
 | 2026-11-04 | v0 | 初稿：架构、数据模型、API、AI 流水线 | 霹雳马桶 / agent |
 | 2026-11-04 | v0.1 | 确认大学理科、DeepSeek `deepseek-flash` 多模态识图、数据库 schema 归人机；新增识图 API/流程 | 霹雳马桶 / agent |
 | 2026-11-05 | v0.3 | 核心闭环含练习 P0/统计 P1；三种题型+工具栏 P0 增强；队列/草稿/任务中心；`content_md`/`options`/`blanks`/`mastery_status`；不做 OCR | 霹雳马桶 / agent |

@@ -51,7 +51,7 @@
 | [agent/23-backend-handoff-20261113.md](agent/23-backend-handoff-20261113.md) | 合并后的后端对接单：前端已实测清单、必须保持的契约（时间/错误码/各接口）、BYOK 接口形状、识图两步、种子题型、部署确认、待拍板 | 后端继续开发 / 部署前对齐 / 演示准备 |
 | [agent/24-staging-handoff-20261117.md](agent/24-staging-handoff-20261117.md) | Staging 更新与真接口回归对接单：现状、备份、后端镜像、前端 dist、15 步回归、BYOK 核对、回滚与排障 | staging 更新 / 演示前真接口回归 / 部署排障 |
 | [agent/25-frontend-tasks-20261117.md](agent/25-frontend-tasks-20261117.md) | 前端任务单：识图强刷、BYOK 免重填、503 降级、页内进度、413 文案、LaTeX 预览、15 步回归 | 前端排期 / 演示前收口 |
-| [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密口径（FE-038/BE-029）+ 忘记密码改管理员授权（BE-030） | 后端实现改密/管理员重置前 / 前端接忘记密码说明前 |
+| [agent/26-password-api-handoff-20261121.md](agent/26-password-api-handoff-20261121.md) | 密码接口对接单：改密（FE-038/BE-029）+ 线上密码申请/审批（BE-030，ADR-010） | 后端实现改密/密码申请前；前端接 `/forgot-password` 前 |
 | [agent/27-ui-review-20261121.md](agent/27-ui-review-20261121.md) | UI 评审清单（20 张截图）：前端 9 项已做、后端 5 项、决策 3 项 | 处理评审项 / 前后端分工 |
 | [agent/28-admin-console.md](agent/28-admin-console.md) | 管理端规划与后端对接：监控、审计、任务/AI、内容、线上密码申请审批、数据模型/API/分期 | 开发/联调管理端前；评审监控与审计时 |
 
@@ -63,7 +63,7 @@
 | [product/01-prd-lite.md](product/01-prd-lite.md) | 一页纸 PRD 速览（大学理科、闭环、P0/P1/P2、指标） | 已定稿 |
 | [product/开源项目调研.md](product/开源项目调研.md) | 11 个开源项目参考；答辩/PPT 素材 | 归档 |
 | [product/02-ia-and-flows.md](product/02-ia-and-flows.md) | 信息架构、sitemap、3 条核心流程、AI 状态机 | 已定稿 |
-| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面；示例+要点已填） | 部分完成 |
+| [product/03-page-specs.md](product/03-page-specs.md) | 页面规范模板（8 个核心页面 + 4.6.1 忘记密码；示例+要点已填） | 部分完成 |
 | [product/04-design-system.md](product/04-design-system.md) | 设计 tokens + 组件清单 + 状态矩阵 | 已定稿 |
 | [product/05-ue-spec.md](product/05-ue-spec.md) | UE 稿/交互地图规范与模板 | 模板 |
 | [product/06-draft-dual-write.md](product/06-draft-dual-write.md) | 草稿：服务端 + localStorage 双写、接口、冲突处理 | 已定稿 |
@@ -129,3 +129,4 @@
 | 2026-11-11 | 新增 22 后端产出 review 对接单：#63 阻断（env 读取）、#58/#62/#64/#65 应修项、合并顺序与待拍板口径 | 霹雳马桶 / agent |
 | 2026-11-11 | 22 补"已确认无问题/安全扫描"；04 新增 FE-032~035 联调任务并同步后端 PR 状态；00 更新当前状态与下一步 | 霹雳马桶 / agent |
 | 2026-11-27 | 新增 28 管理端规划与后端对接、ADR-009（管理端进入 11.29 演示）；同步 ADR-005/README/AGENTS/00/04/06/11/管理端 README 的演示口径 | 霹雳马桶 / agent |
+| 2026-11-28 | #116 review 整改：演示档位/依赖链对齐，密码重置状态机/过期错误码/pending 唯一约束，05 表数 12，26/06/入口文档同步 | 霹雳马桶 / agent |

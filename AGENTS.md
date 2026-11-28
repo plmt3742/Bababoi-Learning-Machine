@@ -8,7 +8,7 @@
 
 - 仓库：https://github.com/plmt3742/Bababoi-Learning-Machine
 - 产品定位：学生录入错题 → AI 分析知识点/错误原因 → 生成 3 道相似题 → 练习 → 统计薄弱点
-- 当前阶段：11.29 演示收尾（答辩 11.29 15:00）；FE-001~024 页面已合入 main（含首页/个人设置）；后端核心闭环已合，剩余 BE-015/BE-016 与部署/演示收尾；`admin/` 为内部运维台，进入 11.29 演示（ADR-009；范围见 `docs/agent/28-admin-console.md`），密码流程见 ADR-010；BYOK 见 ADR-007
+- 当前阶段：11.29 演示收尾（答辩 11.29 15:00）；FE-001~039 页面已合入 main；后端核心闭环已合，剩余 BE-015/BE-016 与部署/演示收尾；`admin/` 为内部运维台，进入 11.29 演示（ADR-009；范围见 `docs/agent/28-admin-console.md`），主分支仍为占位、实现见独立分支，密码流程见 ADR-010；BYOK 见 ADR-007
 - 详细上下文：`docs/agent/00-context.md`
 
 ## 团队与分工
