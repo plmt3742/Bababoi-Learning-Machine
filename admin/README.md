@@ -1,82 +1,116 @@
-# admin · 内部运维台（11.29 演示，占位）
+# admin · 内部运维台
 
-> 状态：规划中，尚未开始业务代码。
-> 决策：`docs/adr/ADR-005-admin-console.md` + `docs/adr/ADR-009-admin-in-demo.md`。
-> 重要：管理端**进入 11.29 演示**，但演示只展示已实现能力；完整方案见 `docs/agent/28-admin-console.md`。不是教师端，也不是完整后台管理。
+> 状态：Admin 前端已完成真实 API 接线（#120）；后端 ADM-002 地基已合（#123：角色/禁用/审计/管理员登录），只读/写端点见 #124 等，真实联调未完成。
+> 决策：`docs/adr/ADR-005-admin-console.md` + ADR-009。
+> 新会话交接：`docs/agent/30-admin-frontend-handoff.md`。
+> 重要：默认没有管理员账号；真实登录依赖后端 seed；本地演示模式可用 `admin / admin123`，仅用于看页面。
 
-## 这个目录是什么
+## 当前状态
 
-给两位开发者使用的内部运维台，用来：
+- 前端是独立 Vue 3 + Vite + TS + Arco 应用，保留 Calm Academic 视觉。
+- 所有页面已从 mock 数据切到真实 API 层；`src/mock/data.ts` 已删除。
+- 管理员登录、总览、用户、密码申请、内容、任务、AI 日志、审计、告警、系统健康均已接线。
+- 后端 ADM-002 地基已合（#123）：`users.role`、`require_admin`、管理员登录与审计基础；只读端点 #124 待合，完整 `/api/v1/admin/*` 联调未完成。关闭演示模式后，未实现端点仍会 404，这不是前端回退。
+- 本地演示模式会拦截 `/api/v1/admin/*`，可直接看完整页面；数据只在内存里，刷新会重置。
+- 前端 `pnpm typecheck` 与 `pnpm build` 通过；真实接口联调待后端完成后进行。
 
-1. 看系统总览：用户、错题、生成题、练习量、AI 成功率/延迟/失败任务。
-2. 定位内容：错题/生成题列表与详情，软删除/隐藏明显有问题的内容。
-3. 恢复任务：查看 `generation_task`，重试失败任务。
-4. 查 AI 成本：`ai_call_logs` 的 operation/model/status/latency/tokens/error。
-5. 处理密码申请：学生线上提交，管理员审批，临时密码只在管理端显示一次。
+## 启动
 
-学生端仍在 `frontend/`；两者共用同一套后端 API，但 admin 使用独立的 `/api/v1/admin/*` 路由和 `require_admin` 权限。
+```bash
+cd admin
+pnpm install
+pnpm dev
+```
 
-## 计划中的结构
+开发地址：`http://127.0.0.1:5174/admin/login`。
+Vite 已代理 `/api` 到 `http://127.0.0.1:8000`。
+
+```bash
+pnpm typecheck
+pnpm build
+```
+
+## 管理员账号
+
+后端已实现 `users.role`、`require_admin`、`POST /api/v1/admin/auth/login`、`GET /api/v1/admin/me`（#123）；管理员账号用 `backend/scripts/seed_admin.py` 创建，命令见 `docs/agent/29-admin-backend-handoff.md`。
+
+前端不保存、不显示默认密码。
+
+### 本地演示模式
+
+```bash
+cp .env.example .env.local
+# 编辑 .env.local：VITE_ADMIN_DEMO=true
+pnpm dev
+```
+
+账号：`admin` / `admin123`。该模式只用于本地看页面，数据不持久化；生产构建必须保持 `VITE_ADMIN_DEMO=false` 或删除 `.env.local`。
+
+## 后端合同
+
+完整实现合同：[`API_CONTRACT.md`](./API_CONTRACT.md)
+
+后端同学交接单：[`../docs/agent/29-admin-backend-handoff.md`](../docs/agent/29-admin-backend-handoff.md)
+
+产品/范围定稿：`origin/docs/admin-console-plan` 分支的 `docs/agent/28-admin-console.md` 与 `docs/adr/ADR-009-admin-in-demo.md`。
+
+核心端点：
+
+```text
+POST /api/v1/admin/auth/login
+GET  /api/v1/admin/me
+POST /api/v1/admin/logout
+GET  /api/v1/admin/overview
+GET  /api/v1/admin/users
+GET  /api/v1/admin/users/{id}
+POST /api/v1/admin/users/{id}/status
+POST /api/v1/admin/users/{id}/force-logout
+GET  /api/v1/admin/password-requests
+POST /api/v1/admin/password-requests/{id}/approve
+POST /api/v1/admin/password-requests/{id}/reject
+POST /api/v1/admin/password-requests/{id}/regenerate-temp-password
+POST /api/v1/auth/password-reset-requests
+GET  /api/v1/admin/questions
+GET  /api/v1/admin/questions/{id}
+POST /api/v1/admin/questions/{id}/moderation
+GET  /api/v1/admin/tasks
+GET  /api/v1/admin/tasks/{id}
+POST /api/v1/admin/tasks/{id}/retry
+POST /api/v1/admin/tasks/{id}/cancel
+GET  /api/v1/admin/ai-logs
+GET  /api/v1/admin/ai-logs/{id}
+POST /api/v1/admin/ai-logs/{id}/raw
+GET  /api/v1/admin/audit
+GET  /api/v1/admin/audit/{id}
+GET  /api/v1/admin/audit/export.csv
+GET  /api/v1/admin/alerts
+POST /api/v1/admin/alerts/{key}/ack
+POST /api/v1/admin/alerts/{key}/unack
+GET  /api/v1/admin/system
+```
+
+## 结构
 
 ```text
 admin/
-├── package.json
-├── vite.config.ts        # base: '/admin/'；dev 5174；代理 /api → :8000
-├── index.html
-├── .env.example
-├── src/
-│   ├── main.ts
-│   ├── App.vue
-│   ├── api/              # client、admin.ts、types.ts
-│   ├── router/           # route path：/login、/、/users...（base=/admin/，实际 URL 为 /admin/login）
-│   ├── stores/auth.ts    # 独立 localStorage key（bababoi:admin-token）
-│   ├── layouts/AdminShell.vue
-│   ├── components/       # KPI card、DataTable、StatusTag、ConfirmWithReason...
-│   └── views/            # Login/Dashboard/Users/PasswordRequests/Questions/Tasks/AiLogs/Audit/System
-└── README.md
+├── src/api/          # client.ts + 全部 admin API 函数
+├── src/stores/       # auth.ts + adminData.ts
+├── src/layouts/      # AdminShell
+├── src/components/   # KPI / 状态标签 / 审批弹窗 / 趋势图
+├── src/views/        # 10 个页面
+├── src/styles/       # admin.css + Calm Academic 对齐样式
+└── API_CONTRACT.md   # 后端实现合同
 ```
 
-## 页面与演示档位
+## 安全边界
 
-| 页面 | 内容 | 演示档位 |
-|---|---|---|
-| 登录 | 管理员账号登录；非 admin 拒绝 | 必须 |
-| 总览 | 4 个 KPI + AI 成功率/延迟 + 失败任务数 | 必须 |
-| 用户 | 列表、搜索、禁用/启用、强制下线 | 目标（列表/禁用） |
-| 密码申请 | 线上申请列表、审批/拒绝、临时密码一次性展示与重新生成 | 目标 |
-| 内容 | 错题/生成题列表与详情；软删除/隐藏/标记 | 演示后 |
-| 任务 | 队列列表、状态筛选、失败重试/排队取消 | 必须 |
-| AI 日志 | operation/model/status/latency/tokens/error；raw 单独接口 | 必须 |
-| 审计 | admin 删除/重试/禁用/审批/敏感读取记录 | 必须（列表） |
-| 系统 | 健康、版本/环境、只读配置 | 必须 |
+- 管理端使用独立 `bababoi:admin-token` / `bababoi:admin-user`，与学生端 localStorage 分开。
+- 不返回 `password_hash`、API Key 密文、完整 Key 或临时密码。
+- 原始 AI 输出需要单独请求并写审计。
+- 所有管理员写操作由后端写审计；前端不做本地伪造。
 
-## 后端依赖（尚未实现）
+## 已知未完成
 
-- `users.role`（student/admin）、`users.disabled_at`、`users.must_change_password`、`users.temp_password_expires_at` + migration + seed 管理员。
-- `require_admin` 依赖：查 DB 角色，学生 token 一律 403。
-- `admin_audit_logs` + 审计服务。
-- `password_reset_requests` + 学生线上申请 + 管理员审批接口。
-- `GET /api/v1/admin/overview`
-- `GET /api/v1/admin/users`、`PATCH /api/v1/admin/users/{id}`、`POST /api/v1/admin/users/{id}/force-logout`
-- `GET /api/v1/admin/password-reset-requests`、`POST .../{id}/approve`、`POST .../{id}/reject`、`POST .../{id}/regenerate-temp-password`
-- `GET /api/v1/admin/audit`
-- `GET /api/v1/admin/questions`、`DELETE /api/v1/admin/questions/{id}`
-- `GET /api/v1/admin/tasks`、`POST /api/v1/admin/tasks/{id}/retry`
-- `GET /api/v1/admin/ai-logs`
-
-## 开始条件
-
-1. ADR-005 + ADR-009 已确认，`28-admin-console.md` 作为详细契约。
-2. Phase 0 基础：`users.role`/`disabled_at`、`require_admin`、`admin_audit_logs`、seed admin。
-3. 先做“登录 + 总览 + 任务/AI 日志只读”，再做密码申请审批等写操作。
-
-## 安全底线
-
-- 不提交默认管理员密码；seed 用环境变量或一次性密码。
-- admin 响应不返回 `password_hash`、密钥、其他用户敏感信息。
-- 所有删除软删；审计日志 P1，不提供 UI 删除。
-- admin 不直接执行 SQL，不做用户模拟登录。
-- admin 的 localStorage key 与学生端分开（如 `bababoi:admin-token`）。
-- 不新增姓名/学号；密码申请只使用用户名 + 可选邮箱 + 原因。
-- 临时密码只在管理端显示一次，24h 有效，学生登录后强制改密；不写日志/审计/数据库明文。
-- 没有邮件/短信通知；管理员通过现有外部渠道通知学生。
+- 后端只读/写端点（overview/users/tasks/ai-logs/audit/system 等）见 #124 等，仍在合入；真实端到端联调未完成。
+- 密码申请审批、内容审核、告警确认等写端点待后端。
+- 部分后端合同没有的聚合指标在页面上显示 `—`，不编造数字。
