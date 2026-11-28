@@ -497,13 +497,6 @@ erDiagram
 >
 > 已知风险：防重复是“先查后插”，并发请求理论上仍可能双双通过；MVP 单人单端可接受，BE-016 再收紧。整组重生成会软删旧 3 题，对旧题补交返回 404；已入库的 practice_records 不受影响。
 
-### 6.5c v0.5 展示字段（#105，P1，演示后实现）
-
-- `GET /stats/overview`：`total_duration_seconds` = 该用户全部 `practice_records.duration_seconds` 求和（与 `total_practice_records` 同口径，父题删除的流水也算）；`average_duration_seconds` = 四舍五入 total / 条数，0 条时为 0。
-- `GET /questions/{id}?include=generated` 与 `GET /generated-questions/{id}`：生成题增加 `practice_count` / `correct_count`（按 `practice_records` 聚合）与 `last_practiced_at`（最新一条 `created_at`，UTC 带 `Z`，未练过为 `null`）。
-- `knowledge-points/{id}.mastery_history`：当前没有该端点、前端也没有知识点页，范围确定后再定。
-- Markdown / Mermaid 围栏原样往返：存储与接口不改写、不转义；回归测试 `backend/tests/test_markdown_fence_passthrough.py`（2026-11-28 补）。
-
 ### 6.5b 草稿与任务
 
 | 方法 | 路径 | 说明 |
@@ -524,6 +517,13 @@ erDiagram
 > - 删除后再保存，`version` 从 1 重新计。
 
 > `TaskOut` 必须含 `question_id`；P0 用 `GET /tasks` 轮询，SSE 为 P1。
+
+### 6.5c v0.5 展示字段（#105，P1，演示后实现）
+
+- `GET /stats/overview`：`total_duration_seconds` = 该用户全部 `practice_records.duration_seconds` 求和（与 `total_practice_records` 同口径，父题删除的流水也算）；`average_duration_seconds` = 四舍五入 total / 条数，0 条时为 0。
+- `GET /questions/{id}?include=generated` 与 `GET /generated-questions/{id}`：生成题增加 `practice_count` / `correct_count`（按 `practice_records` 聚合）与 `last_practiced_at`（最新一条 `created_at`，UTC 带 `Z`，未练过为 `null`）。
+- `knowledge-points/{id}.mastery_history`：当前没有该端点、前端也没有知识点页，范围确定后再定。
+- Markdown / Mermaid 围栏原样往返：存储与接口不改写、不转义；回归测试 `backend/tests/test_markdown_fence_passthrough.py`（2026-11-28 补）。
 
 ### 6.6 统计与标签（P1）
 
